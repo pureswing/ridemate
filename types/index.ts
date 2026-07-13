@@ -3,6 +3,18 @@ export type PostType = 'offer' | 'request';
 export type PostStatus = 'active' | 'filled' | 'cancelled' | 'expired';
 export type PostVisibility = 'public' | 'private';
 export type ContactMethod = 'in_app' | 'whatsapp' | 'phone' | 'email';
+export type RidePostKind = 'ride' | 'package' | 'hauling';
+// RM_ACCESS_OPTIONS catalog — self-described rider accessibility needs, stored
+// on the profile (see supabase/migrations/008_accessibility_needs.sql).
+export type AccessibilityNeed =
+  | 'hard-of-hearing'
+  | 'low-vision'
+  | 'limited-mobility'
+  | 'no-heavy-lift'
+  | 'wheelchair'
+  | 'prefers-text'
+  | 'service-animal'
+  | 'sensory';
 export type SubscriptionStatus = 'free' | 'active' | 'expired' | 'cancelled';
 export type SubscriptionPlan = 'monthly' | 'annual' | 'donation';
 export type AgreementStatus = 'pending' | 'active' | 'completed' | 'cancelled' | 'no_show';
@@ -24,6 +36,7 @@ export interface Profile {
   default_role: UserRole;
   disclaimer_accepted_at?: string;
   is_active: boolean;
+  accessibility_needs: AccessibilityNeed[];
   created_at: string;
   updated_at: string;
 }
@@ -39,10 +52,57 @@ export interface Subscription {
   created_at: string;
 }
 
+// Kind-specific fields that don't need SQL-level filtering yet — stored in
+// ride_posts.details jsonb (see supabase/migrations/007_post_kinds.sql).
+// Ride-specific fields that DO get filtered/displayed prominently (round_trip,
+// airport, airport_leg, flight_number) are real RidePost columns instead.
+export interface RidePostDetailsRide {
+  rules?: Record<string, boolean>;
+  vehicleType?: string;
+  comfortPrefs?: string[];
+  climatePrefs?: string[];
+  tempPref?: number;
+  bags?: number;
+  bagTypes?: string[];
+  oversizedInfo?: { types: string[]; other: string }[];
+  childSeatPrefs?: string[];
+  adults?: number;
+  children?: number;
+  eventName?: string;
+  vehiclesNeeded?: number;
+}
+
+export interface RidePostDetailsPackage {
+  qty?: number;
+  packageSize?: 'envelope' | 'small' | 'large' | 'oversized';
+  contentTags?: string[];
+  handling?: string[];
+  declaredValue?: number;
+  prohibitedConfirmed?: string[];
+  inspectionOk?: boolean;
+  oathAccepted?: boolean;
+  oathAcceptedAt?: string;
+}
+
+export interface RidePostDetailsHauling {
+  loadTypes?: string[];
+  loadSize?: 'suv' | 'half' | 'full' | 'multi';
+  disposal?: 'driver' | 'address';
+  dropoffAddress?: string;
+  access?: string[];
+  helpNeeded?: boolean;
+  hazardous?: boolean;
+  prohibitedConfirmed?: string[];
+  photoUrl?: string;
+}
+
+export type RidePostDetails = RidePostDetailsRide | RidePostDetailsPackage | RidePostDetailsHauling;
+
 export interface RidePost {
   id: string;
   user_id: string;
   type: PostType;
+  kind: RidePostKind;
   visibility: PostVisibility;
   goes_public_at?: string;
   origin_city: string;
@@ -61,6 +121,11 @@ export interface RidePost {
   contact_value?: string;
   status: PostStatus;
   views_count: number;
+  round_trip: boolean;
+  airport: boolean;
+  airport_leg?: 'to' | 'from';
+  flight_number?: string;
+  details: RidePostDetails;
   created_at: string;
   updated_at: string;
   expires_at: string;
@@ -70,6 +135,15 @@ export interface RidePost {
   info_updated?: boolean;
   edited_at?: string;
   profile?: Pick<Profile, 'full_name' | 'avatar_url' | 'default_role'>;
+}
+
+// supabase/migrations/009_route_price_stats.sql — get_route_price_stats() RPC.
+// avg_donation/sample_size are both null-ish (0 rows) when there's no history
+// for the route yet; the UI rule is: sample_size < 3 means "not enough data",
+// never present it as a market rate.
+export interface RouteStats {
+  avg_donation: number | null;
+  sample_size: number;
 }
 
 export interface ContactReveal {

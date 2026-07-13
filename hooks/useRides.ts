@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRideStore } from '@/store/rideStore';
-import { RidePost } from '@/types';
+import { RidePost, RouteStats } from '@/types';
 
 export function useRides() {
   const { filters, setPosts, setLoading } = useRideStore();
@@ -39,7 +39,10 @@ export function useRides() {
   }, [filters, setPosts, setLoading]);
 
   async function createPost(
-    post: Omit<RidePost, 'id' | 'created_at' | 'updated_at' | 'expires_at' | 'views_count' | 'status' | 'profile'>
+    // kind/round_trip/airport/details are omitted here (not just optional) —
+    // post.tsx doesn't collect them yet, so they fall through to the columns'
+    // own DB defaults ('ride', false, false, '{}') on insert.
+    post: Omit<RidePost, 'id' | 'created_at' | 'updated_at' | 'expires_at' | 'views_count' | 'status' | 'profile' | 'kind' | 'round_trip' | 'airport' | 'details'>
   ) {
     const { data, error } = await supabase
       .from('ride_posts')
@@ -58,6 +61,18 @@ export function useRides() {
       .single();
     if (error) throw error;
     return data as RidePost;
+  }
+
+  // supabase/migrations/009_route_price_stats.sql — historical average donation
+  // for this exact origin/destination city pair. Caller must check
+  // sample_size (e.g. < 3) before presenting avg_donation as anything
+  // meaningful — see RouteStats' own doc comment.
+  async function getRoutePriceStats(originCity: string, destinationCity: string): Promise<RouteStats> {
+    const { data, error } = await supabase
+      .rpc('get_route_price_stats', { p_origin_city: originCity, p_destination_city: destinationCity })
+      .single();
+    if (error) throw error;
+    return data as RouteStats;
   }
 
   async function revealContact(postId: string, requesterId: string) {
@@ -132,5 +147,5 @@ export function useRides() {
     return data as RidePost;
   }
 
-  return { fetchPosts, createPost, getPostById, revealContact, cancelPost, updatePost };
+  return { fetchPosts, createPost, getPostById, getRoutePriceStats, revealContact, cancelPost, updatePost };
 }
