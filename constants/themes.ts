@@ -93,7 +93,7 @@ export interface ShadowStyle {
   elevation: number;
 }
 
-export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orchid', ShadowStyle> = {
+export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orchid' | 'goldTight' | 'jadeTight' | 'orchidTight', ShadowStyle> = {
   xs:     { shadowColor: '#1E2A32', shadowOffset: { width: 0, height: 1 },  shadowOpacity: 0.06, shadowRadius: 2,  elevation: 1 },
   sm:     { shadowColor: '#1E2A32', shadowOffset: { width: 0, height: 2 },  shadowOpacity: 0.06, shadowRadius: 4,  elevation: 2 },
   md:     { shadowColor: '#1E2A32', shadowOffset: { width: 0, height: 6 },  shadowOpacity: 0.08, shadowRadius: 16, elevation: 4 },
@@ -101,6 +101,11 @@ export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orch
   gold:   { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.34, shadowRadius: 24, elevation: 6 },
   jade:   { shadowColor: '#0E9C93', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.30, shadowRadius: 24, elevation: 6 },
   orchid: { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.30, shadowRadius: 24, elevation: 6 },
+  // Tighter, more opaque versions for small elements (chips) — a small radius/offset
+  // hugs the shape instead of blooming into a big soft "cloud" underneath it.
+  goldTight:   { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
+  jadeTight:   { shadowColor: '#0E9C93', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
+  orchidTight: { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
 };
 
 export const theme: AppTheme = {
@@ -181,6 +186,7 @@ export const fonts = {
   bodyMedium:   'PlusJakartaSans_500Medium',
   bodySemibold: 'PlusJakartaSans_600SemiBold',
   bodyBold:     'PlusJakartaSans_700Bold',
+  bodyExtraBold: 'PlusJakartaSans_800ExtraBold',
   bodyItalic:   'PlusJakartaSans_700Bold_Italic',
   displaySemibold:  'BricolageGrotesque_600SemiBold',
   displayBold:      'BricolageGrotesque_700Bold',
@@ -204,3 +210,16 @@ export const controlHeight = {
 export const spacing = {
   0: 0, 1: 4, 2: 8, 3: 12, 4: 16, 5: 20, 6: 24, 8: 32, 10: 40, 12: 48, 16: 64, 20: 80,
 };
+
+// Hex -> rgba() with a given opacity — for borders/overlays that need to tint
+// toward a theme color (e.g. text color) at partial transparency, since RN
+// has no CSS color-mix()/alpha-hex shorthand.
+export function withOpacity(hex: string, opacity: number): string {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const bigint = parseInt(full, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}

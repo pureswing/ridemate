@@ -17,6 +17,9 @@ interface Props {
   disabled?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  // Overrides the variant's default shadow — e.g. the feed header uses shadows.xs
+  // on every button/chip in its filter row, constant regardless of state.
+  shadow?: ShadowStyle;
 }
 
 const SIZES: Record<Size, { box: number; icon: number }> = {
@@ -26,7 +29,7 @@ const SIZES: Record<Size, { box: number; icon: number }> = {
 };
 
 // Circular icon-only button.
-export function IconButton({ icon, size = 'md', variant = 'soft', label, disabled = false, onPress, style }: Props) {
+export function IconButton({ icon, size = 'md', variant = 'soft', label, disabled = false, onPress, style, shadow }: Props) {
   const theme = useTheme();
   const s = SIZES[size];
   const [pressed, setPressed] = useState(false);
@@ -38,6 +41,7 @@ export function IconButton({ icon, size = 'md', variant = 'soft', label, disable
     glass: { background: theme.surface, color: theme.text, shadow: shadows.sm },
   };
   const v = variants[variant];
+  const resolvedShadow = shadow ?? v.shadow;
 
   return (
     // All visual styling lives on this plain View with a static style object —
@@ -51,7 +55,7 @@ export function IconButton({ icon, size = 'md', variant = 'soft', label, disable
           backgroundColor: v.background,
           opacity: disabled ? 0.45 : 1,
           transform: pressed && !disabled ? [{ scale: 0.9 }] : [{ scale: 1 }],
-          ...(v.shadow ?? {}),
+          ...(resolvedShadow ?? {}),
         },
         style,
       ]}

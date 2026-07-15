@@ -3,6 +3,29 @@ import { supabase } from '@/lib/supabase';
 import { useRideStore } from '@/store/rideStore';
 import { RidePost, RouteStats } from '@/types';
 
+// vehicle_profiles.user_id references auth.users, not public.profiles (unlike
+// every other table), so PostgREST can't auto-embed it under profiles(...) —
+// fetched separately and merged here instead of fixing the FK (that needs
+// table-owner privileges we don't have on this Supabase project).
+async function withVehicleVerification(posts: RidePost[]): Promise<RidePost[]> {
+  const userIds = [...new Set(posts.map((p) => p.user_id))];
+  if (userIds.length === 0) return posts;
+
+  const { data, error } = await supabase
+    .from('vehicle_profiles')
+    .select('user_id, insurance_self_certified')
+    .in('user_id', userIds);
+  if (error || !data) return posts;
+
+  const byUser = new Map<string, boolean>();
+  for (const v of data) byUser.set(v.user_id, v.insurance_self_certified);
+
+  return posts.map((post) => post.profile ? {
+    ...post,
+    profile: { ...post.profile, vehicle_profiles: [{ insurance_self_certified: byUser.get(post.user_id) ?? false }] },
+  } : post);
+}
+
 export function useRides() {
   const { filters, setPosts, setLoading } = useRideStore();
 
@@ -32,7 +55,7 @@ export function useRides() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setPosts((data as RidePost[]) ?? []);
+      setPosts(await withVehicleVerification((data as RidePost[]) ?? []));
     } finally {
       setLoading(false);
     }
@@ -60,7 +83,8 @@ export function useRides() {
       .eq('id', id)
       .single();
     if (error) throw error;
-    return data as RidePost;
+    const [withVerification] = await withVehicleVerification([data as RidePost]);
+    return withVerification;
   }
 
   // supabase/migrations/009_route_price_stats.sql — historical average donation

@@ -134,7 +134,12 @@ export interface RidePost {
   original_suggested_donation?: number;
   info_updated?: boolean;
   edited_at?: string;
-  profile?: Pick<Profile, 'full_name' | 'avatar_url' | 'default_role'>;
+  profile?: Pick<Profile, 'full_name' | 'avatar_url' | 'default_role'> & {
+    // Joined so RideCard can show Avatar's `verified` badge — self-certified
+    // insurance only (VehicleProfile.insurance_self_certified), never a
+    // verification the app itself performs.
+    vehicle_profiles?: Pick<VehicleProfile, 'insurance_self_certified'>[];
+  };
 }
 
 // supabase/migrations/009_route_price_stats.sql — get_route_price_stats() RPC.
@@ -239,9 +244,14 @@ export interface AmenityDetail {
 
 export type AmenityDetails = Partial<Record<VehicleAmenity, AmenityDetail>>;
 
+// supabase/migrations/011_vehicle_kind.sql — up to 2 vehicles per user, one per
+// kind (unique on user_id+kind, not just user_id anymore).
+export type VehicleKind = 'rides_courier' | 'hauling';
+
 export interface VehicleProfile {
   id: string;
   user_id: string;
+  kind: VehicleKind;
   vin?: string;
   make: string;
   model: string;

@@ -77,7 +77,7 @@ export default function PostScreen() {
 
   useEffect(() => {
     if (session?.user?.id) {
-      getMyVehicle(session.user.id)
+      getMyVehicle(session.user.id, 'rides_courier')
         .then(v => {
           if (v?.seats) {
             setVehicleSeats(v.seats);

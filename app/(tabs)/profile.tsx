@@ -1,74 +1,158 @@
 import { useState, useEffect } from 'react';
-import {
-  View, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, Image, Modal,
-} from 'react-native';
+import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
+import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
+import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Avatar } from '@/components/ui/Avatar';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { PaywallModal } from '@/components/subscription/PaywallModal';
-import { BadgeDisplay } from '@/components/community/BadgeDisplay';
 import { EditVehicleModal } from '@/components/profile/EditVehicleModal';
-import { VehicleDetailModal, AMENITY_LABELS } from '@/components/profile/VehicleDetailModal';
 import { EditProfileModal } from '@/components/profile/EditProfileModal';
 import { PreferencesModal } from '@/components/profile/PreferencesModal';
-import { AccountModal } from '@/components/profile/AccountModal';
 import { RideHistoryModal } from '@/components/profile/RideHistoryModal';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
-import { useLanguageStore } from '@/store/languageStore';
-import { Icon } from '@/components/ui/Icon';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BadgeCount, StrikeLevel, VehicleProfile } from '@/types';
+import { BadgeCount, StrikeLevel, VehicleProfile, VehicleKind, BadgeType } from '@/types';
 import { IconName } from '@/constants/icons';
+import { fonts, shadows } from '@/constants/themes';
+import { textStyles, tracking, leading, letterSpacingFor } from '@/constants/typography';
+
+// The "STATS"-style card category label: font-body extrabold, tracking-wide,
+// uppercase, text-faint — a distinct spec from the shared textStyles.eyebrow
+// (bold + tracking-caps), so overridden locally rather than changing that
+// shared token and risking every other eyebrow usage (header greeting, etc.)
+const categoryLabelStyle = {
+  fontFamily: fonts.bodyExtraBold,
+  fontSize: 11,
+  lineHeight: Math.round(11 * leading.tight),
+  letterSpacing: letterSpacingFor(11, tracking.wide),
+  textTransform: 'uppercase' as const,
+};
+
+// Icon + accent color per badge type — BadgeDisplay (community list) has no
+// per-type icon convention yet, this is a new mapping just for this row.
+const BADGE_ICONS: Record<BadgeType, { icon: IconName; color: string }> = {
+  clean_car:     { icon: 'car',          color: '#0E9C93' },
+  punctual:      { icon: 'schedule',     color: '#B8860B' },
+  friendly:      { icon: 'handshake',    color: '#ED4A2B' },
+  good_vibes:    { icon: 'music_ok',     color: '#D6409F' },
+  smooth_ride:   { icon: 'route',        color: '#0A7E77' },
+  on_time:       { icon: 'schedule',     color: '#B8860B' },
+  communicative: { icon: 'chat',         color: '#08637A' },
+  respectful:    { icon: 'handshake',    color: '#ED4A2B' },
+  tidy:          { icon: 'check_circle', color: '#0A7E77' },
+  great_company: { icon: 'star',         color: '#9E4A14' },
+};
+
+// Category label + bold title + optional subtitle + chevron — the settings-list
+// row shape from the design. Card already gives it the press/shadow behavior.
+function SettingRow({
+  icon, iconColor, category, title, subtitle, onPress,
+}: {
+  icon: IconName;
+  iconColor: string;
+  category: string;
+  title: string;
+  subtitle?: string;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  return (
+    <Card interactive onPress={onPress} padding={14} radius={16} elevation="lg" style={{ marginBottom: 20 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+        <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: iconColor + '18', alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={icon} size={21} color={iconColor} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={{ ...categoryLabelStyle, color: theme.textFaint }}>{category}</Text>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 17, lineHeight: Math.round(17 * leading.tight), letterSpacing: letterSpacingFor(17, tracking.tight), color: theme.text, marginTop: 2 }}>
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, lineHeight: Math.round(12.5 * leading.tight), color: theme.muted, marginTop: 1 }}>
+              {subtitle}
+            </Text>
+          ) : null}
+        </View>
+        <Icon name="chevron_right" size={18} color={theme.muted} />
+      </View>
+    </Card>
+  );
+}
+
+// The two vehicle slots — icon + category label, then the vehicle name or an
+// "add" prompt. Matches the design's compact side-by-side vehicle cards.
+function VehicleMiniCard({
+  icon, label, vehicle, onPress,
+}: {
+  icon: IconName;
+  label: string;
+  vehicle: VehicleProfile | undefined;
+  onPress: () => void;
+}) {
+  const theme = useTheme();
+  const t = useTranslation();
+  return (
+    <Card interactive onPress={onPress} padding={12} radius={16} elevation="lg" pressedScale={0.95} style={{ flex: 1 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <View style={{ width: 28, height: 28, borderRadius: 8, backgroundColor: theme.driverSoft, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={icon} size={16} color={theme.driverText} />
+        </View>
+        <Text numberOfLines={1} style={{ ...categoryLabelStyle, fontSize: 10, lineHeight: Math.round(10 * leading.snug), letterSpacing: letterSpacingFor(10, 0.06), color: theme.driverText, flexShrink: 1 }}>
+          {label}
+        </Text>
+      </View>
+      <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 12, color: theme.text }}>
+        {vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : t.profile.tapToAddVehicle}
+      </Text>
+    </Card>
+  );
+}
 
 export default function ProfileScreen() {
   const { profile, session } = useAuthStore();
   const { signOut } = useAuth();
-  const { isActive, isFree, planLabel } = useSubscription();
+  const { isActive, isFree, daysRemaining } = useSubscription();
   const { getBadgeCounts, getStrikeLevel } = useBadges();
-  const { getMyVehicle } = useVehicleProfile();
+  const { getMyVehicles } = useVehicleProfile();
+  const t = useTranslation();
+  const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [badges, setBadges] = useState<BadgeCount[]>([]);
   const [strikeLevel, setStrikeLevel] = useState<StrikeLevel>(0);
   const [communityLoading, setCommunityLoading] = useState(false);
-  const [vehicle, setVehicle] = useState<VehicleProfile | null>(null);
+  const [vehicles, setVehicles] = useState<VehicleProfile[]>([]);
   const [vehicleLoading, setVehicleLoading] = useState(false);
   const [tripCount, setTripCount] = useState<number | null>(null);
   const [postCount, setPostCount] = useState<number | null>(null);
+  const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
+  const [nextRideAt, setNextRideAt] = useState<string | null>(null);
 
-  // Modal visibility
-  const [showVehicle, setShowVehicle] = useState(false);
-  const [showVehicleDetail, setShowVehicleDetail] = useState(false);
+  const [editingVehicleKind, setEditingVehicleKind] = useState<VehicleKind | null>(null);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
-  const [tooltipAmenity, setTooltipAmenity] = useState<string | null>(null);
-
-  const t = useTranslation();
-  const theme = useTheme();
-  const { language } = useLanguageStore();
-  const insets = useSafeAreaInsets();
 
   const userId = session?.user?.id ?? '';
-  const email = session?.user?.email ?? '';
-
-  const HERO_GRADIENT: [string, string] = ['#B8840A', '#E8C840'];
-  const HERO_TEXT    = '#1A0D00';
-  const HERO_SUBTEXT = 'rgba(26, 13, 0, 0.65)';
-
+  const verified = vehicles.some((v) => v.insurance_self_certified);
+  const totalBadges = badges.reduce((s, b) => s + b.count, 0);
 
   useEffect(() => {
     if (userId) {
       loadCommunityData();
-      loadVehicle();
+      loadVehicles();
       loadStats();
     }
   }, [userId]);
@@ -82,15 +166,15 @@ export default function ProfileScreen() {
     } catch {} finally { setCommunityLoading(false); }
   }
 
-  async function loadVehicle() {
+  async function loadVehicles() {
     setVehicleLoading(true);
-    try { setVehicle(await getMyVehicle(userId)); }
+    try { setVehicles(await getMyVehicles(userId)); }
     catch {} finally { setVehicleLoading(false); }
   }
 
   async function loadStats() {
     try {
-      const [tripsRes, postsRes] = await Promise.all([
+      const [tripsRes, postsRes, upcomingRes, nextRideRes] = await Promise.all([
         supabase
           .from('ride_agreements')
           .select('id', { count: 'exact', head: true })
@@ -100,9 +184,26 @@ export default function ProfileScreen() {
           .from('ride_posts')
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId),
+        supabase
+          .from('ride_posts')
+          .select('id', { count: 'exact', head: true })
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .gt('scheduled_at', new Date().toISOString()),
+        supabase
+          .from('ride_posts')
+          .select('scheduled_at')
+          .eq('user_id', userId)
+          .eq('status', 'active')
+          .gt('scheduled_at', new Date().toISOString())
+          .order('scheduled_at', { ascending: true })
+          .limit(1)
+          .maybeSingle(),
       ]);
       setTripCount(tripsRes.count ?? 0);
       setPostCount(postsRes.count ?? 0);
+      setUpcomingCount(upcomingRes.count ?? 0);
+      setNextRideAt(nextRideRes.data?.scheduled_at ?? null);
     } catch {}
   }
 
@@ -113,534 +214,288 @@ export default function ProfileScreen() {
     ]);
   }
 
-  const cardShadow = {
-    shadowColor: theme.cardShadowColor as string,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: theme.cardShadowOpacity,
-    shadowRadius: 12,
-    elevation: 6,
-  };
-
-  // ── Reusable settings row card ────────────────────────────────────────
-  function SettingCard({
-    icon, label, preview, onPress, danger = false,
-  }: {
-    icon: IconName;
-    label: string;
-    preview?: string;
-    onPress: () => void;
-    danger?: boolean;
-  }) {
-    const iconColor = danger ? theme.danger : theme.primary;
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.7}
-        style={{
-          backgroundColor: theme.surface,
-          borderWidth: 1,
-          borderColor: danger ? theme.danger + '30' : theme.border,
-          borderRadius: 14,
-          paddingHorizontal: 16,
-          paddingVertical: 14,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 14,
-          marginBottom: 10,
-          ...cardShadow,
-        }}
-      >
-        <View style={{
-          width: 36, height: 36, borderRadius: 10,
-          backgroundColor: iconColor + '18',
-          alignItems: 'center', justifyContent: 'center',
-        }}>
-          <Icon name={icon} size={19} color={iconColor} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: danger ? theme.danger : theme.text, fontFamily: theme.fontDisplay, fontSize: 15 }}>
-            {label}
-          </Text>
-          {preview ? (
-            <Text style={{ color: theme.muted, fontSize: 12, marginTop: 1 }}>{preview}</Text>
-          ) : null}
-        </View>
-        <Icon name="chevron_right" size={18} color={theme.muted} />
-      </TouchableOpacity>
-    );
-  }
-
-  // ── Section label ─────────────────────────────────────────────────────
-  function SectionLabel({ text }: { text: string }) {
-    return (
-      <Text style={{
-        color: theme.muted, fontSize: 11, fontFamily: theme.fontDisplay,
-        letterSpacing: 1.2, textTransform: 'uppercase',
-        marginBottom: 8, marginTop: 20,
-      }}>
-        {text}
-      </Text>
-    );
+  function comingSoon() {
+    Alert.alert(t.profile.comingSoonTitle, t.profile.comingSoonMsg);
   }
 
   return (
-    <ScrollView style={{ flex: 1, backgroundColor: theme.background }}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar style="light" />
 
-      {/* ── Profile hero banner ─────────────────────────────────────────── */}
+      {/* ── Fixed: hero + floating stats card, don't scroll — everything
+          below this scrolls underneath in its own ScrollView. ─────────── */}
       <LinearGradient
-        colors={HERO_GRADIENT}
-        style={{
-          paddingTop: insets.top + 16,
-          paddingBottom: 32,
-          alignItems: 'center',
-          borderBottomLeftRadius: 28,
-          borderBottomRightRadius: 28,
-        }}
+        colors={theme.gradientGold as [string, string, ...string[]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 12, paddingBottom: 56, alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.lg }}
       >
-        {/* Settings button — top right */}
-        <TouchableOpacity
-          onPress={() => setShowPreferences(true)}
-          activeOpacity={0.75}
-          style={{
-            position: 'absolute',
-            top: insets.top + 12,
-            right: 16,
-            width: 40, height: 40, borderRadius: 20,
-            backgroundColor: 'rgba(255,255,255,0.12)',
-            alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          <Icon name="settings" size={20} color={HERO_TEXT} />
-        </TouchableOpacity>
-
-        {/* Avatar */}
-        <TouchableOpacity
-          onPress={() => setShowEditProfile(true)}
-          activeOpacity={0.85}
-          style={{ marginBottom: 14 }}
-        >
-          <View style={{
-            width: 96, height: 96, borderRadius: 48,
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.35,
-            shadowRadius: 12,
-            elevation: 10,
-          }}>
-            <View style={{
-              width: 96, height: 96, borderRadius: 48, overflow: 'hidden',
-              backgroundColor: HERO_TEXT,
-              alignItems: 'center', justifyContent: 'center',
-              borderWidth: 3,
-              borderColor: 'rgba(255,255,255,0.7)',
-            }}>
-              {profile?.avatar_url ? (
-                <Image source={{ uri: profile.avatar_url }} style={{ width: 96, height: 96 }} />
-              ) : (
-                <Text style={{ fontSize: 38, color: '#E8C840', fontFamily: theme.fontDisplay }}>
-                  {profile?.full_name?.[0]?.toUpperCase() ?? '?'}
-                </Text>
+        {strikeLevel > 0 && (
+          <View style={{ position: 'absolute', top: insets.top + 12, right: 72 }}>
+            <IconButton
+              icon="warning"
+              variant="glass"
+              shadow={shadows.xs}
+              label={t.strikes[`level${strikeLevel}` as 'level1' | 'level2' | 'level3']}
+              onPress={() => Alert.alert(
+                t.strikes[`level${strikeLevel}` as 'level1' | 'level2' | 'level3'],
+                strikeLevel === 3 ? t.strikes.level3Detail : t.strikes.strikeDetail
               )}
-            </View>
+            />
+            <View style={{
+              position: 'absolute', top: -2, right: -2,
+              width: 12, height: 12, borderRadius: 6,
+              backgroundColor: strikeLevel === 3 ? theme.danger : theme.badgeWarnFg,
+              borderWidth: 2, borderColor: theme.tabBarBg,
+            }} />
           </View>
+        )}
+        <IconButton
+          icon="settings"
+          variant="glass"
+          shadow={shadows.xs}
+          label={t.profile.settingsLabel}
+          onPress={() => setShowPreferences(true)}
+          style={{ position: 'absolute', top: insets.top + 12, right: 20 }}
+        />
 
-          {/* Camera badge */}
+        <TouchableOpacity onPress={() => setShowEditProfile(true)} activeOpacity={0.85} style={{ marginBottom: 14, marginTop: 8 }}>
+          <View style={{ padding: 3, borderRadius: 51, backgroundColor: 'rgba(255,255,255,0.9)', ...shadows.md }}>
+            <Avatar
+              name={profile?.full_name ?? ''}
+              src={profile?.avatar_url}
+              photo={!!profile?.avatar_url}
+              icon={!profile?.avatar_url ? 'person' : undefined}
+              size={90}
+              verified={verified}
+            />
+          </View>
           <View style={{
-            position: 'absolute', bottom: 2, right: 2,
-            width: 28, height: 28, borderRadius: 14,
-            backgroundColor: '#E8C840',
+            position: 'absolute', bottom: -2, right: -2,
+            width: 30, height: 30, borderRadius: 15,
+            backgroundColor: theme.secondary,
             alignItems: 'center', justifyContent: 'center',
-            borderWidth: 2.5,
-            borderColor: HERO_TEXT,
+            borderWidth: 2.5, borderColor: theme.tabBarBg,
           }}>
-            <Icon name="camera" size={13} color={HERO_TEXT} />
+            <Icon name="camera" size={14} color="#FFFFFF" />
           </View>
         </TouchableOpacity>
 
-        {/* Full name */}
-        <Text style={{
-          fontSize: 22, color: HERO_TEXT,
-          fontFamily: theme.fontDisplay,
-        }}>
-          {profile?.full_name}
-        </Text>
-
-        {/* @username */}
-        {profile?.username ? (
-          <Text style={{ color: HERO_SUBTEXT, fontSize: 13, marginTop: 3 }}>
-            @{profile.username}
-          </Text>
-        ) : null}
-
-        {/* Member since */}
-        <Text style={{ color: HERO_SUBTEXT, fontSize: 12, marginTop: 4 }}>
+        <Text style={{ ...textStyles.h3, color: theme.textOnPrimary }}>{profile?.full_name}</Text>
+        <Text style={{ ...textStyles.eyebrow, color: theme.gold300, marginTop: 4 }}>
           {t.profile.memberSince}{' '}
           {profile?.created_at
             ? new Date(profile.created_at).toLocaleDateString(t.locale, { month: 'long', year: 'numeric' })
             : '—'}
         </Text>
-
-        {/* ── Stats row ────────────────────────────────────────────────── */}
-        <View style={{
-          flexDirection: 'row',
-          marginTop: 18,
-          marginHorizontal: 24,
-          backgroundColor: 'rgba(0,0,0,0.16)',
-          borderRadius: 16,
-          overflow: 'hidden',
-        }}>
-          {/* Viajes realizados */}
-          <View style={{ flex: 1, alignItems: 'center', paddingVertical: 14, gap: 5 }}>
-            <Icon name="route" size={20} color={HERO_TEXT} />
-            <Text style={{ fontSize: 20, fontFamily: theme.fontDisplay, color: HERO_TEXT, lineHeight: 22 }}>
-              {tripCount === null ? '—' : tripCount}
-            </Text>
-            <Text style={{ fontSize: 10, color: HERO_SUBTEXT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              Viajes
-            </Text>
-          </View>
-
-          {/* Divider */}
-          <View style={{ width: 1, backgroundColor: 'rgba(26,13,0,0.18)', marginVertical: 12 }} />
-
-          {/* Anuncios publicados */}
-          <View style={{ flex: 1, alignItems: 'center', paddingVertical: 14, gap: 5 }}>
-            <Icon name="pageinfo" size={20} color={HERO_TEXT} />
-            <Text style={{ fontSize: 20, fontFamily: theme.fontDisplay, color: HERO_TEXT, lineHeight: 22 }}>
-              {postCount === null ? '—' : postCount}
-            </Text>
-            <Text style={{ fontSize: 10, color: HERO_SUBTEXT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              Anuncios
-            </Text>
-          </View>
-
-          {/* Divider */}
-          <View style={{ width: 1, backgroundColor: 'rgba(26,13,0,0.18)', marginVertical: 12 }} />
-
-          {/* Badges recibidos */}
-          <View style={{ flex: 1, alignItems: 'center', paddingVertical: 14, gap: 5 }}>
-            <Icon name="star" size={20} color={HERO_TEXT} />
-            <Text style={{ fontSize: 20, fontFamily: theme.fontDisplay, color: HERO_TEXT, lineHeight: 22 }}>
-              {communityLoading ? '—' : badges.reduce((s, b) => s + b.count, 0)}
-            </Text>
-            <Text style={{ fontSize: 10, color: HERO_SUBTEXT, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-              Badges
-            </Text>
-          </View>
-        </View>
-
-        {/* Community badges */}
-        {!communityLoading && (badges.length > 0 || strikeLevel > 0) && (
-          <View style={{ marginTop: 16, paddingHorizontal: 20, width: '100%' }}>
-            <BadgeDisplay badges={badges} strikeLevel={strikeLevel} />
-          </View>
-        )}
-        {communityLoading && (
-          <ActivityIndicator
-            size="small"
-            color={HERO_TEXT}
-            style={{ marginTop: 16 }}
-          />
-        )}
       </LinearGradient>
 
-      {/* ── Vehicle card ─────────────────────────────────────────────────── */}
-      <View style={{ paddingHorizontal: 16, paddingTop: 20, paddingBottom: 4 }}>
-        {vehicleLoading ? (
-          <ActivityIndicator size="small" color={theme.primary} style={{ margin: 28 }} />
-        ) : vehicle ? (
-          // Shadow wrapper (split from overflow:hidden so shadows aren't clipped)
-          <View style={{
-            borderRadius: 20, backgroundColor: theme.surface,
-            marginBottom: 12, ...cardShadow,
-          }}>
-            {/* Clip content to rounded corners */}
-            <View style={{ borderRadius: 20, overflow: 'hidden' }}>
-
-              {/* Vehicle photo */}
-              {vehicle.photo_url ? (
-                <Image
-                  source={{ uri: vehicle.photo_url }}
-                  style={{ width: '100%', height: 200 }}
-                  resizeMode="cover"
-                />
-              ) : (
-                <View style={{
-                  width: '100%', height: 150,
-                  backgroundColor: theme.surfaceAlt,
-                  alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <Icon name="car" size={56} color={theme.border} />
-                </View>
-              )}
-
-              {/* Amenity icon grid — 4 columns */}
-              {vehicle.amenities.length > 0 && (
-                <View style={{
-                  borderTopWidth: 1, borderTopColor: theme.border,
-                  flexDirection: 'row', flexWrap: 'wrap',
-                  paddingHorizontal: 8, paddingVertical: 18,
-                }}>
-                  {vehicle.amenities.filter(a => a in AMENITY_LABELS).map(a => {
-                    const detail = vehicle.amenity_details?.[a as keyof typeof vehicle.amenity_details];
-                    const hasDetail = detail && (detail.choices.length > 0 || detail.note.trim());
-                    return (
-                      <TouchableOpacity
-                        key={a}
-                        onPress={() => setTooltipAmenity(a)}
-                        activeOpacity={0.7}
-                        style={{ width: '25%', alignItems: 'center', paddingVertical: 8 }}
-                      >
-                        <View style={{
-                          width: 54, height: 54, borderRadius: 27,
-                          backgroundColor: theme.primary + '18',
-                          borderWidth: 1.5,
-                          borderColor: theme.primary + '45',
-                          alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Icon name={a as IconName} size={24} color={theme.primary} />
-                        </View>
-                        {hasDetail && (
-                          <View style={{
-                            position: 'absolute', top: 6, right: '12%',
-                            width: 8, height: 8, borderRadius: 4,
-                            backgroundColor: theme.primary,
-                          }} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              )}
-
-              {/* Amenity tooltip modal */}
-              {tooltipAmenity && (() => {
-                const detail = vehicle.amenity_details?.[tooltipAmenity as keyof typeof vehicle.amenity_details];
-                const choiceText = detail?.choices.join(' / ') ?? '';
-                const note = detail?.note.trim() ?? '';
-                return (
-                  <Modal transparent animationType="fade" visible onRequestClose={() => setTooltipAmenity(null)}>
-                    <TouchableOpacity
-                      style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}
-                      onPress={() => setTooltipAmenity(null)}
-                      activeOpacity={1}
-                    >
-                      <View style={{
-                        backgroundColor: theme.surface, borderRadius: 16,
-                        paddingHorizontal: 20, paddingVertical: 16,
-                        maxWidth: 280, minWidth: 180,
-                        borderWidth: 1, borderColor: theme.primary + '30',
-                        shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.25, shadowRadius: 12, elevation: 8,
-                        gap: 4,
-                      }}>
-                        <Text style={{ color: theme.primary, fontFamily: theme.fontDisplay, fontSize: 14 }}>
-                          {AMENITY_LABELS[tooltipAmenity as keyof typeof AMENITY_LABELS] ?? tooltipAmenity}
-                        </Text>
-                        {choiceText ? (
-                          <Text style={{ color: theme.text, fontSize: 13, fontFamily: theme.fontBody }}>
-                            {choiceText}
-                          </Text>
-                        ) : null}
-                        {note ? (
-                          <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontBody, lineHeight: 18 }}>
-                            {note}
-                          </Text>
-                        ) : null}
-                      </View>
-                    </TouchableOpacity>
-                  </Modal>
-                );
-              })()}
-
-              {/* Tappable info row — opens extended detail modal */}
-              <TouchableOpacity
-                onPress={() => setShowVehicleDetail(true)}
-                activeOpacity={0.75}
-                style={{
-                  flexDirection: 'row', alignItems: 'center',
-                  paddingHorizontal: 16, paddingVertical: 14,
-                  borderTopWidth: 1, borderTopColor: theme.border,
-                }}
-              >
-                <View style={{ flex: 1 }}>
-                  <Text style={{
-                    fontSize: 15, fontFamily: theme.fontDisplay,
-                    color: theme.text, textTransform: 'uppercase', letterSpacing: 1,
-                  }}>
-                    {vehicle.year} {vehicle.make} {vehicle.model}
+      {/* ── Floating stats card ─────────────────────────────────────────── */}
+      <View style={{ marginTop: -32, marginHorizontal: 20, zIndex: 10, elevation: 10 }}>
+        <Card padding={0} radius={20} elevation="lg">
+          <View style={{ flexDirection: 'row' }}>
+            {[
+              { value: tripCount, label: t.profile.statTrips },
+              { value: postCount, label: t.profile.statPosts },
+              { value: communityLoading ? null : totalBadges, label: t.profile.statBadges },
+            ].map((s, i) => (
+              <View key={s.label} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
+                {i > 0 && <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: theme.cardBorder, marginVertical: 14 }} />}
+                <View style={{ flex: 1, alignItems: 'center', paddingVertical: 16, gap: 4 }}>
+                  <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 20, color: theme.text }}>
+                    {s.value === null ? '—' : s.value}
                   </Text>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 3 }}>
-                    <Text style={{ fontSize: 12, color: theme.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                      {vehicle.color}
-                    </Text>
-                    {vehicle.trim && (
-                      <Text style={{ fontSize: 12, color: theme.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                        {' · '}{vehicle.trim.toUpperCase()}
-                      </Text>
-                    )}
-                    {vehicle.fuel_type && (
-                      <Text style={{ fontSize: 12, color: theme.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                        {' · '}{vehicle.fuel_type.toUpperCase()}
-                      </Text>
-                    )}
-                    {vehicle.seats && (
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ fontSize: 12, color: theme.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}>{' · '}</Text>
-                        <Icon name="seat_recline" size={12} color={theme.muted} />
-                        <Text style={{ fontSize: 12, color: theme.muted, textTransform: 'uppercase', letterSpacing: 0.8 }}> {vehicle.seats}</Text>
-                      </View>
-                    )}
-                    {vehicle.insurance_self_certified && (
-                      <Text style={{ fontSize: 12, color: theme.success, textTransform: 'uppercase', letterSpacing: 0.8 }}>
-                        {' · '}✓ INSURED
-                      </Text>
-                    )}
-                  </View>
+                  <Text style={{ ...textStyles.eyebrow, fontSize: 9, color: theme.muted }}>{s.label}</Text>
                 </View>
-                <Icon name="chevron_right" size={18} color={theme.muted} />
-              </TouchableOpacity>
-
-              {/* Edit / info button — floating over top-right of photo */}
-              <TouchableOpacity
-                onPress={() => setShowVehicle(true)}
-                style={{
-                  position: 'absolute', top: 12, right: 12,
-                  width: 38, height: 38, borderRadius: 19,
-                  backgroundColor: theme.surface,
-                  alignItems: 'center', justifyContent: 'center',
-                  shadowColor: theme.cardShadowColor,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: theme.cardShadowOpacity,
-                  shadowRadius: 6,
-                  elevation: 5,
-                }}
-              >
-                <Icon name="pageinfo" size={20} color={theme.primary} />
-              </TouchableOpacity>
-
-            </View>
+              </View>
+            ))}
           </View>
-        ) : (
-          // No vehicle — add CTA
-          <TouchableOpacity
-            onPress={() => setShowVehicle(true)}
-            style={{
-              backgroundColor: theme.surface, borderRadius: 20,
-              padding: 28, alignItems: 'center', gap: 12,
-              marginBottom: 12, ...cardShadow,
-            }}
+        </Card>
+      </View>
+
+      {/* ── Everything below scrolls; the hero + stats card above stay put.
+          The stats card's marginTop:-32 only shifts IT visually — it doesn't
+          "compress" the flow the way a negative margin would on the web, so
+          without a matching -32 here this View still starts flush with where
+          the card WOULD be without that offset, leaving a 32px gap above it.
+          Same -32 here closes that gap; paddingTop below is the real spacing
+          from the card's visual bottom edge. ───────────────────────────── */}
+      <View style={{ flex: 1, marginTop: -32 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
+          {/* ── Subscriber promo card ───────────────────────────────────────── */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 46 }}>
+          <Card
+            interactive
+            onPress={() => isFree ? setShowPaywall(true) : undefined}
+            padding={14}
+            radius={16}
+            elevation="lg"
+            backgroundColor="#1C1410"
+            borderColor={theme.borderGold}
+            // Same shadows.lg offset/opacity/radius/elevation as every other
+            // card — only shadowColor is overridden. The default dark navy
+            // shadow blends into this card's own near-black fill and reads as
+            // "no shadow"; a warm gold tint (already used for CTA glows
+            // elsewhere) stays visible against a dark surface.
+            style={{ marginBottom: 20, shadowColor: shadows.gold.shadowColor }}
           >
-            <View style={{
-              width: 60, height: 60, borderRadius: 18,
-              backgroundColor: theme.primary + '15',
-              alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Icon name="car" size={30} color={theme.primary} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+              <View style={{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden' }}>
+                <LinearGradient colors={theme.gradientGold as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="star" size={21} color={theme.textOnPrimary} />
+                </LinearGradient>
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ ...categoryLabelStyle, color: theme.gold300 }}>{t.profile.membershipCategory}</Text>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 17, lineHeight: Math.round(17 * leading.tight), letterSpacing: letterSpacingFor(17, tracking.tight), color: '#FFFFFF', marginTop: 2 }}>
+                  {isActive ? t.profile.subscriberTitle : t.profile.freeTitle}
+                </Text>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, lineHeight: Math.round(12.5 * leading.tight), color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>
+                  {isActive
+                    ? (daysRemaining != null ? `${daysRemaining} ${t.profile.daysRemaining}` : t.profile.subscriberSubtitleActive)
+                    : t.profile.subscriberSubtitleFree}
+                </Text>
+              </View>
+              <Icon name="chevron_right" size={18} color="rgba(255,255,255,0.6)" />
             </View>
-            <Text style={{ color: theme.primary, fontFamily: theme.fontDisplay, fontSize: 15 }}>
-              {t.profile.addVehicle}
-            </Text>
-            <Text style={{ color: theme.muted, fontSize: 13, textAlign: 'center' }}>
-              Add your vehicle so riders know what to expect.
-            </Text>
-          </TouchableOpacity>
-        )}
+          </Card>
       </View>
 
       {/* ── Settings cards ───────────────────────────────────────────────── */}
-      <View style={{ paddingHorizontal: 20, paddingBottom: 48 }}>
-        <SectionLabel text="Settings" />
-
-        <SettingCard
-          icon="badge"
-          label="Community"
-          preview={strikeLevel === 0 ? t.strikes.noStrikes : t.strikes[`level${strikeLevel}` as 'level1' | 'level2' | 'level3']}
-          onPress={() => {}}
+      <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+        <SettingRow
+          icon="pageinfo"
+          iconColor="#B8860B"
+          category={t.profile.statsCategory}
+          title={t.profile.statsDashboard}
+          subtitle={t.profile.statsDashboardSubtitle}
+          onPress={comingSoon}
         />
-
-        <SettingCard
-          icon="verified"
-          label={isActive ? t.profile.activeAccount : t.profile.freePlan}
-          preview={planLabel}
-          onPress={() => isFree ? setShowPaywall(true) : undefined}
-        />
-
-        <SettingCard
+        <SettingRow
           icon="history"
-          label={t.profile.rideHistorySection}
-          preview={t.profile.viewRecord}
+          iconColor={theme.primary}
+          category={t.profile.rideHistoryCategory}
+          title={tripCount === null ? '—' : `${tripCount} ${t.profile.tripsCompletedSuffix}`}
+          subtitle={`${t.profile.memberSince} ${profile?.created_at ? new Date(profile.created_at).toLocaleDateString(t.locale, { month: 'short', year: 'numeric' }) : '—'}`}
           onPress={() => setShowHistory(true)}
         />
-
-        <SettingCard
-          icon="key"
-          label={t.profile.accountSection}
-          preview={email}
-          onPress={() => setShowAccount(true)}
+        <SettingRow
+          icon="passenger"
+          iconColor={theme.secondary}
+          category={t.profile.trustedCategory}
+          title={t.profile.savedDrivers}
+          subtitle={t.profile.savedDriversSubtitle}
+          onPress={comingSoon}
         />
+        <SettingRow
+          icon="event"
+          iconColor="#ED4A2B"
+          category={t.profile.scheduleCategory}
+          title={upcomingCount === null ? '—' : upcomingCount === 0 ? t.profile.noUpcomingRides : `${upcomingCount} ${t.profile.upcomingRidesSuffix}`}
+          subtitle={nextRideAt ? `${t.profile.nextRidePrefix} ${new Date(nextRideAt).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}, ${new Date(nextRideAt).toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}` : undefined}
+          onPress={comingSoon}
+        />
+        <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
+          <VehicleMiniCard
+            icon="car"
+            label={t.profile.ridesCourierCategory}
+            vehicle={vehicles.find((v) => v.kind === 'rides_courier')}
+            onPress={() => setEditingVehicleKind('rides_courier')}
+          />
+          <VehicleMiniCard
+            icon="truck"
+            label={t.profile.haulingCategory}
+            vehicle={vehicles.find((v) => v.kind === 'hauling')}
+            onPress={() => setEditingVehicleKind('hauling')}
+          />
+        </View>
+        <SettingRow
+          icon="accessible"
+          iconColor="#B8860B"
+          category={t.profile.accessibilityCategory}
+          title={t.profile.accessibilityTitle}
+          subtitle={t.profile.accessibilitySubtitle}
+          onPress={comingSoon}
+        />
+        {vehicleLoading && <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 12 }} />}
 
-        {/* ── Sign out ── */}
+        {/* ── Community badges ─────────────────────────────────────────── */}
+        {!communityLoading && totalBadges > 0 && (
+          <View style={{ marginTop: 12 }}>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text, marginBottom: 12 }}>
+              {t.profile.communityBadgesTitle}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 14, marginBottom: 10 }}>
+              {badges.filter((b) => b.count > 0).map((b) => {
+                const cfg = BADGE_ICONS[b.badge_type];
+                return (
+                  <TouchableOpacity key={b.badge_type} activeOpacity={0.7} onPress={comingSoon}>
+                    <View style={{
+                      width: 48, height: 48, borderRadius: 14,
+                      backgroundColor: cfg.color + '18',
+                      borderWidth: 1.5, borderColor: cfg.color + '45',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Icon name={cfg.icon} size={22} color={cfg.color} />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, lineHeight: 17 }}>
+              {t.profile.communityBadgesCaption}
+            </Text>
+          </View>
+        )}
+
+        {/* ── Edit profile button ──────────────────────────────────────── */}
+        <Button
+          variant="outline"
+          fullWidth
+          onPress={() => setShowEditProfile(true)}
+          style={{ marginTop: 24 }}
+        >
+          {t.profile.editProfileButton}
+        </Button>
+
+        {/* ── Sign out ─────────────────────────────────────────────────── */}
         <TouchableOpacity
           onPress={handleSignOut}
           style={{
-            marginTop: 24,
+            marginTop: 12,
             flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-            borderWidth: 1, borderColor: theme.danger + '50',
             borderRadius: 14, paddingVertical: 14,
           }}
         >
           <Icon name="logout" size={18} color={theme.danger} />
-          <Text style={{ color: theme.danger, fontFamily: theme.fontDisplay, fontSize: 15 }}>
+          <Text style={{ color: theme.danger, fontFamily: fonts.bodyBold, fontSize: 14 }}>
             {t.profile.signOut}
           </Text>
         </TouchableOpacity>
 
-        {/* App version */}
-        <Text style={{ color: theme.muted, fontSize: 12, textAlign: 'center', marginTop: 20 }}>
+        <Text style={{ color: theme.muted, fontSize: 12, textAlign: 'center', marginTop: 16 }}>
           {t.profile.appVersion} 1.0.0
         </Text>
+        </View>
+        </ScrollView>
       </View>
 
       {/* ── Modals ── */}
-      <EditProfileModal
-        visible={showEditProfile}
-        profile={profile}
-        onClose={() => setShowEditProfile(false)}
-      />
+      <EditProfileModal visible={showEditProfile} profile={profile} onClose={() => setShowEditProfile(false)} />
       <EditVehicleModal
-        visible={showVehicle}
+        visible={editingVehicleKind !== null}
         userId={userId}
-        existing={vehicle}
-        onSaved={v => { setVehicle(v); setShowVehicle(false); }}
-        onClose={() => setShowVehicle(false)}
+        kind={editingVehicleKind ?? 'rides_courier'}
+        existing={vehicles.find((v) => v.kind === editingVehicleKind) ?? null}
+        onSaved={(v) => {
+          setVehicles((prev) => [...prev.filter((p) => p.kind !== v.kind), v]);
+          setEditingVehicleKind(null);
+        }}
+        onClose={() => setEditingVehicleKind(null)}
       />
-      {vehicle && (
-        <VehicleDetailModal
-          visible={showVehicleDetail}
-          vehicle={vehicle}
-          onClose={() => setShowVehicleDetail(false)}
-          onEdit={() => setShowVehicle(true)}
-        />
-      )}
-      <PreferencesModal
-        visible={showPreferences}
-        onClose={() => setShowPreferences(false)}
-      />
-      <AccountModal
-        visible={showAccount}
-        email={email}
-        onClose={() => setShowAccount(false)}
-      />
-      <RideHistoryModal
-        visible={showHistory}
-        userId={userId}
-        onClose={() => setShowHistory(false)}
-      />
-      <PaywallModal
-        visible={showPaywall}
-        onClose={() => setShowPaywall(false)}
-      />
-    </ScrollView>
+      <PreferencesModal visible={showPreferences} onClose={() => setShowPreferences(false)} />
+      <RideHistoryModal visible={showHistory} userId={userId} onClose={() => setShowHistory(false)} />
+      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
+    </View>
   );
 }

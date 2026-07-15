@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { PlatformPressable } from '@react-navigation/elements';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Icon } from '@/components/ui/Icon';
-import { fonts } from '@/constants/themes';
+import { fonts, shadows } from '@/constants/themes';
 
 export default function TabsLayout() {
   const { session, loading } = useAuthStore();
@@ -22,6 +23,10 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor:   theme.tabActive,
         tabBarInactiveTintColor: theme.tabInactive,
+        // Explicit, not adaptive — some devices with a large system font-scale
+        // setting make bottom-tabs auto-hide labels to avoid overflow.
+        tabBarLabelPosition: 'below-icon',
+        tabBarShowLabel: true,
         tabBarStyle: {
           backgroundColor: theme.tabBarBg,
           borderTopColor:  theme.tabBorder,
@@ -39,16 +44,16 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: t.tabs.rides,
+          title: t.tabs.home,
           tabBarIcon: ({ color, size }) => (
-            <Icon name="compass" size={size} color={color} />
+            <Icon name="home" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="messages"
         options={{
-          title: t.tabs.contacts,
+          title: t.tabs.messages,
           tabBarIcon: ({ color, size }) => (
             <Icon name="chat" size={size} color={color} />
           ),
@@ -66,31 +71,47 @@ export default function TabsLayout() {
               style={[
                 props.style,
                 {
-                  top: -10,
-                  width: 46,
-                  height: 46,
-                  borderRadius: 23,
-                  backgroundColor: theme.fab,
+                  position: 'absolute',
+                  // Centered on the tab bar's own top edge — same technique as
+                  // RideCard's views-count pill: fixed height, top = -(height/2).
+                  top: -29,
+                  left: '50%',
+                  marginLeft: -29,
+                  width: 58,
+                  height: 58,
+                  borderRadius: 29,
+                  borderWidth: 3,
+                  borderColor: theme.tabBarBg,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  shadowColor: theme.fab,
-                  shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 8,
-                  elevation: 6,
-                  alignSelf: 'center',
+                  ...shadows.gold,
                 },
               ]}
             >
-              <Icon name="add" size={22} color={theme.fabText} />
+              <LinearGradient
+                colors={theme.gradientGold as [string, string, ...string[]]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={[StyleSheet.absoluteFillObject, { borderRadius: 26 }]}
+              />
+              <Icon name="add" size={24} color={theme.fabText} />
             </PlatformPressable>
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: t.tabs.calendar,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="event" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: t.tabs.profile,
+          title: t.tabs.you,
           tabBarIcon: ({ color, size }) => (
             <Icon name="person" size={size} color={color} />
           ),

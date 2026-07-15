@@ -1,22 +1,35 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { VehicleProfile, VehicleAmenity, AmenityDetails } from '@/types';
+import { VehicleProfile, VehicleKind, VehicleAmenity, AmenityDetails } from '@/types';
 
 export function useVehicleProfile() {
   const [loading, setLoading] = useState(false);
 
-  async function getMyVehicle(userId: string): Promise<VehicleProfile | null> {
+  async function getMyVehicle(userId: string, kind: VehicleKind): Promise<VehicleProfile | null> {
     const { data, error } = await supabase
       .from('vehicle_profiles')
       .select('*')
       .eq('user_id', userId)
+      .eq('kind', kind)
       .maybeSingle();
     if (error) throw error;
     return data as VehicleProfile | null;
   }
 
+  // Both of a user's vehicles (rides/courier + hauling) in one round trip —
+  // for the profile screen's two mini-cards.
+  async function getMyVehicles(userId: string): Promise<VehicleProfile[]> {
+    const { data, error } = await supabase
+      .from('vehicle_profiles')
+      .select('*')
+      .eq('user_id', userId);
+    if (error) throw error;
+    return (data as VehicleProfile[]) ?? [];
+  }
+
   async function upsertVehicle(
     userId: string,
+    kind: VehicleKind,
     vehicle: {
       vin?: string;
       make: string;
@@ -36,7 +49,7 @@ export function useVehicleProfile() {
     try {
       const { data, error } = await supabase
         .from('vehicle_profiles')
-        .upsert({ user_id: userId, ...vehicle }, { onConflict: 'user_id' })
+        .upsert({ user_id: userId, kind, ...vehicle }, { onConflict: 'user_id,kind' })
         .select()
         .single();
       if (error) throw error;
@@ -46,8 +59,9 @@ export function useVehicleProfile() {
     }
   }
 
-  async function uploadVehiclePhoto(userId: string, uri: string): Promise<string> {
-    const fileName = `${userId}/vehicle.jpg`;
+  async function uploadVehiclePhoto(userId: string, kind: VehicleKind, uri: string): Promise<string> {
+    // kind in the path — otherwise both vehicles would overwrite the same file.
+    const fileName = `${userId}/${kind}.jpg`;
     // React Native's Blob serialization is unreliable for storage uploads;
     // ArrayBuffer is what Supabase Storage actually expects from RN clients.
     const response = await fetch(uri);
@@ -61,5 +75,5 @@ export function useVehicleProfile() {
     return `${data.publicUrl}?t=${Date.now()}`;
   }
 
-  return { getMyVehicle, upsertVehicle, uploadVehiclePhoto, loading };
+  return { getMyVehicle, getMyVehicles, upsertVehicle, uploadVehiclePhoto, loading };
 }

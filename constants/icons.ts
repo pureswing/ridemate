@@ -5,7 +5,7 @@
 // existing call sites don't need to change.
 import {
   Home, Compass, MessageCircle, Plus, User,
-  Car, Users,
+  Car, Truck, Users,
   Map, MapPin, Route, Navigation,
   Phone, Mail, MessageCircle as WhatsApp, // ⚠ no WhatsApp brand glyph in Lucide — placeholder, revisit
   Star, Check, CheckCircle2, ShieldCheck, Handshake, X, Pencil, Trash2, Send,
@@ -44,6 +44,7 @@ export const icons = {
 
   // ── Ride types ────────────────────────────────────────────────────────
   car: Car,
+  truck: Truck,
   passenger: Users,
 
   // ── Map / Route ────────────────────────────────────────────────────────

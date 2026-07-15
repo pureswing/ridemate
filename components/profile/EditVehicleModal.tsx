@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
-import { VehicleProfile, VehicleAmenity, AmenityDetails } from '@/types';
+import { VehicleProfile, VehicleKind, VehicleAmenity, AmenityDetails } from '@/types';
 import { Icon } from '@/components/ui/Icon';
 import { IconName } from '@/constants/icons';
 
@@ -93,12 +93,13 @@ function mapFuelType(raw: string): string {
 interface Props {
   visible: boolean;
   userId: string;
+  kind: VehicleKind;
   existing: VehicleProfile | null;
   onSaved: (v: VehicleProfile) => void;
   onClose: () => void;
 }
 
-export function EditVehicleModal({ visible, userId, existing, onSaved, onClose }: Props) {
+export function EditVehicleModal({ visible, userId, kind, existing, onSaved, onClose }: Props) {
   const t = useTranslation();
   const theme = useTheme();
   const { upsertVehicle, uploadVehiclePhoto, loading } = useVehicleProfile();
@@ -255,7 +256,7 @@ export function EditVehicleModal({ visible, userId, existing, onSaved, onClose }
       let finalPhotoUrl: string | undefined = existing?.photo_url;
       if (photoUri && !photoUri.startsWith('http')) {
         setUploading(true);
-        finalPhotoUrl = await uploadVehiclePhoto(userId, photoUri);
+        finalPhotoUrl = await uploadVehiclePhoto(userId, kind, photoUri);
         setUploading(false);
       }
       const detailsObj: AmenityDetails = {};
@@ -264,7 +265,7 @@ export function EditVehicleModal({ visible, userId, existing, onSaved, onClose }
           detailsObj[k] = v;
         }
       });
-      const saved = await upsertVehicle(userId, {
+      const saved = await upsertVehicle(userId, kind, {
         vin: vin.trim() || undefined,
         make: make.trim(),
         model: model.trim(),

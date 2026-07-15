@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, FlatList, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { useRideStore } from '@/store/rideStore';
@@ -31,8 +32,18 @@ export default function FeedScreen() {
   const { fetchPosts } = useRides();
   const theme = useTheme();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
+  // Separate from the store's `loading` (also set by filter-triggered fetches) —
+  // this only tracks an explicit user pull, so switching chips doesn't pop the
+  // native pull-to-refresh spinner up mid-screen.
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => { fetchPosts(); }, [fetchPosts]);
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await fetchPosts();
+    setRefreshing(false);
+  }
 
   const header = (
     <HomeHeader
@@ -40,41 +51,49 @@ export default function FeedScreen() {
       onFilterChange={(v) => setFilters({ type: v })}
       layout={layout}
       onLayoutChange={setLayout}
+      resultsCount={posts.length}
     />
   );
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      {loading && posts.length === 0 ? (
-        // See the ScrollView-ancestor note below — same requirement applies here.
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-          {header}
+      {/* Fixed header — a plain sibling above the list, not scrolling with it, and
+          NOT wrapped in a ScrollView (a ScrollView without explicit flex/height
+          doesn't measure its content for Yoga's layout and collapses/clips it —
+          confirmed the hard way). This trades away the documented "Chip/IconButton
+          need a ScrollView ancestor to paint" safety net (feedback_button_scrollview_bug
+          memory) to get real fixed positioning — needs on-device confirmation that
+          the chips/buttons still render (colors/text visible, not blank). */}
+      {header}
+      <View style={{ flex: 1 }}>
+        {loading && posts.length === 0 ? (
           <ActivityIndicator style={{ marginTop: 60 }} size="large" color={theme.primary} />
-        </ScrollView>
-      ) : (
-        // HomeHeader renders a Chip row + IconButton — those need a ScrollView
-        // ancestor or they silently fail to paint (see feedback_button_scrollview_bug
-        // memory), so it lives inside the FlatList as ListHeaderComponent rather
-        // than pinned above it as a sibling.
-        <FlatList
-          key={layout}
-          data={posts}
-          keyExtractor={(item) => item.id}
-          numColumns={layout === 'grid' ? 2 : 1}
-          columnWrapperStyle={layout === 'grid' ? { gap: 12 } : undefined}
-          renderItem={({ item }) => <RideCard post={item} style={layout === 'grid' ? { flex: 1 } : undefined} />}
-          ListHeaderComponent={header}
-          // contentContainerStyle's paddingHorizontal (below) applies to the header
-          // too since FlatList renders it inside the same padded content container —
-          // cancel it out so the gradient hero still bleeds edge-to-edge.
-          ListHeaderComponentStyle={{ marginBottom: 16, marginHorizontal: -16 }}
-          ListEmptyComponent={<EmptyState />}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 }}
-          refreshControl={
-            <RefreshControl refreshing={loading} onRefresh={fetchPosts} tintColor={theme.primary} />
-          }
+        ) : (
+          <FlatList
+            style={{ flex: 1 }}
+            key={layout}
+            data={posts}
+            keyExtractor={(item) => item.id}
+            numColumns={layout === 'grid' ? 2 : 1}
+            columnWrapperStyle={layout === 'grid' ? { gap: 12 } : undefined}
+            renderItem={({ item }) => <RideCard post={item} style={layout === 'grid' ? { flex: 1 } : undefined} />}
+            ListEmptyComponent={<EmptyState />}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 28, paddingBottom: 16, flexGrow: 1 }}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.primary} />
+            }
+          />
+        )}
+        {/* Cards scrolling up under the fixed header fade into the background
+            instead of hard-cutting at its edge — an absolute overlay, not real
+            transparency on the cards themselves. pointerEvents="none" so it
+            doesn't block scroll/tap on the list underneath. */}
+        <LinearGradient
+          colors={[theme.background, `${theme.background}00`]}
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28 }}
         />
-      )}
+      </View>
     </View>
   );
 }

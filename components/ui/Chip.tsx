@@ -5,7 +5,7 @@ import { ThemedText as Text } from './ThemedText';
 import { Icon } from './Icon';
 import { IconName } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
-import { radii, fonts, shadows, chromeMaxFontSizeMultiplier } from '@/constants/themes';
+import { radii, fonts, shadows, chromeMaxFontSizeMultiplier, ShadowStyle } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
 
 type Size = 'sm' | 'md';
@@ -21,19 +21,23 @@ interface Props {
   // Selected-state gradient override — defaults to the brand gold gradient, but
   // e.g. the feed's service-type chips use the jade/driver gradient instead.
   color?: readonly string[];
+  // Glow tint for the selected state — must match `color`'s hue, or the chip
+  // gets e.g. a gold shadow around a jade gradient. Defaults to gold shadow.
+  shadow?: ShadowStyle;
 }
 
 const SIZES: Record<Size, { height: number; paddingHorizontal: number; fontSize: number; icon: number }> = {
-  sm: { height: 32, paddingHorizontal: 11, fontSize: 12, icon: 10 },
+  sm: { height: 36, paddingHorizontal: 11, fontSize: 12, icon: 10 },
   md: { height: 38, paddingHorizontal: 15, fontSize: 14, icon: 11 },
 };
 
 // Chip — selectable filter pill used in the feed filter row.
-export function Chip({ children, selected = false, icon, count, size = 'md', onPress, style, color }: Props) {
+export function Chip({ children, selected = false, icon, count, size = 'md', onPress, style, color, shadow }: Props) {
   const theme = useTheme();
   const textColor = selected ? theme.textOnPrimary : theme.textSecondary;
   const [pressed, setPressed] = useState(false);
   const gradient = color ?? theme.gradientGold;
+  const selectedShadow = shadow ?? shadows.gold;
   const s = SIZES[size];
 
   return (
@@ -49,11 +53,15 @@ export function Chip({ children, selected = false, icon, count, size = 'md', onP
           // Spanish labels) — paired with adjustsFontSizeToFit below.
           flexShrink: 1,
           borderRadius: radii.pill,
-          backgroundColor: selected ? undefined : theme.surface,
-          borderWidth: selected ? 0 : 1.5,
-          borderColor: theme.border,
+          // A transparent/undefined background under an elevated (Android) View
+          // makes the shadow render as a formless blur instead of following the
+          // pill's borderRadius — giving a solid fill (the gradient's own first
+          // color, painted over by the LinearGradient below) fixes that.
+          backgroundColor: selected ? gradient[0] : theme.surface,
+          borderWidth: selected ? 1.5 : 1,
+          borderColor: selected ? theme.cream : theme.border,
           transform: pressed ? [{ scale: 0.96 }] : [{ scale: 1 }],
-          ...(selected ? shadows.gold : shadows.xs),
+          ...(selected ? selectedShadow : shadows.xs),
         },
         style,
       ]}

@@ -47,8 +47,9 @@ export function useWeather(): Weather | null {
 
     async function apply(lat: number, lon: number, city?: string) {
       try {
-        const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`
+        const res = await withTimeout(
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`),
+          6000
         );
         const data = await res.json();
         if (cancelled || !data?.current) throw new Error('no data');
