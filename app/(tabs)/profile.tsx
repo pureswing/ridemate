@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { useAuthStore } from '@/store/authStore';
@@ -17,7 +17,6 @@ import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { PaywallModal } from '@/components/subscription/PaywallModal';
 import { EditVehicleModal } from '@/components/profile/EditVehicleModal';
-import { EditProfileModal } from '@/components/profile/EditProfileModal';
 import { PreferencesModal } from '@/components/profile/PreferencesModal';
 import { RideHistoryModal } from '@/components/profile/RideHistoryModal';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -25,7 +24,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { BadgeCount, StrikeLevel, VehicleProfile, VehicleKind, BadgeType } from '@/types';
 import { IconName } from '@/constants/icons';
 import { fonts, shadows } from '@/constants/themes';
-import { textStyles, tracking, leading, letterSpacingFor } from '@/constants/typography';
+import { tracking, leading, letterSpacingFor } from '@/constants/typography';
 
 // The "STATS"-style card category label: font-body extrabold, tracking-wide,
 // uppercase, text-faint — a distinct spec from the shared textStyles.eyebrow
@@ -139,8 +138,9 @@ export default function ProfileScreen() {
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
   const [nextRideAt, setNextRideAt] = useState<string | null>(null);
 
+  const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
+
   const [editingVehicleKind, setEditingVehicleKind] = useState<VehicleKind | null>(null);
-  const [showEditProfile, setShowEditProfile] = useState(false);
   const [showPreferences, setShowPreferences] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -156,6 +156,14 @@ export default function ProfileScreen() {
       loadStats();
     }
   }, [userId]);
+
+  // Re-measure from a fresh single-line attempt whenever the underlying text
+  // changes (e.g. home_city edited shorter) — otherwise, once wrapped, it'd stay
+  // wrapped forever since the wrapped render uses an explicit "\n" that always
+  // reports 2 lines regardless of whether it'd now fit on one.
+  useEffect(() => {
+    setMemberSinceWrapped(false);
+  }, [profile?.home_city, profile?.created_at]);
 
   async function loadCommunityData() {
     setCommunityLoading(true);
@@ -228,7 +236,7 @@ export default function ProfileScreen() {
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 12, paddingBottom: 56, alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 46, paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.lg }}
       >
         {strikeLevel > 0 && (
           <View style={{ position: 'absolute', top: insets.top + 12, right: 72 }}>
@@ -259,7 +267,7 @@ export default function ProfileScreen() {
           style={{ position: 'absolute', top: insets.top + 12, right: 20 }}
         />
 
-        <TouchableOpacity onPress={() => setShowEditProfile(true)} activeOpacity={0.85} style={{ marginBottom: 14, marginTop: 8 }}>
+        <TouchableOpacity onPress={() => router.push('/profile/edit')} activeOpacity={0.85} style={{ marginBottom: 8, marginTop: 8 }}>
           <View style={{ padding: 3, borderRadius: 51, backgroundColor: 'rgba(255,255,255,0.9)', ...shadows.md }}>
             <Avatar
               name={profile?.full_name ?? ''}
@@ -281,8 +289,20 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
-        <Text style={{ ...textStyles.h3, color: theme.textOnPrimary }}>{profile?.full_name}</Text>
-        <Text style={{ ...textStyles.eyebrow, color: theme.gold300, marginTop: 4 }}>
+        <Text style={{ fontFamily: fonts.displayBold, fontSize: 27, letterSpacing: letterSpacingFor(27, tracking.tight), color: theme.cream, marginTop: 10 }}>{profile?.full_name}</Text>
+        <Text
+          style={{
+            fontFamily: fonts.bodyRegular,
+            fontSize: 12.5,
+            textTransform: 'uppercase',
+            letterSpacing: letterSpacingFor(12.5, tracking.wide),
+            color: 'rgba(255,255,255,0.88)',
+            marginTop: 0,
+            textAlign: 'center',
+          }}
+          onTextLayout={(e) => setMemberSinceWrapped(e.nativeEvent.lines.length > 1)}
+        >
+          {profile?.home_city ? `${profile.home_city}${memberSinceWrapped ? '\n' : ' • '}` : ''}
           {t.profile.memberSince}{' '}
           {profile?.created_at
             ? new Date(profile.created_at).toLocaleDateString(t.locale, { month: 'long', year: 'numeric' })
@@ -292,7 +312,7 @@ export default function ProfileScreen() {
 
       {/* ── Floating stats card ─────────────────────────────────────────── */}
       <View style={{ marginTop: -32, marginHorizontal: 20, zIndex: 10, elevation: 10 }}>
-        <Card padding={0} radius={20} elevation="lg">
+        <Card padding={14} radius={20} elevation="lg">
           <View style={{ flexDirection: 'row' }}>
             {[
               { value: tripCount, label: t.profile.statTrips },
@@ -300,12 +320,15 @@ export default function ProfileScreen() {
               { value: communityLoading ? null : totalBadges, label: t.profile.statBadges },
             ].map((s, i) => (
               <View key={s.label} style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                {i > 0 && <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: theme.cardBorder, marginVertical: 14 }} />}
-                <View style={{ flex: 1, alignItems: 'center', paddingVertical: 16, gap: 4 }}>
-                  <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 20, color: theme.text }}>
+                {i > 0 && <View style={{ width: 1, alignSelf: 'stretch', backgroundColor: theme.cardBorder }} />}
+                {/* minHeight:44 matches the icon-square height that drives
+                    SettingRow's card height — same outer Card padding (14) +
+                    same content-box height (44) = identical total card height. */}
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 44 }}>
+                  <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 23, color: theme.text }}>
                     {s.value === null ? '—' : s.value}
                   </Text>
-                  <Text style={{ ...textStyles.eyebrow, fontSize: 9, color: theme.muted }}>{s.label}</Text>
+                  <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11.5, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11.5, 0.06), color: theme.textFaint }}>{s.label}</Text>
                 </View>
               </View>
             ))}
@@ -448,16 +471,6 @@ export default function ProfileScreen() {
           </View>
         )}
 
-        {/* ── Edit profile button ──────────────────────────────────────── */}
-        <Button
-          variant="outline"
-          fullWidth
-          onPress={() => setShowEditProfile(true)}
-          style={{ marginTop: 24 }}
-        >
-          {t.profile.editProfileButton}
-        </Button>
-
         {/* ── Sign out ─────────────────────────────────────────────────── */}
         <TouchableOpacity
           onPress={handleSignOut}
@@ -481,7 +494,6 @@ export default function ProfileScreen() {
       </View>
 
       {/* ── Modals ── */}
-      <EditProfileModal visible={showEditProfile} profile={profile} onClose={() => setShowEditProfile(false)} />
       <EditVehicleModal
         visible={editingVehicleKind !== null}
         userId={userId}

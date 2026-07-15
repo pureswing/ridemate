@@ -62,6 +62,9 @@ export interface AppTheme {
   // cream (day) — off-white used for primary text/icons on gradient heroes,
   // instead of pure white.
   cream: string;
+  // gold-400 (tokens/colors.css) — muted tan/gold accent used for icon glyphs
+  // and small badges on a --surface-muted background (e.g. address-book slot icons).
+  gold400: string;
   badgeWarnBg: string;
   badgeWarnFg: string;
   // Ride-type semantics (Badge/Chip tones) — soft bg + border for each service
@@ -154,6 +157,7 @@ export const theme: AppTheme = {
   borderGold:    'rgba(252,163,17,0.5)',
   gold300:       '#FFE2C2',
   cream:         '#FFF8F0',
+  gold400:       '#D9B871',
   badgeWarnBg:   '#FBE3A6',
   badgeWarnFg:   '#7A4D08',
   driverText:      '#0A7E77',

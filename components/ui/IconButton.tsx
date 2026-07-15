@@ -20,6 +20,8 @@ interface Props {
   // Overrides the variant's default shadow — e.g. the feed header uses shadows.xs
   // on every button/chip in its filter row, constant regardless of state.
   shadow?: ShadowStyle;
+  // Overrides the variant's default icon color.
+  color?: string;
 }
 
 const SIZES: Record<Size, { box: number; icon: number }> = {
@@ -29,7 +31,7 @@ const SIZES: Record<Size, { box: number; icon: number }> = {
 };
 
 // Circular icon-only button.
-export function IconButton({ icon, size = 'md', variant = 'soft', label, disabled = false, onPress, style, shadow }: Props) {
+export function IconButton({ icon, size = 'md', variant = 'soft', label, disabled = false, onPress, style, shadow, color }: Props) {
   const theme = useTheme();
   const s = SIZES[size];
   const [pressed, setPressed] = useState(false);
@@ -42,6 +44,7 @@ export function IconButton({ icon, size = 'md', variant = 'soft', label, disable
   };
   const v = variants[variant];
   const resolvedShadow = shadow ?? v.shadow;
+  const resolvedColor = color ?? v.color;
 
   return (
     // All visual styling lives on this plain View with a static style object —
@@ -69,7 +72,7 @@ export function IconButton({ icon, size = 'md', variant = 'soft', label, disable
         />
       )}
       <View collapsable={false} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon name={icon} size={s.icon} color={v.color} />
+        <Icon name={icon} size={s.icon} color={resolvedColor} />
       </View>
       <Pressable
         accessibilityLabel={label}

@@ -30,6 +30,10 @@ import {
   Sun, Cloud, CloudRain,
   // feed layout controls
   SlidersHorizontal, AlignJustify, LayoutGrid,
+  // saved-address icon picker
+  MapPinHouse, BriefcaseBusiness, Plane, TrainFront, MapPinCheck,
+  Church, School, Factory, Store, TreePine,
+  PencilLine,
 } from 'lucide-react-native';
 
 export const icons = {
@@ -164,6 +168,19 @@ export const icons = {
   sliders: SlidersHorizontal,
   layout_list: AlignJustify,
   layout_grid: LayoutGrid,
+
+  // ── Saved-address icon picker (10 options) ───────────────────────────────
+  addr_home: MapPinHouse,
+  addr_work: BriefcaseBusiness,
+  addr_airport: Plane,
+  addr_station: TrainFront,
+  addr_general: MapPinCheck,
+  addr_church: Church,
+  addr_school: School,
+  addr_factory: Factory,
+  addr_store: Store,
+  addr_park: TreePine,
+  pencil_line: PencilLine,
 } as const;
 
 export type IconName = keyof typeof icons;

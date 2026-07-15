@@ -37,6 +37,9 @@ export interface Profile {
   disclaimer_accepted_at?: string;
   is_active: boolean;
   accessibility_needs: AccessibilityNeed[];
+  // supabase/migrations/012_profile_extra_fields.sql
+  home_city?: string;
+  bio?: string;
   created_at: string;
   updated_at: string;
 }

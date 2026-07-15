@@ -23,6 +23,8 @@ export function useAuth() {
     full_name?: string;
     username?: string;
     avatar_url?: string;
+    home_city?: string;
+    bio?: string;
   }) {
     const { data: updated, error } = await supabase
       .from('profiles')
@@ -73,6 +75,16 @@ export function useAuth() {
     if (error) throw error;
   }
 
+  async function getLegalName(userId: string): Promise<string | null> {
+    const { data, error } = await supabase
+      .from('profile_private')
+      .select('legal_name')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    return data?.legal_name ?? null;
+  }
+
   async function resetPasswordForEmail(email: string) {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: Linking.createURL('reset-password'),
@@ -106,7 +118,7 @@ export function useAuth() {
 
   return {
     signIn, signUp, signOut, loadProfile, uploadAvatar, updateProfile,
-    upsertLegalName, resetPasswordForEmail, updatePassword,
+    upsertLegalName, getLegalName, resetPasswordForEmail, updatePassword,
     loading,
   };
 }
