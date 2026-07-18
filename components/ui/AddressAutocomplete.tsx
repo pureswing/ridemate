@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { useTheme } from '@/hooks/useTheme';
-import { getPlacePredictions, getPlaceDetail, PlacePrediction, PlaceDetail } from '@/services/googlePlaces';
+import { getPlacePredictions, getPlaceDetail, newPlacesSessionToken, PlacePrediction, PlaceDetail } from '@/services/googlePlaces';
 
 interface Props {
   label?: string;
@@ -22,16 +22,29 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
   const suppressRef = useRef(false);
   // Skip the first effect run — prevents an API call when a pre-filled value is passed in
   const mountedRef = useRef(false);
+  // Groups this typing burst's predictions calls + the closing place-detail
+  // call into one billed Google Places session — see newPlacesSessionToken.
+  // Cleared once a place is picked (session over) or the field is emptied
+  // (abandoned search, next one is a new session).
+  const sessionTokenRef = useRef<string | null>(null);
+  function sessionToken(): string {
+    if (!sessionTokenRef.current) sessionTokenRef.current = newPlacesSessionToken();
+    return sessionTokenRef.current;
+  }
 
   useEffect(() => {
     if (!mountedRef.current) { mountedRef.current = true; return; }
     if (suppressRef.current) return;
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (value.length < 3) { setPredictions([]); setOpen(false); return; }
+    if (value.length < 3) {
+      setPredictions([]); setOpen(false);
+      if (value.length === 0) sessionTokenRef.current = null;
+      return;
+    }
     debounceRef.current = setTimeout(async () => {
       if (suppressRef.current) return;
       setLoading(true);
-      const results = await getPlacePredictions(value);
+      const results = await getPlacePredictions(value, sessionToken());
       setPredictions(results);
       setOpen(results.length > 0);
       setLoading(false);
@@ -44,9 +57,10 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
     setPredictions([]);
     onChangeText(prediction.mainText);
     if (onSelectPlace) {
-      const detail = await getPlaceDetail(prediction.placeId);
+      const detail = await getPlaceDetail(prediction.placeId, sessionTokenRef.current ?? undefined);
       if (detail) onSelectPlace(detail);
     }
+    sessionTokenRef.current = null; // session closed — next typing burst gets a fresh token
     // Reset after both value updates (onChangeText + onSelectPlace) have propagated
     setTimeout(() => { suppressRef.current = false; }, 500);
   }

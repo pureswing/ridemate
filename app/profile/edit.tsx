@@ -108,6 +108,12 @@ export default function EditProfileScreen() {
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
   const [pickingIconSlot, setPickingIconSlot] = useState<string | null>(null);
 
+  // Visual only — real deletion needs a Supabase Edge Function (service-role
+  // key can't live in the app), tracked as separate follow-up work.
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteText, setDeleteText] = useState('');
+  const deleteArmed = deleteText.trim().toUpperCase() === 'DELETE';
+
   const displayAvatar = photoUri ?? profile?.avatar_url ?? undefined;
   const email = session?.user?.email ?? '';
 
@@ -434,6 +440,81 @@ export default function EditProfileScreen() {
               </View>
             );
           })}
+
+          <Text style={{
+            fontFamily: fonts.displayBold, fontSize: 17,
+            letterSpacing: letterSpacingFor(17, -0.01), color: theme.danger,
+            marginTop: 32,
+          }}>
+            {t.profile.dangerZoneTitle}
+          </Text>
+          <View style={{
+            marginTop: 12, borderRadius: radii.lg, borderWidth: 1,
+            borderColor: theme.passengerBorder, backgroundColor: theme.passengerSoft, padding: 16,
+          }}>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="delete" size={19} color={theme.danger} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.text }}>
+                  {t.profile.deleteAccountTitle}
+                </Text>
+                <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.muted, marginTop: 2, lineHeight: Math.round(12.5 * 1.45) }}>
+                  {t.profile.deleteAccountDesc}
+                </Text>
+              </View>
+            </View>
+
+            {!confirmDelete ? (
+              <Button
+                variant="outline"
+                fullWidth
+                textColor={theme.danger}
+                style={{ marginTop: 14, borderColor: theme.danger }}
+                onPress={() => setConfirmDelete(true)}
+              >
+                {t.profile.deleteMyAccountButton}
+              </Button>
+            ) : (
+              <View style={{ marginTop: 14, gap: 11 }}>
+                <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary }}>
+                  {t.profile.deleteConfirmPrompt}
+                </Text>
+                <TextInput
+                  value={deleteText}
+                  onChangeText={setDeleteText}
+                  placeholder={t.profile.deletePlaceholder}
+                  placeholderTextColor={theme.muted}
+                  autoCapitalize="characters"
+                  autoCorrect={false}
+                  style={{
+                    height: 48, borderRadius: radii.md, borderWidth: 1.5, borderColor: theme.border,
+                    backgroundColor: theme.surface, paddingHorizontal: 14,
+                    fontFamily: fonts.bodyMedium, fontSize: 15, letterSpacing: letterSpacingFor(15, 0.08),
+                    color: theme.text,
+                  }}
+                />
+                <View style={{ flexDirection: 'row', gap: 11 }}>
+                  <View style={{ flex: 1 }}>
+                    <Button variant="ghost" fullWidth onPress={() => { setConfirmDelete(false); setDeleteText(''); }}>
+                      {t.profile.cancel}
+                    </Button>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Button
+                      variant="danger"
+                      fullWidth
+                      disabled={!deleteArmed}
+                      onPress={() => Alert.alert(t.profile.comingSoonTitle, t.profile.comingSoonMsg)}
+                    >
+                      {t.profile.deleteForeverButton}
+                    </Button>
+                  </View>
+                </View>
+              </View>
+            )}
+          </View>
           </ScrollView>
         </KeyboardWrapper>
         {/* Fields fade into the background as they scroll toward the fixed

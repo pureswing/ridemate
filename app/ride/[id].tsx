@@ -189,9 +189,9 @@ export default function RideDetailScreen() {
 
         {/* Route map */}
         <RouteMap
+          routeMapUrl={post.route_map_url}
           origin={post.origin_city}
           destination={post.destination_city}
-          scheduledAt={post.scheduled_at}
           originLat={post.origin_lat}
           originLng={post.origin_lng}
           destinationLat={post.destination_lat}

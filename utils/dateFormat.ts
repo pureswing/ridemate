@@ -66,3 +66,37 @@ export function shortDateTime(isoString: string, locale: string): string {
   const time = d.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
   return `${date} ${time}`;
 }
+
+// date/time <-> "YYYY-MM-DD" / "HH:mm" string conversions, used at the edges
+// of the native <DateTimePicker> in the ride post create/edit forms — those
+// screens keep `date`/`time` as plain strings (handleSubmit builds
+// `${date}T${time}:00` straight into `new Date(...)`), so the picker only
+// ever touches the representation here.
+export function dateStringToDate(s: string): Date {
+  if (!s) return new Date();
+  const [y, m, d] = s.split('-').map(Number);
+  if (!y || !m || !d) return new Date();
+  return new Date(y, m - 1, d);
+}
+
+export function timeStringToDate(s: string): Date {
+  const base = new Date();
+  if (!s) return base;
+  const [h, m] = s.split(':').map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return base;
+  base.setHours(h, m, 0, 0);
+  return base;
+}
+
+export function dateToDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export function dateToTimeString(d: Date): string {
+  const h = String(d.getHours()).padStart(2, '0');
+  const m = String(d.getMinutes()).padStart(2, '0');
+  return `${h}:${m}`;
+}

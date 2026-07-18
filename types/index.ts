@@ -128,6 +128,7 @@ export interface RidePost {
   airport: boolean;
   airport_leg?: 'to' | 'from';
   flight_number?: string;
+  route_map_url?: string;
   details: RidePostDetails;
   created_at: string;
   updated_at: string;

@@ -33,7 +33,10 @@ import {
   // saved-address icon picker
   MapPinHouse, BriefcaseBusiness, Plane, TrainFront, MapPinCheck,
   Church, School, Factory, Store, TreePine,
-  PencilLine,
+  PencilLine, Package2,
+  // post-ride form
+  Luggage, Thermometer, CarFront, BusFront, Ticket, PlaneLanding, PlaneTakeoff, LockOpen,
+  Bookmark,
 } from 'lucide-react-native';
 
 export const icons = {
@@ -50,6 +53,7 @@ export const icons = {
   car: Car,
   truck: Truck,
   passenger: Users,
+  package: Package2,
 
   // ── Map / Route ────────────────────────────────────────────────────────
   map: Map,
@@ -181,6 +185,17 @@ export const icons = {
   addr_store: Store,
   addr_park: TreePine,
   pencil_line: PencilLine,
+
+  // ── Post Ride form ────────────────────────────────────────────────────
+  luggage: Luggage,
+  thermometer: Thermometer,
+  car_front: CarFront,
+  bus_front: BusFront,
+  ticket: Ticket,
+  plane_landing: PlaneLanding,
+  plane_takeoff: PlaneTakeoff,
+  lock_open: LockOpen,
+  bookmark: Bookmark,
 } as const;
 
 export type IconName = keyof typeof icons;

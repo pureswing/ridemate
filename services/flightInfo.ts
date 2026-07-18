@@ -10,6 +10,8 @@ export interface FlightInfo {
     airport: string;
     iata: string;
     scheduledTime: string;  // e.g. "2026-06-23 14:30"
+    revisedTime?: string;   // updated/live estimate, only set when it differs from scheduled
+    delayMinutes?: number;  // revisedTime - scheduledTime; negative means earlier than scheduled
     terminal?: string;
     gate?: string;
   };
@@ -17,6 +19,8 @@ export interface FlightInfo {
     airport: string;
     iata: string;
     scheduledTime: string;
+    revisedTime?: string;
+    delayMinutes?: number;
     terminal?: string;
     gate?: string;
   };
@@ -82,6 +86,10 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
     // Scheduled time may be "2026-06-23 14:30" or "2026-06-23T14:30:00" or "14:30-04:00"
     const depTime = dep.scheduledTime?.local ?? dep.scheduledTime?.utc ?? dep.scheduledTime ?? '';
     const arrTime = arr.scheduledTime?.local ?? arr.scheduledTime?.utc ?? arr.scheduledTime ?? '';
+    const depRevisedRaw = dep.revisedTime?.local ?? dep.revisedTime?.utc;
+    const arrRevisedRaw = arr.revisedTime?.local ?? arr.revisedTime?.utc;
+    const depDelay = delayMinutes(dep.scheduledTime?.utc, dep.revisedTime?.utc);
+    const arrDelay = delayMinutes(arr.scheduledTime?.utc, arr.revisedTime?.utc);
 
     return {
       flightNumber: normalized,
@@ -91,6 +99,8 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
         airport: dep.airport?.name ?? dep.airportName ?? '',
         iata: dep.airport?.iata ?? dep.iata ?? '',
         scheduledTime: normalizeTimeString(depTime, targetDate),
+        revisedTime: depRevisedRaw ? normalizeTimeString(depRevisedRaw, targetDate) : undefined,
+        delayMinutes: depDelay,
         terminal: dep.terminal ?? undefined,
         gate: dep.gate ?? undefined,
       },
@@ -98,6 +108,8 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
         airport: arr.airport?.name ?? arr.airportName ?? '',
         iata: arr.airport?.iata ?? arr.iata ?? '',
         scheduledTime: normalizeTimeString(arrTime, targetDate),
+        revisedTime: arrRevisedRaw ? normalizeTimeString(arrRevisedRaw, targetDate) : undefined,
+        delayMinutes: arrDelay,
         terminal: arr.terminal ?? undefined,
         gate: arr.gate ?? undefined,
       },
@@ -106,6 +118,17 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
     console.error('[flightInfo] Network or parse error:', e);
     return null;
   }
+}
+
+// AeroDataBox's `revisedTime` vs `scheduledTime`, both as UTC strings like
+// "2026-07-15 22:53Z" — diffed on the .utc pair (not .local) so differing
+// UTC offsets across departure/arrival timezones can't skew the minutes.
+function delayMinutes(scheduledUtc?: string, revisedUtc?: string): number | undefined {
+  if (!scheduledUtc || !revisedUtc) return undefined;
+  const scheduled = new Date(scheduledUtc.replace(' ', 'T')).getTime();
+  const revised = new Date(revisedUtc.replace(' ', 'T')).getTime();
+  if (isNaN(scheduled) || isNaN(revised)) return undefined;
+  return Math.round((revised - scheduled) / 60000);
 }
 
 // Normalize various time formats to "YYYY-MM-DD HH:MM"

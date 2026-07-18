@@ -5,9 +5,25 @@
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
 
-// Florida bounding box center for biasing results
-const FLORIDA_CENTER = { lat: 27.5, lng: -81.5 };
-const FLORIDA_RADIUS  = 500_000; // meters (~310 miles)
+// Florida launch-market restriction — center shifted northwest of the
+// peninsula's geographic middle so a single circle can reach both Key West
+// and the far end of the panhandle (Pensacola), the two points a
+// peninsula-centered circle would otherwise miss. Paired with
+// `strictbounds` below, this is a hard filter, not just a bias — some
+// bleed into southern Georgia/Alabama at the edges is an accepted
+// trade-off of using a circle for a non-circular state.
+const FLORIDA_CENTER = { lat: 28.5, lng: -83.5 };
+const FLORIDA_RADIUS  = 550_000; // meters (~340 miles) — covers the whole state with margin
+
+// A session token bundles an Autocomplete typing burst + the final Place
+// Details call into one billed "session" instead of Google charging each
+// keystroke's predictions call and the details call separately — pass the
+// same token to every getPlacePredictions call in a typing burst and to
+// the getPlaceDetail call that ends it. Doesn't need cryptographic
+// randomness, just unique enough per session.
+export function newPlacesSessionToken(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
 
 export interface PlacePrediction {
   placeId: string;
@@ -24,7 +40,7 @@ export interface PlaceDetail {
   name: string;
 }
 
-export async function getPlacePredictions(input: string): Promise<PlacePrediction[]> {
+export async function getPlacePredictions(input: string, sessionToken?: string): Promise<PlacePrediction[]> {
   if (!API_KEY || input.length < 3) return [];
 
   const params = new URLSearchParams({
@@ -33,8 +49,10 @@ export async function getPlacePredictions(input: string): Promise<PlacePredictio
     components: 'country:us',
     location: `${FLORIDA_CENTER.lat},${FLORIDA_CENTER.lng}`,
     radius: String(FLORIDA_RADIUS),
+    strictbounds: 'true',
     types: 'geocode|establishment',
   });
+  if (sessionToken) params.set('sessiontoken', sessionToken);
 
   try {
     const res = await fetch(
@@ -53,7 +71,7 @@ export async function getPlacePredictions(input: string): Promise<PlacePredictio
   }
 }
 
-export async function getPlaceDetail(placeId: string): Promise<PlaceDetail | null> {
+export async function getPlaceDetail(placeId: string, sessionToken?: string): Promise<PlaceDetail | null> {
   if (!API_KEY) return null;
 
   const params = new URLSearchParams({
@@ -61,6 +79,7 @@ export async function getPlaceDetail(placeId: string): Promise<PlaceDetail | nul
     key: API_KEY,
     fields: 'place_id,name,formatted_address,geometry',
   });
+  if (sessionToken) params.set('sessiontoken', sessionToken);
 
   try {
     const res = await fetch(

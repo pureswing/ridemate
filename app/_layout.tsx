@@ -83,6 +83,7 @@ export default function RootLayout() {
             options={{ title: t.nav.rideDetail, headerBackTitle: t.nav.back }}
           />
           <Stack.Screen name="profile/edit" options={{ headerShown: false }} />
+          <Stack.Screen name="post/ride" options={{ headerShown: false }} />
         </Stack>
       </GestureHandlerRootView>
     </SafeAreaProvider>

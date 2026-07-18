@@ -343,10 +343,10 @@ export default function ProfileScreen() {
           the card WOULD be without that offset, leaving a 32px gap above it.
           Same -32 here closes that gap; paddingTop below is the real spacing
           from the card's visual bottom edge. ───────────────────────────── */}
-      <View style={{ flex: 1, marginTop: -32 }}>
+      <View style={{ flex: 1, marginTop: -55 }}>
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 32 }}>
           {/* ── Subscriber promo card ───────────────────────────────────────── */}
-          <View style={{ paddingHorizontal: 20, paddingTop: 46 }}>
+          <View style={{ paddingHorizontal: 20, paddingTop: 74 }}>
           <Card
             interactive
             onPress={() => isFree ? setShowPaywall(true) : undefined}

@@ -21,6 +21,8 @@ interface Props {
   disabled?: boolean;
   onPress?: () => void;
   style?: StyleProp<ViewStyle>;
+  // Overrides the variant's default text/icon color.
+  textColor?: string;
 }
 
 // icon ≈ 80% of fontSize, not equal — an icon fills its full square bounds, but a
@@ -43,6 +45,7 @@ export function Button({
   disabled = false,
   onPress,
   style,
+  textColor,
 }: Props) {
   const theme = useTheme();
   const s = SIZES[size];
@@ -56,6 +59,7 @@ export function Button({
     danger:    { gradient: theme.gradientOrchid, textColor: '#FFFFFF', shadow: shadows.orchid },
   };
   const v = variants[variant];
+  const resolvedTextColor = textColor ?? v.textColor;
 
   return (
     // All visual styling (size, background, shadow, press-scale) lives on this plain
@@ -98,7 +102,7 @@ export function Button({
           paddingHorizontal: s.paddingHorizontal,
         }}
       >
-        {icon && <Icon name={icon} size={s.icon} color={v.textColor} />}
+        {icon && <Icon name={icon} size={s.icon} color={resolvedTextColor} />}
         <Text
           numberOfLines={1}
           adjustsFontSizeToFit
@@ -109,14 +113,14 @@ export function Button({
             fontFamily: fonts.bodySemibold,
             fontSize: s.fontSize,
             lineHeight: Math.round(s.fontSize * leading.snug),
-            color: v.textColor,
+            color: resolvedTextColor,
             textTransform: 'uppercase',
             letterSpacing: letterSpacingFor(s.fontSize, tracking.wide),
           }}
         >
           {children}
         </Text>
-        {trailingIcon && <Icon name={trailingIcon} size={s.icon} color={v.textColor} />}
+        {trailingIcon && <Icon name={trailingIcon} size={s.icon} color={resolvedTextColor} />}
       </View>
       <Pressable
         onPress={disabled ? undefined : onPress}

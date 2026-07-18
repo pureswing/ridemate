@@ -62,10 +62,12 @@ export function useRides() {
   }, [filters, setPosts, setLoading]);
 
   async function createPost(
-    // kind/round_trip/airport/details are omitted here (not just optional) —
-    // post.tsx doesn't collect them yet, so they fall through to the columns'
-    // own DB defaults ('ride', false, false, '{}') on insert.
+    // kind/round_trip/airport/details are optional, not required — app/post/ride.tsx
+    // now collects them, but callers that don't (package/hauling forms, once they
+    // exist) can still omit them and fall through to the columns' own DB defaults
+    // ('ride', false, false, '{}') on insert.
     post: Omit<RidePost, 'id' | 'created_at' | 'updated_at' | 'expires_at' | 'views_count' | 'status' | 'profile' | 'kind' | 'round_trip' | 'airport' | 'details'>
+      & Partial<Pick<RidePost, 'kind' | 'round_trip' | 'airport' | 'details'>>
   ) {
     const { data, error } = await supabase
       .from('ride_posts')
@@ -74,6 +76,18 @@ export function useRides() {
       .single();
     if (error) throw error;
     return data as RidePost;
+  }
+
+  // Uploads the once-generated route map PNG (see services/routeMap.ts) to
+  // the public route-maps bucket and returns its public URL, or null on
+  // failure — the map is a nice-to-have, never a submission blocker.
+  async function uploadRouteMap(userId: string, image: ArrayBuffer): Promise<string | null> {
+    const fileName = `${userId}/${Date.now()}.png`;
+    const { error } = await supabase.storage
+      .from('route-maps')
+      .upload(fileName, image, { contentType: 'image/png', upsert: true });
+    if (error) return null;
+    return supabase.storage.from('route-maps').getPublicUrl(fileName).data.publicUrl;
   }
 
   async function getPostById(id: string) {
@@ -171,5 +185,5 @@ export function useRides() {
     return data as RidePost;
   }
 
-  return { fetchPosts, createPost, getPostById, getRoutePriceStats, revealContact, cancelPost, updatePost };
+  return { fetchPosts, createPost, uploadRouteMap, getPostById, getRoutePriceStats, revealContact, cancelPost, updatePost };
 }

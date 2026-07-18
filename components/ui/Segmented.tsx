@@ -1,113 +1,87 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, LayoutChangeEvent, Pressable, StyleProp, ViewStyle } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { View, Animated, Easing } from 'react-native';
+import { TouchableOpacity } from './TouchableOpacity';
 import { ThemedText as Text } from './ThemedText';
 import { useTheme } from '@/hooks/useTheme';
-import { radii, fonts, shadows } from '@/constants/themes';
+import { fonts, radii, shadows } from '@/constants/themes';
 
-interface Option { value: string; label: string }
-type Size = 'sm' | 'md';
-
-interface Props {
-  options: (Option | string)[];
-  value: string;
-  onChange?: (value: string) => void;
-  size?: Size;
-  style?: StyleProp<ViewStyle>;
+interface Props<T extends string> {
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  theme: ReturnType<typeof useTheme>;
 }
 
-// Segmented — pill segmented control for 2–3 short options (e.g. EN / ES).
-// The active thumb is measured against each button's real rendered box (via
-// onLayout) so it hugs the label correctly even when options differ in length.
-export function Segmented({ options, value, onChange, size = 'md', style }: Props) {
-  const theme = useTheme();
-  const opts: Option[] = options.map((o) => (typeof o === 'string' ? { value: o, label: o } : o));
-  const h = size === 'sm' ? 34 : 42;
-  const activeIndex = Math.max(0, opts.findIndex((o) => o.value === value));
+// Pill segmented control for 2 short options (e.g. Offering/Looking,
+// EN/ES). Matches the design system's Segmented.jsx: one shared track (not
+// per-button borders) with a separate thumb that's measured against each
+// button's real onLayout box and slides there — not a per-button color snap.
+//
+// Deliberately built on react-native's own classic Animated API, NOT
+// react-native-reanimated — a position:absolute Reanimated Animated.View
+// inside a ScrollView breaks touch dispatch for sibling content on Android
+// under the New Architecture (unresolved upstream:
+// software-mansion/react-native-reanimated#8497). react-native's own
+// Animated.View doesn't have this issue. The animated properties here
+// (left/width) aren't native-driver-eligible anyway, so this isn't a
+// meaningful performance step down from the Reanimated version it replaced.
+export function Segmented<T extends string>({ options, value, onChange, theme }: Props<T>) {
+  const layouts = useRef<Record<string, { x: number; width: number }>>({});
+  const thumbX = useRef(new Animated.Value(0)).current;
+  const thumbWidth = useRef(new Animated.Value(0)).current;
+  const thumbOpacity = useRef(new Animated.Value(0)).current;
 
-  const layouts = useRef<{ x: number; width: number }[]>([]);
-  const left = useRef(new Animated.Value(4)).current;
-  const width = useRef(new Animated.Value(0)).current;
-  const [measured, setMeasured] = useState(false);
-
-  const moveThumb = useCallback((index: number, animate: boolean) => {
-    const l = layouts.current[index];
-    if (!l) return;
-    if (animate) {
-      Animated.spring(left, { toValue: l.x, useNativeDriver: false, bounciness: 4 }).start();
-      Animated.spring(width, { toValue: l.width, useNativeDriver: false, bounciness: 4 }).start();
-    } else {
-      left.setValue(l.x);
-      width.setValue(l.width);
-    }
-  }, [left, width]);
-
-  useEffect(() => {
-    if (measured) moveThumb(activeIndex, true);
-  }, [activeIndex, measured, moveThumb]);
-
-  function handleLayout(index: number, e: LayoutChangeEvent) {
-    layouts.current[index] = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width };
-    if (index === activeIndex && !measured && layouts.current[index]) {
-      moveThumb(index, false);
-      setMeasured(true);
+  function handleLayout(key: string, x: number, width: number) {
+    const isFirst = !layouts.current[key];
+    layouts.current[key] = { x, width };
+    if (key === value && isFirst) {
+      thumbX.setValue(x);
+      thumbWidth.setValue(width);
+      thumbOpacity.setValue(1);
     }
   }
 
+  // Drives the thumb to whichever key's measured box is passed in. Called
+  // both from onPress (so the tap that changes `value` also animates in the
+  // same JS tick) and from the effect (for value changes triggered from
+  // outside this component, e.g. the Airport-trip ToggleRow flipping
+  // `airportLeg`).
+  function animateTo(key: string) {
+    const l = layouts.current[key];
+    if (!l) return;
+    const easing = Easing.bezier(0.22, 0.61, 0.36, 1);
+    Animated.timing(thumbX, { toValue: l.x, duration: 360, easing, useNativeDriver: false }).start();
+    Animated.timing(thumbWidth, { toValue: l.width, duration: 360, easing, useNativeDriver: false }).start();
+    Animated.timing(thumbOpacity, { toValue: 1, duration: 180, useNativeDriver: false }).start();
+  }
+
+  useEffect(() => {
+    animateTo(value);
+  }, [value]);
+
   return (
-    <Animated.View
-      style={[
-        {
-          flexDirection: 'row',
-          alignSelf: 'flex-start',
-          alignItems: 'center',
-          padding: 4,
-          backgroundColor: theme.surfaceAlt,
-          borderRadius: radii.pill,
-        },
-        style,
-      ]}
-    >
+    <View style={{ flexDirection: 'row', padding: 4, backgroundColor: theme.surfaceAlt, borderRadius: radii.pill }}>
       <Animated.View
         pointerEvents="none"
-        style={{
-          position: 'absolute',
-          top: 4,
-          bottom: 4,
-          left,
-          width,
-          opacity: measured ? 1 : 0,
-          backgroundColor: theme.border,
-          borderRadius: radii.pill,
-          ...shadows.sm,
-        }}
+        style={[
+          { position: 'absolute', top: 4, bottom: 4, borderRadius: radii.pill, backgroundColor: theme.border },
+          shadows.sm,
+          { left: thumbX, width: thumbWidth, opacity: thumbOpacity },
+        ]}
       />
-      {opts.map((o, i) => {
-        const active = o.value === value;
+      {options.map((opt) => {
+        const active = value === opt.value;
         return (
-          <Pressable
-            key={o.value}
-            onLayout={(e) => handleLayout(i, e)}
-            onPress={() => onChange?.(o.value)}
-            style={{
-              height: h,
-              paddingHorizontal: 18,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+          <TouchableOpacity
+            key={opt.value}
+            onPress={() => { animateTo(opt.value); onChange(opt.value); }}
+            onLayout={(e) => handleLayout(opt.value, e.nativeEvent.layout.x, e.nativeEvent.layout.width)}
+            style={{ flex: 1, paddingVertical: 12, alignItems: 'center' }}
           >
-            <Text
-              style={{
-                fontFamily: fonts.bodyBold,
-                fontSize: size === 'sm' ? 14 : 16,
-                letterSpacing: -0.14,
-                color: active ? theme.text : theme.muted,
-              }}
-            >
-              {o.label}
-            </Text>
-          </Pressable>
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: active ? theme.text : theme.muted }}>{opt.label}</Text>
+          </TouchableOpacity>
         );
       })}
-    </Animated.View>
+    </View>
   );
 }

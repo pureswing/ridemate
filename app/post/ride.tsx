@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { View, ScrollView, Alert, TextInput, ActivityIndicator, Modal } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
@@ -7,6 +7,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Field } from '@/components/ui/Field';
 import { CardBox } from '@/components/ui/CardBox';
@@ -21,44 +22,32 @@ import { DateTimeField } from '@/components/ui/DateTimeField';
 import { OversizedSheet } from '@/components/ui/OversizedSheet';
 import { SmartAddressField } from '@/components/ui/SmartAddressField';
 import { RouteMapPlaceholder } from '@/components/ride/RouteMapPlaceholder';
-import { RouteMap } from '@/components/ride/RouteMap';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
-import { RidePost, ContactMethod, PostVisibility, RidePostDetailsRide } from '@/types';
+import { useVehicleProfile } from '@/hooks/useVehicleProfile';
+import { PostType, ContactMethod, PostVisibility, RidePostDetailsRide, RouteStats } from '@/types';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FLORIDA_AIRPORTS, Airport } from '@/constants/florida-airports';
+import { Airport } from '@/constants/florida-airports';
 import { lookupFlight, parseFlightTime, FlightInfo } from '@/services/flightInfo';
 import { generateRouteMapImage } from '@/services/routeMap';
 import { AirportPicker } from '@/components/ui/AirportPicker';
 import { PlaceDetail } from '@/services/googlePlaces';
 import { cityFromAddress } from '@/utils/address';
-import { dateToDateString, dateToTimeString } from '@/utils/dateFormat';
 import { IconName } from '@/constants/icons';
 import { fonts, radii, shadows } from '@/constants/themes';
-import { tracking, letterSpacingFor } from '@/constants/typography';
+import { tracking, leading, letterSpacingFor } from '@/constants/typography';
 import { RULES, VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS } from '@/constants/rideFormOptions';
 
-const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
-
-function canEditPost(post: RidePost): boolean {
-  return new Date(post.scheduled_at).getTime() - Date.now() > TWO_HOURS_MS;
-}
-
-// Full parity with app/post/ride.tsx's create form — same components, same
-// editable fields — except `type` (offer/request) itself, which stays fixed
-// post-creation: switching a driver offer into a passenger request mid-life
-// doesn't have a sane field mapping (seats_available vs. adults/children),
-// so it's shown read-only here rather than as a Segmented.
-export default function EditRideScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+export default function PostRideScreen() {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const { session } = useAuthStore();
-  const { getPostById, updatePost, uploadRouteMap } = useRides();
+  const { createPost, uploadRouteMap, getRoutePriceStats } = useRides();
+  const { getMyVehicle } = useVehicleProfile();
 
   const CONTACT_METHODS: { label: string; value: ContactMethod }[] = [
     { label: t.post.whatsapp, value: 'whatsapp' },
@@ -67,20 +56,18 @@ export default function EditRideScreen() {
     { label: t.post.chat, value: 'in_app' },
   ];
 
-  const [original, setOriginal] = useState<RidePost | null>(null);
-  const [pageLoading, setPageLoading] = useState(true);
-  const [locked, setLocked] = useState(false);
-
-  const isDriver = original?.type === 'offer';
+  // â”€â”€ I'm offering / looking for â”€â”€
+  const [type, setType] = useState<PostType>('offer');
+  const isDriver = type === 'offer';
   const accent = isDriver ? theme.driverText : theme.primary;
   const accentSoft = isDriver ? theme.driverSoft : theme.passengerSoft;
 
-  // ── Trip type (passenger only): regular vs event ──
+  // â”€â”€ Trip type (passenger only): regular vs event â”€â”€
   const [isEvent, setIsEvent] = useState(false);
   const [eventName, setEventName] = useState('');
   const [vehiclesNeeded, setVehiclesNeeded] = useState(3);
 
-  // ── Route ──
+  // â”€â”€ Route â”€â”€
   const [originCity, setOriginCity] = useState('');
   const [originAddress, setOriginAddress] = useState('');
   const [destinationCity, setDestinationCity] = useState('');
@@ -90,10 +77,16 @@ export default function EditRideScreen() {
   const [destinationLat, setDestinationLat] = useState<number | undefined>();
   const [destinationLng, setDestinationLng] = useState<number | undefined>();
   const [roundTrip, setRoundTrip] = useState(false);
-  // Visual only, same as create — see app/post/ride.tsx's own comment.
+  // Visual only â€” matches the design system's PostRide.jsx waypoints list, but
+  // `details` has no `stops` field (see types/index.ts's RidePostDetailsRide)
+  // and isn't submitted; this is UI-completeness, not a real itinerary feature yet.
   const [stops, setStops] = useState<string[]>([]);
 
-  // ── Address book — visual only, session-local, same as create form ──
+  // â”€â”€ Address book (origin/destination "saved address" picker) â€” visual
+  // only, session-local state, same as profile/edit.tsx's own Address Book
+  // (which also has no Supabase persistence yet â€” see that screen's
+  // slotValues). Shared between the origin and destination fields below,
+  // matching the single address-book concept in the design system. â”€â”€
   const ADDRESS_BOOK_SLOTS: { id: string; label: string; icon: IconName }[] = [
     { id: 'home', label: t.profile.addressHome, icon: 'addr_home' },
     { id: 'work', label: t.profile.addressWork, icon: 'addr_work' },
@@ -108,7 +101,7 @@ export default function EditRideScreen() {
     setAddressBook((prev) => ({ ...prev, [slotId]: value }));
   }
 
-  // ── Airport mode ──
+  // â”€â”€ Airport mode â”€â”€
   const [isOriginAirport, setIsOriginAirport] = useState(false);
   const [isDestinationAirport, setIsDestinationAirport] = useState(false);
   const [selectedOriginAirport, setSelectedOriginAirport] = useState<Airport | null>(null);
@@ -116,136 +109,73 @@ export default function EditRideScreen() {
   const airport = isOriginAirport || isDestinationAirport;
   const airportLeg: 'to' | 'from' = isDestinationAirport ? 'to' : 'from';
 
-  // ── Flight ──
+  // â”€â”€ Flight â”€â”€
   const [flightNumber, setFlightNumber] = useState('');
   const [flightInfo, setFlightInfo] = useState<FlightInfo | null>(null);
   const [flightLoading, setFlightLoading] = useState(false);
   const flightDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Skips the lookup once for the value prefill sets on load — otherwise
-  // every edit-screen open for an airport trip re-fires the paid API call
-  // before the user has touched anything.
-  const flightMounted = useRef(false);
 
-  // ── Schedule ──
+  // â”€â”€ Schedule â”€â”€
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
 
-  // ── Who's riding ──
+  // â”€â”€ Who's riding â”€â”€
   const [seats, setSeats] = useState(2);
+  const [vehicleSeats, setVehicleSeats] = useState<number | null>(null);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [childSeatPrefs, setChildSeatPrefs] = useState<string[]>([]);
 
-  // ── Luggage ──
+  // â”€â”€ Luggage â”€â”€
   const [bags, setBags] = useState(0);
   const [bagTypes, setBagTypes] = useState<string[]>([]);
   const [oversizedInfo, setOversizedInfo] = useState<Record<number, { types: string[]; other: string }>>({});
   const [pickingOversized, setPickingOversized] = useState<number | null>(null);
 
-  // ── Price — rateBasis/priceMode/vehicle are visual only, no schema field,
-  // same as create form; nothing to prefill for them. ──
+  // â”€â”€ Price â”€â”€
   const [donation, setDonation] = useState('');
+  const [routeStats, setRouteStats] = useState<RouteStats | null>(null);
+  const routeStatsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // rateBasis/priceMode are visual only, same reasoning as `stops` above â€” no
+  // hourly rate or counter-offer-mode column exists on ride_posts, and the
+  // app's real counter-offer mechanic already lives in messaging (Send Offer
+  // on any post), independent of how the creator priced it here.
   const [rateBasis, setRateBasis] = useState<'trip' | 'hourly'>('trip');
   const [priceMode, setPriceMode] = useState<'firm' | 'open'>('firm');
+
+  // â”€â”€ Vehicle (driver, free text) â€” visual only, no schema field; the app's
+  // real vehicle data lives in the separate Vehicle Profile system. â”€â”€
   const [vehicle, setVehicle] = useState('');
 
-  // ── Passenger vehicle/comfort/climate prefs ──
+  // â”€â”€ Passenger vehicle/comfort/climate prefs â”€â”€
   const [vehicleType, setVehicleType] = useState('No preference');
   const [comfortPrefs, setComfortPrefs] = useState<string[]>([]);
   const [climatePrefs, setClimatePrefs] = useState<string[]>([]);
   const [tempPref, setTempPref] = useState(72);
 
-  // ── Rules / note ──
+  // â”€â”€ Rules / note â”€â”€
   const [rules, setRules] = useState<Record<string, boolean>>({});
   const [note, setNote] = useState('');
 
-  // ── Contact / visibility ──
+  // â”€â”€ Contact / visibility â”€â”€
   const [contactMethod, setContactMethod] = useState<ContactMethod>('whatsapp');
   const [contactValue, setContactValue] = useState('');
   const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [privateDelayHours, setPrivateDelayHours] = useState(6);
 
-  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [posted, setPosted] = useState(false);
 
-  useEffect(() => { load(); }, [id]);
-
-  async function load() {
-    try {
-      const post = await getPostById(id);
-      if (!post || post.user_id !== session?.user?.id) {
-        Alert.alert(t.post.errorTitle, 'Post not found or unauthorized.');
-        router.back();
-        return;
-      }
-      if (!canEditPost(post)) {
-        setOriginal(post);
-        setLocked(true);
-        setPageLoading(false);
-        return;
-      }
-      setOriginal(post);
-      prefill(post);
-    } catch {
-      Alert.alert(t.post.errorTitle, 'Could not load post.');
-      router.back();
-    } finally {
-      setPageLoading(false);
-    }
-  }
-
-  function prefill(post: RidePost) {
-    const fromAirport = post.airport && post.airport_leg === 'from';
-    const toAirport = post.airport && post.airport_leg === 'to';
-    setIsOriginAirport(!!fromAirport);
-    setSelectedOriginAirport(fromAirport ? FLORIDA_AIRPORTS.find((a) => a.name === post.origin_address) ?? null : null);
-    setIsDestinationAirport(!!toAirport);
-    setSelectedDestinationAirport(toAirport ? FLORIDA_AIRPORTS.find((a) => a.name === post.destination_address) ?? null : null);
-
-    setOriginCity(post.origin_city);
-    setOriginAddress(post.origin_address ?? '');
-    setOriginLat(post.origin_lat);
-    setOriginLng(post.origin_lng);
-    setDestinationCity(post.destination_city);
-    setDestinationAddress(post.destination_address ?? '');
-    setDestinationLat(post.destination_lat);
-    setDestinationLng(post.destination_lng);
-    setRoundTrip(post.round_trip);
-
-    setFlightNumber(post.flight_number ?? '');
-
-    const d = new Date(post.scheduled_at);
-    setDate(dateToDateString(d));
-    setTime(dateToTimeString(d));
-
-    setSeats(post.seats_available ?? 2);
-    setDonation(post.suggested_donation != null ? String(post.suggested_donation) : '');
-    setNote(post.description ?? '');
-    setContactMethod(post.contact_method);
-    setContactValue(post.contact_value ?? '');
-    setVisibility(post.visibility);
-
-    const details = (post.details ?? {}) as RidePostDetailsRide;
-    setRules(details.rules ?? {});
-    setBags(details.bags ?? 0);
-    setBagTypes(details.bagTypes ?? []);
-    const oversizedMap: Record<number, { types: string[]; other: string }> = {};
-    (details.oversizedInfo ?? []).forEach((info, i) => { oversizedMap[i] = info; });
-    setOversizedInfo(oversizedMap);
-    if (details.vehicleType) setVehicleType(details.vehicleType);
-    setComfortPrefs(details.comfortPrefs ?? []);
-    setClimatePrefs(details.climatePrefs ?? []);
-    if (details.tempPref) setTempPref(details.tempPref);
-    setAdults(details.adults ?? 1);
-    setChildren(details.children ?? 0);
-    setChildSeatPrefs(details.childSeatPrefs ?? []);
-    if (details.eventName) { setIsEvent(true); setEventName(details.eventName); }
-    if (details.vehiclesNeeded) setVehiclesNeeded(details.vehiclesNeeded);
-  }
-
-  // Auto-lookup flight when number is entered (only when an airport is
-  // selected) — skips the run the prefill itself triggers.
   useEffect(() => {
-    if (!flightMounted.current) { flightMounted.current = true; return; }
+    if (session?.user?.id) {
+      getMyVehicle(session.user.id, 'rides_courier')
+        .then((v) => { if (v?.seats) { setVehicleSeats(v.seats); setSeats(v.seats); } })
+        .catch(() => {});
+    }
+  }, []);
+
+  // Auto-lookup flight when number is entered (only when an airport is selected)
+  useEffect(() => {
     if (flightDebounce.current) clearTimeout(flightDebounce.current);
     if (flightNumber.replace(/\s/g, '').length < 3) { setFlightInfo(null); return; }
     flightDebounce.current = setTimeout(async () => {
@@ -262,6 +192,17 @@ export default function EditRideScreen() {
     const parsed = parseFlightTime(timeStr);
     if (parsed) { setDate(parsed.date); setTime(parsed.time); }
   }
+
+  // Real historical average for this route (supabase/migrations/009) â€” fetched
+  // once both cities have settled (debounced), not on every keystroke.
+  useEffect(() => {
+    if (routeStatsDebounce.current) clearTimeout(routeStatsDebounce.current);
+    if (!originCity.trim() || !destinationCity.trim()) { setRouteStats(null); return; }
+    routeStatsDebounce.current = setTimeout(async () => {
+      try { setRouteStats(await getRoutePriceStats(originCity, destinationCity)); }
+      catch { setRouteStats(null); }
+    }, 500);
+  }, [originCity, destinationCity]);
 
   function handleOriginPlace(detail: PlaceDetail) {
     setOriginAddress(detail.formattedAddress);
@@ -301,12 +242,8 @@ export default function EditRideScreen() {
   }
 
   const ready = !!(originCity.trim() && destinationCity.trim() && date.trim() && time.trim());
-  const routeChanged = !original
-    || originLat !== original.origin_lat || originLng !== original.origin_lng
-    || destinationLat !== original.destination_lat || destinationLng !== original.destination_lng;
 
-  async function handleSave() {
-    if (!original) return;
+  async function handleSubmit() {
     if (!ready) {
       Alert.alert(t.post.requiredFields, t.post.fillRequired);
       return;
@@ -338,78 +275,74 @@ export default function EditRideScreen() {
       ...(isEvent ? { eventName, vehiclesNeeded } : {}),
     };
 
-    setSaving(true);
+    setLoading(true);
     try {
-      // Only regenerate the route map (another Directions + Static Maps
-      // call) if the route actually changed — otherwise keep the existing
-      // stored image, matching the "generate once" model from create.
-      let routeMapUrl = original.route_map_url;
-      if (routeChanged && originLat != null && originLng != null && destinationLat != null && destinationLng != null) {
+      const goesPublicAt = visibility === 'private'
+        ? new Date(Date.now() + privateDelayHours * 60 * 60 * 1000).toISOString()
+        : undefined;
+
+      // Generated once here, at creation â€” RouteMap.tsx just displays this
+      // stored image, it never re-fetches from Google on its own.
+      let routeMapUrl: string | undefined;
+      if (originLat != null && originLng != null && destinationLat != null && destinationLng != null) {
         const image = await generateRouteMapImage({ lat: originLat, lng: originLng }, { lat: destinationLat, lng: destinationLng });
         if (image) routeMapUrl = (await uploadRouteMap(session!.user.id, image)) ?? undefined;
       }
 
-      await updatePost(
-        original.id,
-        {
-          origin_city: originCity,
-          origin_address: originAddress || undefined,
-          origin_lat: originLat,
-          origin_lng: originLng,
-          destination_city: destinationCity,
-          destination_address: destinationAddress || undefined,
-          destination_lat: destinationLat,
-          destination_lng: destinationLng,
-          scheduled_at: scheduledAt.toISOString(),
-          seats_available: isDriver ? seats : undefined,
-          suggested_donation: donation ? parseFloat(donation) : undefined,
-          description: note || undefined,
-          contact_method: contactMethod,
-          contact_value: contactValue || undefined,
-          visibility,
-          round_trip: roundTrip,
-          airport,
-          airport_leg: airport ? airportLeg : undefined,
-          flight_number: airport && flightNumber ? flightNumber : undefined,
-          route_map_url: routeMapUrl,
-          details,
-        },
-        original
-      );
-      Alert.alert(t.post.updatedTitle, t.post.updatedMsg, [{ text: 'OK', onPress: () => router.back() }]);
+      await createPost({
+        user_id: session!.user.id,
+        type: isEvent ? 'request' : type,
+        origin_city: originCity,
+        origin_address: originAddress || undefined,
+        origin_lat: originLat,
+        origin_lng: originLng,
+        destination_city: destinationCity,
+        destination_address: destinationAddress || undefined,
+        destination_lat: destinationLat,
+        destination_lng: destinationLng,
+        scheduled_at: scheduledAt.toISOString(),
+        seats_available: isDriver ? seats : undefined,
+        suggested_donation: donation ? parseFloat(donation) : undefined,
+        description: note || undefined,
+        contact_method: contactMethod,
+        contact_value: contactValue || undefined,
+        visibility,
+        goes_public_at: goesPublicAt,
+        round_trip: roundTrip,
+        airport,
+        airport_leg: airport ? airportLeg : undefined,
+        flight_number: airport && flightNumber ? flightNumber : undefined,
+        route_map_url: routeMapUrl,
+        details,
+      });
+
+      setPosted(true);
+      setTimeout(() => router.replace('/(tabs)'), 1500);
     } catch (e: any) {
       Alert.alert(t.post.errorTitle, e.message);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   }
 
-  if (pageLoading) {
+  if (posted) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>
-        <ActivityIndicator size="large" color={theme.primary} />
-      </View>
-    );
-  }
-
-  if (locked) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background, padding: 32 }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-          <Icon name="lock" size={30} color={theme.muted} />
-        </View>
-        <Text style={{ fontFamily: fonts.displayBold, fontSize: 19, letterSpacing: letterSpacingFor(19, tracking.tight), color: theme.text, marginTop: 18, textAlign: 'center' }}>
-          {t.post.editLockedTitle}
-        </Text>
-        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 14, color: theme.muted, marginTop: 8, textAlign: 'center', lineHeight: 20, maxWidth: 280 }}>
-          {t.post.editLockedMsg}
-        </Text>
-        <TouchableOpacity
-          style={{ marginTop: 24, paddingHorizontal: 28, paddingVertical: 14, backgroundColor: theme.primary, borderRadius: 16 }}
-          onPress={() => router.back()}
+      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
+        <LinearGradient
+          colors={theme.gradientGold as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Text style={{ color: '#fff', fontFamily: fonts.bodyBold, fontSize: 14 }}>{t.post.goBack}</Text>
-        </TouchableOpacity>
+          <Icon name="check" size={44} color={theme.textOnPrimary} strokeWidth={2.6} />
+        </LinearGradient>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, letterSpacing: letterSpacingFor(26, tracking.tight), color: theme.text, textAlign: 'center' }}>
+            {t.post.postedTitle}
+          </Text>
+          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 14.5, color: theme.muted, marginTop: 6, maxWidth: 260, textAlign: 'center' }}>
+            {isDriver ? t.post.postedDriverMsg : t.post.postedPassengerMsg}
+          </Text>
+        </View>
       </View>
     );
   }
@@ -427,28 +360,30 @@ export default function EditRideScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
           <IconButton icon="close" variant="glass" label={t.post.close} onPress={() => router.back()} />
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
-            {t.post.editRideEyebrow}
+            {t.post.rideFormTitle}
           </Text>
           <View style={{ width: 44 }} />
         </View>
         <View style={{ paddingHorizontal: 20, paddingTop: 10, alignItems: 'center' }}>
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, letterSpacing: letterSpacingFor(26, tracking.tight), color: theme.cream, textAlign: 'center' }}>
-            {t.post.editRideTitle}
+            {isDriver ? 'Offer a ' : 'Find a '}
+            <Text style={{ fontFamily: fonts.bodyItalic, color: theme.driverText }}>ride</Text>
           </Text>
         </View>
       </LinearGradient>
 
-      {/* removeClippedSubviews={false} — see app/post/ride.tsx's identical
-          comment: Android's off-screen ScrollView clipping can leave touch
-          handlers stale below the fold until a native scroll forces relayout. */}
+      {/* removeClippedSubviews={false} — Android's default clipping of
+          off-screen ScrollView content can leave touch handlers stale for
+          content below the fold until a native scroll event forces a
+          re-layout; this is the documented fix for exactly that symptom
+          (works once visible, then unresponsive until you scroll). */}
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" removeClippedSubviews={false} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 100 }}>
-        {/* I'm offering / looking — fixed post-creation, shown read-only */}
+        {/* I'm offering / looking */}
         <Field label={t.post.imTitle}>
-          <View style={{ backgroundColor: theme.surfaceAlt, borderRadius: radii.pill, paddingVertical: 12, alignItems: 'center' }}>
-            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: theme.text }}>
-              {isDriver ? t.post.imOffering : t.post.imLooking}
-            </Text>
-          </View>
+          <Segmented
+            options={[{ value: 'offer' as const, label: t.post.imOffering }, { value: 'request' as const, label: t.post.imLooking }]}
+            value={type} onChange={setType} theme={theme}
+          />
         </Field>
 
         {/* trip type (passenger only) */}
@@ -463,7 +398,11 @@ export default function EditRideScreen() {
         {!isDriver && isEvent && (
           <Field label={t.post.eventDetails}>
             <View style={{ gap: 10 }}>
-              <Input placeholder={t.post.eventNamePlaceholder} value={eventName} onChangeText={setEventName} />
+              <Input
+                placeholder={t.post.eventNamePlaceholder}
+                value={eventName}
+                onChangeText={setEventName}
+              />
               <CardBox>
                 <StepRow icon="ticket" label={t.post.vehiclesNeeded} sub={t.post.vehiclesNeededSub} value={vehiclesNeeded} min={2} max={20}
                   onDec={() => setVehiclesNeeded((v) => Math.max(2, v - 1))} onInc={() => setVehiclesNeeded((v) => Math.min(20, v + 1))} theme={theme} />
@@ -564,27 +503,27 @@ export default function EditRideScreen() {
             {flightInfo && (
               <View style={{ borderRadius: 14, borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surfaceAlt, padding: 14, gap: 8 }}>
                 <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>
-                  {flightInfo.airline} · {flightInfo.flightNumber} · {flightInfo.status}
+                  {flightInfo.airline} Â· {flightInfo.flightNumber} Â· {flightInfo.status}
                 </Text>
                 <View style={{ flexDirection: 'row', gap: 8 }}>
                   <TouchableOpacity onPress={() => applyFlightTime(false)} style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
                     <Text style={{ color: theme.muted, fontSize: 11 }}>DEPARTURE</Text>
-                    <Text style={{ color: theme.text, fontFamily: fonts.bodyBold, fontSize: 13 }}>{flightInfo.departure.scheduledTime.split(' ')[1]?.slice(0, 5) ?? '—'}</Text>
+                    <Text style={{ color: theme.text, fontFamily: fonts.bodyBold, fontSize: 13 }}>{flightInfo.departure.scheduledTime.split(' ')[1]?.slice(0, 5) ?? 'â€”'}</Text>
                     <DelayBadge minutes={flightInfo.departure.delayMinutes} theme={theme} />
                   </TouchableOpacity>
                   <TouchableOpacity onPress={() => applyFlightTime(true)} style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
                     <Text style={{ color: theme.muted, fontSize: 11 }}>ARRIVAL</Text>
-                    <Text style={{ color: theme.text, fontFamily: fonts.bodyBold, fontSize: 13 }}>{flightInfo.arrival.scheduledTime.split(' ')[1]?.slice(0, 5) ?? '—'}</Text>
+                    <Text style={{ color: theme.text, fontFamily: fonts.bodyBold, fontSize: 13 }}>{flightInfo.arrival.scheduledTime.split(' ')[1]?.slice(0, 5) ?? 'â€”'}</Text>
                     <DelayBadge minutes={flightInfo.arrival.delayMinutes} theme={theme} />
                   </TouchableOpacity>
                 </View>
                 {(flightInfo.departure.terminal || flightInfo.departure.gate || flightInfo.arrival.terminal || flightInfo.arrival.gate) && (
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     <Text style={{ flex: 1, fontSize: 11, color: theme.muted, textAlign: 'center' }}>
-                      {[flightInfo.departure.terminal && `Terminal ${flightInfo.departure.terminal}`, flightInfo.departure.gate && `Gate ${flightInfo.departure.gate}`].filter(Boolean).join(' · ') || '—'}
+                      {[flightInfo.departure.terminal && `Terminal ${flightInfo.departure.terminal}`, flightInfo.departure.gate && `Gate ${flightInfo.departure.gate}`].filter(Boolean).join(' Â· ') || 'â€”'}
                     </Text>
                     <Text style={{ flex: 1, fontSize: 11, color: theme.muted, textAlign: 'center' }}>
-                      {[flightInfo.arrival.terminal && `Terminal ${flightInfo.arrival.terminal}`, flightInfo.arrival.gate && `Gate ${flightInfo.arrival.gate}`].filter(Boolean).join(' · ') || '—'}
+                      {[flightInfo.arrival.terminal && `Terminal ${flightInfo.arrival.terminal}`, flightInfo.arrival.gate && `Gate ${flightInfo.arrival.gate}`].filter(Boolean).join(' Â· ') || 'â€”'}
                     </Text>
                   </View>
                 )}
@@ -593,23 +532,12 @@ export default function EditRideScreen() {
           </View>
         )}
 
-        {/* Route map — real stored image if the route hasn't changed since
-            it was generated, otherwise the decorative placeholder (a new one
-            gets generated on save). */}
+        {/* Route map â€” decorative placeholder, no real map SDK behind it */}
         <Field label={t.post.routeMap} hint={t.post.optional}>
-          {original?.route_map_url && !routeChanged ? (
-            <RouteMap
-              routeMapUrl={original.route_map_url}
-              origin={originCity} destination={destinationCity}
-              originLat={originLat} originLng={originLng}
-              destinationLat={destinationLat} destinationLng={destinationLng}
-            />
-          ) : (
-            <RouteMapPlaceholder accent={accent} theme={theme} label={t.post.addNavigationMap} />
-          )}
+          <RouteMapPlaceholder accent={accent} theme={theme} label={t.post.addNavigationMap} />
         </Field>
 
-        {/* Date + time — tap opens the device's own calendar / clock picker */}
+        {/* Date + time â€” tap opens the device's own calendar / clock picker */}
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Field label={t.post.date} style={{ flex: 1 }}>
             <DateTimeField mode="date" value={date} onChange={setDate} icon="event" placeholder={t.post.selectDate} doneLabel={t.post.save} locale={t.locale} />
@@ -625,6 +553,12 @@ export default function EditRideScreen() {
             <CardBox>
               <StepRow icon="passenger" label={t.post.seatsLabel} value={seats} min={1} max={7} onDec={() => setSeats((s) => Math.max(1, s - 1))} onInc={() => setSeats((s) => Math.min(7, s + 1))} theme={theme} />
             </CardBox>
+            {vehicleSeats != null && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
+                <Icon name="seat_recline" size={12} color={theme.muted} />
+                <Text style={{ fontSize: 12, color: theme.muted }}>Pre-filled from your vehicle profile Â· tap to change</Text>
+              </View>
+            )}
           </Field>
         ) : (
           <>
@@ -696,6 +630,18 @@ export default function EditRideScreen() {
                 </Text>
               }
             />
+            {originCity.trim() && destinationCity.trim() && (
+              routeStats && routeStats.sample_size >= 3 && routeStats.avg_donation != null ? (
+                <View style={{ borderRadius: 14, borderWidth: 1.5, borderColor: theme.borderGold, backgroundColor: theme.badgeWarnBg + '55', padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Icon name="pageinfo" size={15} color={theme.badgeWarnFg} />
+                  <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.text, lineHeight: 17 }}>
+                    {t.post.priceRouteAvgPrefix} <Text style={{ fontFamily: fonts.bodyBold }}>${routeStats.avg_donation}</Text> ({routeStats.sample_size} posts)
+                  </Text>
+                </View>
+              ) : (
+                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, lineHeight: 16 }}>{t.post.priceNotEnoughData}</Text>
+              )
+            )}
           </View>
         </Field>
 
@@ -737,7 +683,7 @@ export default function EditRideScreen() {
             </View>
             {climatePrefs.includes(SPECIFIC_TEMP) && (
               <CardBox style={{ marginTop: 10 }}>
-                <StepRow icon="thermometer" label={t.post.targetTemp} sub="°F" value={tempPref} min={60} max={80} onDec={() => setTempPref((v) => Math.max(60, v - 1))} onInc={() => setTempPref((v) => Math.min(80, v + 1))} theme={theme} />
+                <StepRow icon="thermometer" label={t.post.targetTemp} sub="Â°F" value={tempPref} min={60} max={80} onDec={() => setTempPref((v) => Math.max(60, v - 1))} onInc={() => setTempPref((v) => Math.min(80, v + 1))} theme={theme} />
               </CardBox>
             )}
           </Field>
@@ -820,15 +766,17 @@ export default function EditRideScreen() {
         )}
       </ScrollView>
 
-      {/* sticky save */}
+      {/* sticky submit */}
       <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16 }}>
         <TouchableOpacity
-          onPress={handleSave}
-          disabled={!ready || saving}
-          style={{ backgroundColor: theme.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', opacity: !ready || saving ? 0.6 : 1 }}
+          onPress={handleSubmit}
+          disabled={!ready || loading}
+          style={{ backgroundColor: theme.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center', opacity: !ready || loading ? 0.6 : 1 }}
         >
-          {saving ? <ActivityIndicator color="#fff" /> : (
-            <Text style={{ color: '#fff', fontFamily: fonts.bodyBold, fontSize: 15 }}>{t.post.saveChanges}</Text>
+          {loading ? <ActivityIndicator color="#fff" /> : (
+            <Text style={{ color: '#fff', fontFamily: fonts.bodyBold, fontSize: 15 }}>
+              {isDriver ? t.post.postRideOffer : isEvent ? t.post.requestEventRides : t.post.postRideRequest}
+            </Text>
           )}
         </TouchableOpacity>
       </View>
