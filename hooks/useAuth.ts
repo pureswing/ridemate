@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { AccessibilityNeed } from '@/types';
 
 export function useAuth() {
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,8 @@ export function useAuth() {
     avatar_url?: string;
     home_city?: string;
     bio?: string;
+    accessibility_needs?: AccessibilityNeed[];
+    accessibility_note?: string;
   }) {
     const { data: updated, error } = await supabase
       .from('profiles')

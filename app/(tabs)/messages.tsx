@@ -1,412 +1,176 @@
-import { useEffect, useState, useCallback } from 'react';
-import {
-  View,
-  FlatList,
-  TouchableOpacity,
-  Linking,
-  ActivityIndicator,
-  Alert,
-} from 'react-native';
+import { useEffect, useState } from 'react';
+import { View, FlatList, ActivityIndicator } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
+import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
+import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
+import { Badge } from '@/components/ui/Badge';
+import { Avatar } from '@/components/ui/Avatar';
 import { useAuthStore } from '@/store/authStore';
-import { supabase } from '@/lib/supabase';
+import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
-import { useBadges } from '@/hooks/useBadges';
-import { ContactReveal, RideAgreement, TripRecord } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BadgeSelector } from '@/components/community/BadgeSelector';
-import { TripSummaryModal } from '@/components/ride/TripSummaryModal';
+import { Conversation, Message, RideAgreement } from '@/types';
+import { fonts, radii, shadows } from '@/constants/themes';
+import { tracking, letterSpacingFor } from '@/constants/typography';
 
-// ── Contact card ──────────────────────────────────────────────────────────────
+type Tone = 'neutral' | 'driver' | 'passenger' | 'courier' | 'hauling' | 'success' | 'warning' | 'accent' | 'inverse';
 
-function ContactItem({ item, onAgreementCreated }: { item: ContactReveal; onAgreementCreated: () => void }) {
-  const post = item.post;
-  const t = useTranslation();
+function statusConfig(agreement: RideAgreement | null, t: ReturnType<typeof useTranslation>): { tone: Tone; label: string } {
+  if (!agreement) return { tone: 'accent', label: t.agreement.statusActive };
+  switch (agreement.status) {
+    case 'completed': return { tone: 'success', label: t.agreement.statusCompleted };
+    case 'cancelled': return { tone: 'neutral', label: t.calendar.cancelled };
+    case 'no_show': return { tone: 'neutral', label: t.calendar.cancelled };
+    default: return { tone: 'accent', label: t.agreement.statusActive };
+  }
+}
+
+function ConversationRow({ conversation, myId }: { conversation: Conversation; myId: string }) {
   const theme = useTheme();
-  const { session } = useAuthStore();
-  const { createAgreement, getAgreementsForPost } = useRideAgreements();
+  const t = useTranslation();
+  const { getAgreementsForPost } = useRideAgreements();
+  const { getLastMessage, getUnreadCount } = useMessages();
   const [agreement, setAgreement] = useState<RideAgreement | null>(null);
-  const [confirming, setConfirming] = useState(false);
+  const [lastMessage, setLastMessage] = useState<Message | null>(null);
+  const [unread, setUnread] = useState(0);
+
+  const otherParty = conversation.post_owner_id === myId ? conversation.requester : conversation.post_owner;
+  const post = conversation.post;
 
   useEffect(() => {
-    if (post) loadAgreement();
-  }, [post?.id]);
+    (async () => {
+      try {
+        const [msg, count] = await Promise.all([
+          getLastMessage(conversation.id),
+          getUnreadCount(conversation.id),
+        ]);
+        setLastMessage(msg);
+        setUnread(count);
+      } catch {}
+      if (!post) return;
+      try {
+        const list = await getAgreementsForPost(post.id);
+        const mine = list.find((a) => a.rider_id === myId || a.driver_id === myId);
+        if (mine) setAgreement(mine);
+      } catch {}
+    })();
+  }, [conversation.id]);
 
-  async function loadAgreement() {
-    if (!post) return;
-    try {
-      const list = await getAgreementsForPost(post.id);
-      const mine = list.find(
-        (a) => a.rider_id === session?.user?.id || a.driver_id === session?.user?.id
-      );
-      if (mine) setAgreement(mine);
-    } catch {}
-  }
-
-  async function handleConfirmRide() {
-    if (!post || !session?.user) return;
-    Alert.alert(t.agreement.confirmTitle, t.agreement.confirmMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.confirm,
-        onPress: async () => {
-          setConfirming(true);
-          try {
-            const ag = await createAgreement(post.id, post.user_id);
-            setAgreement(ag);
-            onAgreementCreated();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          } finally {
-            setConfirming(false);
-          }
-        },
-      },
-    ]);
-  }
-
-  function openContact() {
-    if (!post?.contact_value) return;
-    const method = post.contact_method;
-    if (method === 'whatsapp') {
-      Linking.openURL(`whatsapp://send?phone=${post.contact_value.replace(/\D/g, '')}`);
-    } else if (method === 'phone') {
-      Linking.openURL(`tel:${post.contact_value}`);
-    } else if (method === 'email') {
-      Linking.openURL(`mailto:${post.contact_value}`);
-    }
-  }
-
-  if (!post) return null;
-  const isOffer = post.type === 'offer';
-  const badgeAccent = isOffer ? theme.offer : theme.primary;
+  const status = statusConfig(agreement, t);
 
   return (
-    <View style={{
-      backgroundColor: theme.surface,
-      borderWidth: 1, borderColor: theme.border,
-      borderRadius: 16, padding: 16, marginBottom: 12,
-    }}>
-      {/* Header */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <View style={{
-          paddingHorizontal: 12, paddingVertical: 4, borderRadius: 99,
-          backgroundColor: badgeAccent + '1A',
-        }}>
-          <Text style={{ fontSize: 11, fontFamily: theme.fontDisplay, color: badgeAccent }}>
-            {isOffer ? t.messages.driver : t.messages.passenger}
-          </Text>
-        </View>
-        <Text style={{ color: theme.muted, fontSize: 12 }}>
-          {new Date(item.revealed_at).toLocaleDateString(t.locale)}
-        </Text>
-      </View>
-
-      <Text style={{ fontFamily: theme.fontDisplay, color: theme.text, marginBottom: 4 }}>
-        {post.origin_city} → {post.destination_city}
-      </Text>
-      <Text style={{ color: theme.textSecondary, fontSize: 13, marginBottom: 12 }}>
-        {new Date(post.scheduled_at).toLocaleString(t.locale, {
-          weekday: 'short', month: 'short', day: 'numeric',
-          hour: '2-digit', minute: '2-digit',
-        })}
-      </Text>
-
-      {/* Contact action */}
-      {post.contact_value && post.contact_method !== 'in_app' ? (
-        <TouchableOpacity
-          style={{
-            backgroundColor: theme.primary + '1A',
-            borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12,
-            flexDirection: 'row', alignItems: 'center', marginBottom: 12,
-          }}
-          onPress={openContact}
-        >
-          <Icon
-            name={
-              post.contact_method === 'whatsapp' ? 'whatsapp'
-              : post.contact_method === 'phone' ? 'phone'
-              : 'email'
-            }
-            size={16}
-            color={theme.primary}
-          />
-          <Text style={{ color: theme.primary, fontFamily: theme.fontDisplay, flex: 1, marginLeft: 8 }}>
-            {post.contact_value}
-          </Text>
-          <Text style={{ color: theme.primary, fontSize: 12 }}>{t.messages.openArrow}</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={{
-          backgroundColor: theme.surfaceAlt, borderRadius: 12,
-          paddingHorizontal: 16, paddingVertical: 12, marginBottom: 12,
-        }}>
-          <Text style={{ color: theme.muted, fontSize: 13 }}>{t.messages.chatComingSoon}</Text>
-        </View>
-      )}
-
-      {/* Agreement CTA */}
-      {!agreement && (
-        <TouchableOpacity
-          style={{
-            borderWidth: 1, borderColor: theme.offer + '66',
-            backgroundColor: theme.offer + '0D',
-            borderRadius: 12, paddingVertical: 10, alignItems: 'center',
-          }}
-          onPress={handleConfirmRide}
-          disabled={confirming}
-        >
-          <Text style={{ color: theme.offer, fontFamily: theme.fontDisplay, fontSize: 13 }}>
-            {confirming ? '...' : t.agreement.confirmRide}
-          </Text>
-        </TouchableOpacity>
-      )}
-
-      {agreement && (
-        <AgreementCard
-          agreement={agreement}
-          currentUserId={session?.user?.id ?? ''}
-          onUpdate={loadAgreement}
-        />
-      )}
-    </View>
-  );
-}
-
-// ── Agreement status card ─────────────────────────────────────────────────────
-
-function AgreementCard({
-  agreement,
-  currentUserId,
-  onUpdate,
-}: {
-  agreement: RideAgreement;
-  currentUserId: string;
-  onUpdate: () => void;
-}) {
-  const t = useTranslation();
-  const theme = useTheme();
-  const { confirmCompletion, reportNoShow, loading } = useRideAgreements();
-  const { hasGivenBadges } = useBadges();
-  const [showBadges, setShowBadges] = useState(false);
-  const [alreadyBadged, setAlreadyBadged] = useState(false);
-  const [tripRecord, setTripRecord] = useState<TripRecord | null>(null);
-
-  const isDriver = agreement.driver_id === currentUserId;
-  const myRole = isDriver ? 'driver' : 'rider';
-  const myConfirmedAt = isDriver ? agreement.driver_confirmed_at : agreement.rider_confirmed_at;
-  const otherId = isDriver ? agreement.rider_id : agreement.driver_id;
-  const otherName = isDriver
-    ? agreement.rider?.full_name ?? '—'
-    : agreement.driver?.full_name ?? '—';
-
-  useEffect(() => {
-    if (agreement.status === 'completed') {
-      hasGivenBadges(agreement.id).then(setAlreadyBadged);
-    }
-  }, [agreement.status]);
-
-  async function handleMarkComplete() {
-    Alert.alert(t.agreement.markCompleteTitle, t.agreement.markCompleteMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.markComplete,
-        onPress: async () => {
-          try {
-            await confirmCompletion(agreement.id, myRole);
-            onUpdate();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
-      },
-    ]);
-  }
-
-  async function handleReportNoShow() {
-    Alert.alert(t.agreement.reportTitle, t.agreement.reportMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.report,
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await reportNoShow(agreement.id, otherId);
-            Alert.alert('', t.agreement.reportedSuccess);
-            onUpdate();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
-      },
-    ]);
-  }
-
-  function openTripRecord() {
-    const post = agreement.post as any;
-    setTripRecord({
-      agreementId: agreement.id,
-      origin: post?.origin_city ?? '—',
-      destination: post?.destination_city ?? '—',
-      scheduledAt: post?.scheduled_at ?? '',
-      suggestedDonation: post?.suggested_donation,
-      otherPartyName: otherName,
-      myRole,
-    });
-  }
-
-  if (agreement.status === 'completed') {
-    return (
-      <View style={{ marginTop: 8, gap: 8 }}>
-        <View style={{
-          backgroundColor: theme.offer + '1A', borderRadius: 12,
-          paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center',
-        }}>
-          <Text style={{ color: theme.offer, fontFamily: theme.fontDisplay, fontSize: 13 }}>
-            {t.agreement.completed}
-          </Text>
-        </View>
-        {!alreadyBadged && (
-          <TouchableOpacity
-            style={{ backgroundColor: theme.primary, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
-            onPress={() => setShowBadges(true)}
-          >
-            <Text style={{ color: '#fff', fontFamily: theme.fontDisplay, fontSize: 13 }}>
-              {t.badges.title} →
-            </Text>
-          </TouchableOpacity>
+    <TouchableOpacity
+      onPress={() => router.push({ pathname: '/messages/[id]', params: { id: conversation.id } })}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 }}
+    >
+      <View style={{ flexShrink: 0 }}>
+        <Avatar name={otherParty?.full_name ?? '?'} src={otherParty?.avatar_url} size={50} />
+        {unread > 0 && (
+          <View style={{
+            position: 'absolute', top: -2, right: -2, width: 18, height: 18, borderRadius: 9,
+            backgroundColor: theme.passengerText, borderWidth: 2, borderColor: theme.background,
+            alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9.5, lineHeight: 12, color: '#fff' }}>{unread > 9 ? '9+' : unread}</Text>
+          </View>
         )}
-        <TouchableOpacity
-          onPress={openTripRecord}
-          style={{ borderWidth: 1, borderColor: theme.border, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
-        >
-          <Text style={{ color: theme.muted, fontSize: 13 }}>{t.tripSummary.title} →</Text>
-        </TouchableOpacity>
-        <BadgeSelector
-          visible={showBadges}
-          agreementId={agreement.id}
-          receiverId={otherId}
-          receiverName={otherName}
-          currentRole={myRole}
-          onDone={() => { setShowBadges(false); setAlreadyBadged(true); }}
-        />
-        <TripSummaryModal
-          visible={!!tripRecord}
-          record={tripRecord}
-          onClose={() => setTripRecord(null)}
-        />
       </View>
-    );
-  }
-
-  if (agreement.status === 'no_show') {
-    return (
-      <View style={{
-        backgroundColor: theme.danger + '1A',
-        borderWidth: 1, borderColor: theme.danger + '4D',
-        borderRadius: 12, paddingHorizontal: 16, paddingVertical: 10, marginTop: 8,
-      }}>
-        <Text style={{ color: theme.danger, fontSize: 13, fontFamily: theme.fontDisplay }}>
-          {t.agreement.reportTitle} ✓
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={{ marginTop: 8, gap: 8 }}>
-      <View style={{
-        backgroundColor: theme.offer + '1A', borderRadius: 12,
-        paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center',
-      }}>
-        <Text style={{ color: theme.offer, fontFamily: theme.fontDisplay, fontSize: 13 }}>
-          {myConfirmedAt ? t.agreement.waitingOther : t.agreement.active}
-        </Text>
-      </View>
-      {!myConfirmedAt && (
-        <TouchableOpacity
-          style={{ backgroundColor: theme.offer, borderRadius: 12, paddingVertical: 10, alignItems: 'center' }}
-          onPress={handleMarkComplete}
-          disabled={loading}
-        >
-          <Text style={{ color: '#fff', fontFamily: theme.fontDisplay, fontSize: 13 }}>
-            {t.agreement.markComplete}
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 3 }}>
+          {post ? (
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12.5, flexShrink: 1 }}>
+              <Text style={{ color: theme.gold500, fontFamily: fonts.bodyExtraBold }}>{post.origin_city}</Text>
+              <Text style={{ color: theme.textFaint }}> → </Text>
+              <Text style={{ color: theme.gold500, fontFamily: fonts.bodyExtraBold }}>{post.destination_city}</Text>
+            </Text>
+          ) : (
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12.5, color: theme.text }}>{otherParty?.full_name ?? '—'}</Text>
+          )}
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11, color: theme.textFaint, flexShrink: 0 }}>
+            {new Date(conversation.last_message_at).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}
           </Text>
-        </TouchableOpacity>
-      )}
-      <TouchableOpacity
-        style={{
-          borderWidth: 1, borderColor: theme.danger + '66',
-          borderRadius: 12, paddingVertical: 10, alignItems: 'center',
-        }}
-        onPress={handleReportNoShow}
-        disabled={loading}
-      >
-        <Text style={{ color: theme.danger, fontSize: 13, fontFamily: theme.fontDisplay }}>
-          {t.agreement.reportNoShow}
+        </View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+          <Badge tone={status.tone} size="sm">{status.label}</Badge>
+          <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: theme.muted, flexShrink: 1 }}>
+            {otherParty?.full_name ?? '—'}
+          </Text>
+        </View>
+        <Text numberOfLines={1} style={{
+          fontFamily: unread > 0 ? fonts.bodySemibold : fonts.bodyRegular, fontSize: 13,
+          color: unread > 0 ? theme.text : theme.muted,
+        }}>
+          {lastMessage?.body ?? t.messages.noMessagesYet}
         </Text>
-      </TouchableOpacity>
-    </View>
+      </View>
+    </TouchableOpacity>
   );
 }
-
-// ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function MessagesScreen() {
   const { session } = useAuthStore();
+  const { getConversations } = useMessages();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const [reveals, setReveals] = useState<ContactReveal[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!session?.user) return;
-    fetchReveals();
+    fetchConversations();
   }, [session]);
 
-  async function fetchReveals() {
+  async function fetchConversations() {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('contact_reveals')
-        .select(
-          '*, post:ride_posts(id, type, origin_city, destination_city, scheduled_at, contact_method, contact_value, status, user_id)'
-        )
-        .eq('requester_id', session!.user.id)
-        .order('revealed_at', { ascending: false });
-      if (error) throw error;
-      setReveals((data as ContactReveal[]) ?? []);
+      setConversations(await getConversations());
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.background, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <StatusBar style="light" />
+
+      <LinearGradient
+        colors={theme.gradientGold as [string, string, ...string[]]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 18, paddingHorizontal: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.md }}
+      >
+        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
+          {t.messages.eyebrow}
+        </Text>
+        <Text style={{ fontFamily: fonts.displayBold, fontSize: 28, letterSpacing: letterSpacingFor(28, tracking.tight), color: theme.cream, marginTop: 4 }}>
+          {t.messages.title}
+        </Text>
+      </LinearGradient>
+
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} size="large" color={theme.primary} />
       ) : (
         <FlatList
-          data={reveals}
+          data={conversations}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <ContactItem item={item} onAgreementCreated={fetchReveals} />
-          )}
-          contentContainerStyle={{ padding: 16, flexGrow: 1 }}
+          renderItem={({ item }) => <ConversationRow conversation={item} myId={session!.user.id} />}
+          ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: theme.cardBorder, marginLeft: 64 }} />}
+          contentContainerStyle={{ padding: 20, flexGrow: 1 }}
           ListEmptyComponent={
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
               <View style={{
-                width: 72, height: 72, borderRadius: 36,
+                width: 72, height: 72, borderRadius: radii.xl,
                 backgroundColor: theme.primary + '1A',
                 alignItems: 'center', justifyContent: 'center', marginBottom: 16,
               }}>
                 <Icon name="chat" size={36} color={theme.primary} />
               </View>
-              <Text style={{ color: theme.text, fontFamily: theme.fontDisplay, fontSize: 18, marginBottom: 8 }}>
+              <Text style={{ color: theme.text, fontFamily: fonts.displayBold, fontSize: 18, marginBottom: 8 }}>
                 {t.messages.empty}
               </Text>
               <Text style={{ color: theme.muted, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 }}>
@@ -415,7 +179,7 @@ export default function MessagesScreen() {
             </View>
           }
           refreshing={loading}
-          onRefresh={fetchReveals}
+          onRefresh={fetchConversations}
         />
       )}
     </View>

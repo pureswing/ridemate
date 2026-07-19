@@ -438,7 +438,7 @@ export default function ProfileScreen() {
           category={t.profile.accessibilityCategory}
           title={t.profile.accessibilityTitle}
           subtitle={t.profile.accessibilitySubtitle}
-          onPress={comingSoon}
+          onPress={() => router.push('/profile/accessibility')}
         />
         {vehicleLoading && <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 12 }} />}
 

@@ -9,15 +9,17 @@ import { controlHeight, radii, fonts, shadows } from '@/constants/themes';
 interface Props extends TextInputProps {
   label?: string;
   icon?: IconName;
+  prefix?: string;
   hint?: string;
   error?: string;
   containerStyle?: StyleProp<ViewStyle>;
   rightElement?: React.ReactNode;
 }
 
-// Input — text field with optional leading icon, label, and trailing slot
-// (e.g. a password show/hide toggle — see components/auth/AuthInput.tsx).
-export function Input({ label, icon, hint, error, containerStyle, rightElement, style, onFocus, onBlur, ...rest }: Props) {
+// Input — text field with optional leading icon, fixed text prefix (e.g. "$"
+// on price fields), label, and trailing slot (e.g. a password show/hide
+// toggle — see components/auth/AuthInput.tsx).
+export function Input({ label, icon, prefix, hint, error, containerStyle, rightElement, style, onFocus, onBlur, multiline, ...rest }: Props) {
   const theme = useTheme();
   const [focus, setFocus] = useState(false);
   const borderColor = error ? theme.danger : focus ? theme.primary : theme.border;
@@ -32,9 +34,9 @@ export function Input({ label, icon, hint, error, containerStyle, rightElement, 
       <View
         style={{
           flexDirection: 'row',
-          alignItems: 'center',
+          alignItems: multiline ? 'flex-start' : 'center',
           gap: 10,
-          height: controlHeight.lg,
+          ...(multiline ? { minHeight: 80, paddingVertical: 14 } : { height: controlHeight.lg }),
           paddingHorizontal: 16,
           backgroundColor: theme.surface,
           borderWidth: 1.5,
@@ -48,7 +50,13 @@ export function Input({ label, icon, hint, error, containerStyle, rightElement, 
         }}
       >
         {icon && <Icon name={icon} size={18} color={theme.muted} />}
+        {prefix && (
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: multiline ? 14.5 : 16, color: theme.text }}>
+            {prefix}
+          </Text>
+        )}
         <TextInput
+          multiline={multiline}
           onFocus={(e) => { setFocus(true); onFocus?.(e); }}
           onBlur={(e) => { setFocus(false); onBlur?.(e); }}
           placeholderTextColor={theme.muted}
@@ -56,10 +64,11 @@ export function Input({ label, icon, hint, error, containerStyle, rightElement, 
             {
               flex: 1,
               fontFamily: fonts.bodyMedium,
-              fontSize: 16,
+              fontSize: multiline ? 14.5 : 16,
               color: theme.text,
               padding: 0,
             },
+            multiline && { textAlignVertical: 'top' },
             style,
           ]}
           {...rest}

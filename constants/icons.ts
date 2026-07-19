@@ -37,6 +37,12 @@ import {
   // post-ride form
   Luggage, Thermometer, CarFront, BusFront, Ticket, PlaneLanding, PlaneTakeoff, LockOpen,
   Bookmark,
+  // post-package form
+  Sparkles, Ban, ArrowUpDown,
+  // post-hauling form
+  Hammer, Layers, WashingMachine, Sofa, BrickWall,
+  // accessibility / granular ride preferences
+  Ear, PersonStanding, Weight, Volume2, Hand, MessageSquareText, Glasses,
 } from 'lucide-react-native';
 
 export const icons = {
@@ -196,6 +202,28 @@ export const icons = {
   plane_takeoff: PlaneTakeoff,
   lock_open: LockOpen,
   bookmark: Bookmark,
+
+  // ── Post Package form ─────────────────────────────────────────────────
+  sparkles: Sparkles,
+  ban: Ban,
+  arrow_up_down: ArrowUpDown,
+
+  // ── Post Hauling form ────────────────────────────────────────────────
+  hammer: Hammer,
+  layers: Layers,
+  washing_machine: WashingMachine,
+  sofa: Sofa,
+  brick_wall: BrickWall,
+
+  // ── Accessibility / granular ride preferences ───────────────────────────
+  ear: Ear,
+  person_standing: PersonStanding,
+  weight: Weight,
+  volume_2: Volume2,
+  hand: Hand,
+  message_square_text: MessageSquareText,
+  glasses: Glasses,
+  volume_x: VolumeX,
 } as const;
 
 export type IconName = keyof typeof icons;

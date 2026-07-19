@@ -71,6 +71,28 @@ export async function getPlacePredictions(input: string, sessionToken?: string):
   }
 }
 
+// Resolves a plain address string to lat/lng — used when a value comes from
+// somewhere other than live Places autocomplete (e.g. a saved address book
+// entry, which only ever stored the text, never a PlaceDetail) but the
+// caller still needs real coordinates, e.g. to draw the route map. One-off
+// call tied to an explicit user action (picking a saved slot), not per
+// keystroke, so it doesn't need a session token.
+export async function geocodeAddress(address: string): Promise<{ placeId: string; lat: number; lng: number } | null> {
+  if (!API_KEY || !address.trim()) return null;
+
+  const params = new URLSearchParams({ address, key: API_KEY });
+
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?${params}`);
+    const data = await res.json();
+    if (data.status !== 'OK' || !data.results?.[0]) return null;
+    const result = data.results[0];
+    return { placeId: result.place_id, lat: result.geometry.location.lat, lng: result.geometry.location.lng };
+  } catch {
+    return null;
+  }
+}
+
 export async function getPlaceDetail(placeId: string, sessionToken?: string): Promise<PlaceDetail | null> {
   if (!API_KEY) return null;
 

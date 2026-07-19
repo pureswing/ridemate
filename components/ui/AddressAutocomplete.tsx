@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { View, TextInput, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { useTheme } from '@/hooks/useTheme';
+import { controlHeight, radii, fonts, shadows } from '@/constants/themes';
 import { getPlacePredictions, getPlaceDetail, newPlacesSessionToken, PlacePrediction, PlaceDetail } from '@/services/googlePlaces';
 
 interface Props {
@@ -11,13 +12,28 @@ interface Props {
   onChangeText: (text: string) => void;
   onSelectPlace?: (detail: PlaceDetail) => void;
   style?: object;
+  autoFocus?: boolean;
+  onBlur?: () => void;
+  // 'boxed' (default) is the standard bordered field used across the post
+  // forms. 'plain' drops the border/background/height so the field can sit
+  // inline inside a row that looks identical whether it's being edited or
+  // not (see the profile Address Book) — only the text + suggestions
+  // dropdown remain.
+  variant?: 'boxed' | 'plain';
+  textStyle?: object;
+  // Rendered inside the field's row, after the text input (and loading
+  // spinner) — e.g. SmartAddressField's "save to address book" bookmark
+  // button, so it sits inside the input like a trailing icon instead of as
+  // a separate button floating next to it.
+  rightAccessory?: React.ReactNode;
 }
 
-export function AddressAutocomplete({ label, placeholder, value, onChangeText, onSelectPlace, style }: Props) {
+export function AddressAutocomplete({ label, placeholder, value, onChangeText, onSelectPlace, style, autoFocus, onBlur, variant = 'boxed', textStyle, rightAccessory }: Props) {
   const theme = useTheme();
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const [focus, setFocus] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suppressRef = useRef(false);
   // Skip the first effect run — prevents an API call when a pre-filled value is passed in
@@ -65,50 +81,58 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
     setTimeout(() => { suppressRef.current = false; }, 500);
   }
 
-  const inputStyle = {
-    backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: open ? theme.primary : theme.border,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    color: theme.text,
-    fontFamily: theme.fontBody,
-    fontSize: 14,
-  };
+  const boxed = variant === 'boxed';
+  const borderColor = focus || open ? theme.primary : theme.border;
 
   return (
     <View style={[{ position: 'relative' }, style]}>
       {label && (
-        <Text style={{ fontSize: 13, color: theme.muted, marginBottom: 4 }}>{label}</Text>
+        <Text style={{ marginBottom: 7, fontSize: 14, fontFamily: fonts.bodySemibold, color: theme.text }}>{label}</Text>
       )}
-      <TextInput
-        style={inputStyle}
-        placeholder={placeholder}
-        placeholderTextColor={theme.muted}
-        value={value}
-        onChangeText={onChangeText}
-      />
-      {loading && (
-        <ActivityIndicator
-          size="small"
-          color={theme.primary}
-          style={{ position: 'absolute', right: 14, top: label ? 36 : 14 }}
+      <View
+        style={
+          boxed
+            ? {
+                flexDirection: 'row',
+                alignItems: 'center',
+                height: controlHeight.lg,
+                paddingHorizontal: 16,
+                backgroundColor: theme.surface,
+                borderWidth: 1.5,
+                borderColor,
+                borderRadius: radii.md,
+                ...shadows.xs,
+              }
+            : { flexDirection: 'row', alignItems: 'center' }
+        }
+      >
+        <TextInput
+          style={
+            boxed
+              ? { flex: 1, fontFamily: fonts.bodyMedium, fontSize: 16, color: theme.text, padding: 0 }
+              : [{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.text, padding: 0 }, textStyle]
+          }
+          placeholder={placeholder}
+          placeholderTextColor={theme.muted}
+          value={value}
+          onChangeText={onChangeText}
+          autoFocus={autoFocus}
+          onFocus={() => setFocus(true)}
+          onBlur={() => { setFocus(false); onBlur?.(); }}
         />
-      )}
+        {loading && <ActivityIndicator size="small" color={theme.primary} />}
+        {rightAccessory}
+      </View>
       {open && predictions.length > 0 && (
         <View style={{
           position: 'absolute',
-          top: label ? 74 : 50,
+          top: boxed ? (label ? 33 : 0) + controlHeight.lg + 6 : '100%',
+          marginTop: boxed ? 0 : 6,
           left: 0, right: 0, zIndex: 999,
           backgroundColor: theme.surface,
-          borderWidth: 1, borderColor: theme.border,
-          borderRadius: 12,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.12,
-          shadowRadius: 8,
-          elevation: 8,
+          borderWidth: 1.5, borderColor: theme.border,
+          borderRadius: radii.md,
+          ...shadows.md,
           overflow: 'hidden',
         }}>
           {predictions.map((p, i) => (
@@ -121,7 +145,7 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
                 borderBottomColor: theme.border,
               }}
             >
-              <Text style={{ color: theme.text, fontSize: 14, fontFamily: theme.fontDisplay }}>
+              <Text style={{ color: theme.text, fontSize: 14, fontFamily: fonts.bodySemibold }}>
                 {p.mainText}
               </Text>
               {p.secondaryText ? (

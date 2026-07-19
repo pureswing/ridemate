@@ -14,6 +14,8 @@ interface Props {
   tone?: Tone;
   icon?: IconName;
   size?: Size;
+  iconSize?: number;
+  fontSize?: number;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -32,13 +34,15 @@ function tones(theme: AppTheme): Record<Tone, { bg: string; fg: string; border: 
 }
 
 // Badge — small status / type pill.
-export function Badge({ children, tone = 'neutral', icon, size = 'md', style }: Props) {
+export function Badge({ children, tone = 'neutral', icon, size = 'md', iconSize, fontSize, style }: Props) {
   const theme = useTheme();
   const t = tones(theme)[tone];
   // icon ≈ 80% of fontSize — see components/ui/Button.tsx SIZES comment for why.
   const dims = size === 'sm'
     ? { fontSize: 11, paddingHorizontal: 9, paddingVertical: 3, icon: 9, gap: 4 }
     : { fontSize: 12, paddingHorizontal: 11, paddingVertical: 5, icon: 10, gap: 5 };
+  if (iconSize != null) dims.icon = iconSize;
+  if (fontSize != null) dims.fontSize = fontSize;
 
   return (
     <View

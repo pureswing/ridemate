@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { TextInput, View } from 'react-native';
-import { TouchableOpacity } from './TouchableOpacity';
 import { ThemedText as Text } from './ThemedText';
 import { RuleChip } from './RuleChip';
+import { Button } from './Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, shadows } from '@/constants/themes';
@@ -58,9 +58,9 @@ export function OversizedSheet({ value, onSave, theme, t, accent }: Props) {
           />
         </View>
       </View>
-      <TouchableOpacity onPress={() => onSave({ types, other: other.trim() })} style={{ marginTop: 18, backgroundColor: theme.primary, borderRadius: 16, paddingVertical: 16, alignItems: 'center' }}>
-        <Text style={{ color: '#fff', fontFamily: fonts.bodyBold, fontSize: 15 }}>{t.post.save}</Text>
-      </TouchableOpacity>
+      <Button variant="primary" size="lg" fullWidth style={{ marginTop: 18 }} onPress={() => onSave({ types, other: other.trim() })}>
+        {t.post.save}
+      </Button>
     </View>
   );
 }

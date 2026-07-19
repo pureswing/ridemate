@@ -12,7 +12,7 @@ export function useRideAgreements() {
       .from('ride_agreements')
       .select(`
         *,
-        post:ride_posts(origin_city, destination_city, scheduled_at, type),
+        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation),
         driver:profiles!driver_id(full_name, avatar_url),
         rider:profiles!rider_id(full_name, avatar_url)
       `)
@@ -28,7 +28,7 @@ export function useRideAgreements() {
       .from('ride_agreements')
       .select(`
         *,
-        post:ride_posts(origin_city, destination_city, scheduled_at, type),
+        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation),
         driver:profiles!driver_id(full_name, avatar_url),
         rider:profiles!rider_id(full_name, avatar_url)
       `)

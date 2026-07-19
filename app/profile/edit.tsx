@@ -10,22 +10,26 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
+import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { Button } from '@/components/ui/Button';
 import { KeyboardWrapper } from '@/components/auth/KeyboardWrapper';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useSavedAddresses } from '@/hooks/useSavedAddresses';
+import { RuleChip } from '@/components/ui/RuleChip';
+import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
+import { AccessibilityNeed } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, shadows, radii } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
+import { addressBookSlots } from '@/constants/addressBookSlots';
 
-// Visual + icon-picker only for now — no persistence/Google Places yet (see
-// project memory: saved addresses are meant to be reused across post creation
-// to cut down on repeated autocomplete sessions, but that whole flow, the
-// backing table, and the danger-zone account deletion are a separate pass).
+// Danger-zone account deletion is a separate pass (needs a Supabase Edge
+// Function — service-role key can't live in the app).
 const ADDRESS_ICON_OPTIONS: IconName[] = [
   'addr_home', 'addr_work', 'addr_airport', 'addr_station', 'addr_general',
   'addr_church', 'addr_school', 'addr_factory', 'addr_store', 'addr_park',
@@ -75,6 +79,7 @@ export default function EditProfileScreen() {
   const { updateProfile, uploadAvatar, upsertLegalName, getLegalName, signIn, updatePassword } = useAuth();
   const { getMyVehicles } = useVehicleProfile();
   const { isFree } = useSubscription();
+  const { getSavedAddresses, saveAddress, deleteAddress } = useSavedAddresses();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -83,6 +88,7 @@ export default function EditProfileScreen() {
   const [legalName, setLegalName] = useState('');
   const [homeCity, setHomeCity] = useState(profile?.home_city ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
+  const [accessibilityNeeds, setAccessibilityNeeds] = useState<AccessibilityNeed[]>(profile?.accessibility_needs ?? []);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -92,17 +98,11 @@ export default function EditProfileScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
 
-  const ADDRESS_SLOTS: { id: string; label: string; defaultIcon: IconName }[] = [
-    { id: 'home', label: t.profile.addressHome, defaultIcon: 'addr_home' },
-    { id: 'work', label: t.profile.addressWork, defaultIcon: 'addr_work' },
-    { id: 'addr1', label: `${t.profile.addressSlot} 1`, defaultIcon: 'addr_general' },
-    { id: 'addr2', label: `${t.profile.addressSlot} 2`, defaultIcon: 'addr_general' },
-    { id: 'addr3', label: `${t.profile.addressSlot} 3`, defaultIcon: 'addr_general' },
-  ];
+  const ADDRESS_SLOTS = addressBookSlots(t);
   const unlockedSlots = isFree ? 1 : 5;
 
   const [slotIcons, setSlotIcons] = useState<Record<string, IconName>>(
-    Object.fromEntries(ADDRESS_SLOTS.map((s) => [s.id, s.defaultIcon]))
+    Object.fromEntries(ADDRESS_SLOTS.map((s) => [s.id, s.icon]))
   );
   const [slotValues, setSlotValues] = useState<Record<string, string>>({});
   const [editingSlot, setEditingSlot] = useState<string | null>(null);
@@ -121,6 +121,19 @@ export default function EditProfileScreen() {
     if (!profile) return;
     getLegalName(profile.id).then((v) => { if (v) setLegalName(v); }).catch(() => {});
     getMyVehicles(profile.id).then((vs) => setVerified(vs.some((v) => v.insurance_self_certified))).catch(() => {});
+    getSavedAddresses().then((rows) => {
+      if (rows.length === 0) return;
+      setSlotValues((prev) => {
+        const next = { ...prev };
+        rows.forEach((r) => { next[r.slot_id] = r.value; });
+        return next;
+      });
+      setSlotIcons((prev) => {
+        const next = { ...prev };
+        rows.forEach((r) => { next[r.slot_id] = r.icon as IconName; });
+        return next;
+      });
+    }).catch(() => {});
 
     // Only suggest a GPS-detected city if one isn't already saved — never
     // overwrite what the user already chose.
@@ -169,6 +182,7 @@ export default function EditProfileScreen() {
           avatar_url: avatarUrl,
           home_city: homeCity.trim() || undefined,
           bio: bio.trim() || undefined,
+          accessibility_needs: accessibilityNeeds,
         }),
         legalName.trim() ? upsertLegalName(profile.id, legalName.trim()) : Promise.resolve(),
       ]);
@@ -346,7 +360,30 @@ export default function EditProfileScreen() {
           </Button>
           {changingPassword && <ActivityIndicator style={{ marginTop: 12 }} color={theme.primary} />}
 
-          <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginTop: 32, marginBottom: 16 }}>
+          <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginTop: 32, marginBottom: 6 }}>
+            Accessibility
+          </Text>
+          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.muted, marginBottom: 16, lineHeight: 18 }}>
+            Shared with drivers so they know what to expect — shown as requested, not guaranteed. These also appear pre-selected whenever you post a ride, but changing them there won't change this list.
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
+            {ACCESSIBILITY_OPTIONS.map((opt) => (
+              <RuleChip
+                key={opt.id}
+                active={accessibilityNeeds.includes(opt.id)}
+                icon={opt.icon}
+                accent={theme.primary}
+                theme={theme}
+                onPress={() => setAccessibilityNeeds((prev) =>
+                  prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id]
+                )}
+              >
+                {opt.label}
+              </RuleChip>
+            ))}
+          </View>
+
+          <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginBottom: 16 }}>
             {t.profile.addressBookSection}
           </Text>
 
@@ -364,6 +401,8 @@ export default function EditProfileScreen() {
                   borderColor: locked ? theme.border : theme.cardBorder,
                   borderRadius: radii.lg, padding: 14, marginBottom: 12,
                   opacity: locked ? 0.55 : 1, ...shadows.xs,
+                  zIndex: isEditing ? 10 : 1,
+                  elevation: isEditing ? 10 : 1,
                 }}
               >
                 <TouchableOpacity
@@ -399,44 +438,47 @@ export default function EditProfileScreen() {
                     </View>
                   </View>
                   {isEditing ? (
-                    <TextInput
+                    <AddressAutocomplete
                       autoFocus
+                      variant="plain"
                       value={value ?? ''}
                       onChangeText={(v) => setSlotValues((prev) => ({ ...prev, [slot.id]: v }))}
+                      onSelectPlace={(detail) => setSlotValues((prev) => ({ ...prev, [slot.id]: detail.formattedAddress }))}
                       placeholder={t.profile.addressPlaceholder}
-                      placeholderTextColor={theme.muted}
-                      style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.text, marginTop: 2, padding: 0 }}
+                      textStyle={{ marginTop: 1 }}
+                      onBlur={() => {
+                        const trimmed = (value ?? '').trim();
+                        if (trimmed) {
+                          saveAddress(slot.id, trimmed, slotIcons[slot.id]).catch((e: any) => Alert.alert('Error', e.message));
+                        } else {
+                          deleteAddress(slot.id).catch(() => {});
+                        }
+                        setTimeout(() => setEditingSlot((cur) => (cur === slot.id ? null : cur)), 150);
+                      }}
                     />
                   ) : (
-                    <Text numberOfLines={1} style={{
-                      fontFamily: value ? fonts.bodyMedium : fonts.bodySemibold,
-                      fontSize: value ? 13 : 13.5,
-                      color: value ? theme.muted : theme.textFaint,
-                      marginTop: 1,
-                    }}>
-                      {value || t.profile.addressNotSet}
-                    </Text>
+                    <TouchableOpacity
+                      disabled={locked}
+                      activeOpacity={0.6}
+                      onPress={() => {
+                        if (locked) {
+                          Alert.alert('', t.profile.addressLockedMsg);
+                          return;
+                        }
+                        setEditingSlot(slot.id);
+                      }}
+                    >
+                      <Text numberOfLines={1} style={{
+                        fontFamily: value ? fonts.bodyMedium : fonts.bodySemibold,
+                        fontSize: value ? 13 : 13.5,
+                        color: value ? theme.muted : theme.textFaint,
+                        marginTop: 1,
+                      }}>
+                        {value || t.profile.addressNotSet}
+                      </Text>
+                    </TouchableOpacity>
                   )}
                 </View>
-
-                {isEditing ? (
-                  <IconButton icon="check" variant="ghost" size="sm" label={t.profile.saveChanges} onPress={() => setEditingSlot(null)} />
-                ) : (
-                  <IconButton
-                    icon={value ? 'edit' : 'add'}
-                    variant="ghost"
-                    size="sm"
-                    color={value ? undefined : theme.textFaint}
-                    label={t.profile.addressAdd}
-                    onPress={() => {
-                      if (locked) {
-                        Alert.alert('', t.profile.addressLockedMsg);
-                        return;
-                      }
-                      setEditingSlot(slot.id);
-                    }}
-                  />
-                )}
               </View>
             );
           })}
@@ -564,6 +606,10 @@ export default function EditProfileScreen() {
                       onPress={() => {
                         if (pickingIconSlot) {
                           setSlotIcons((prev) => ({ ...prev, [pickingIconSlot]: opt }));
+                          const existingValue = slotValues[pickingIconSlot]?.trim();
+                          if (existingValue) {
+                            saveAddress(pickingIconSlot, existingValue, opt).catch(() => {});
+                          }
                         }
                         setPickingIconSlot(null);
                       }}

@@ -65,6 +65,11 @@ export interface AppTheme {
   // gold-400 (tokens/colors.css) — muted tan/gold accent used for icon glyphs
   // and small badges on a --surface-muted background (e.g. address-book slot icons).
   gold400: string;
+  // gold-500 (tokens/colors.css [data-theme="day"]) — identical to `primary`
+  // (#FF6243), a semantic alias the design system's day pass reuses rather
+  // than a distinct gold tone. Kept as its own token (not just `primary`) so
+  // call sites that specifically mean "the design's gold-500" stay legible.
+  gold500: string;
   badgeWarnBg: string;
   badgeWarnFg: string;
   // Ride-type semantics (Badge/Chip tones) — soft bg + border for each service
@@ -158,6 +163,7 @@ export const theme: AppTheme = {
   gold300:       '#FFE2C2',
   cream:         '#FFF8F0',
   gold400:       '#D9B871',
+  gold500:       '#FF6243',
   badgeWarnBg:   '#FBE3A6',
   badgeWarnFg:   '#7A4D08',
   driverText:      '#0A7E77',

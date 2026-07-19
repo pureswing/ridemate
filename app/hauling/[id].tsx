@@ -7,8 +7,8 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
 import { Avatar } from '@/components/ui/Avatar';
+import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { CardBox } from '@/components/ui/CardBox';
 import { RuleChip } from '@/components/ui/RuleChip';
@@ -16,22 +16,19 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
-import { useFavorites } from '@/hooks/useFavorites';
 import { useMessages } from '@/hooks/useMessages';
 import { useBadges } from '@/hooks/useBadges';
-import { RidePost, RidePostDetailsRide } from '@/types';
+import { RidePost, RidePostDetailsHauling } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatLeavesIn, formatEta } from '@/utils/dateFormat';
-import { fonts, radii, shadows } from '@/constants/themes';
+import { formatLeavesIn } from '@/utils/dateFormat';
+import { fonts, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
-// Two-across icon+label+value card — the ride detail screen's DATE/TIME and
-// SEATS/ETA rows.
 function StatTile({ icon, label, value, theme }: { icon: IconName; label: string; value: string; theme: ReturnType<typeof useTheme> }) {
   return (
     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 14, padding: 12, ...shadows.xs }}>
@@ -48,8 +45,6 @@ function StatTile({ icon, label, value, theme }: { icon: IconName; label: string
   );
 }
 
-// Three-across summary chip — LEAVES / DURATION / DISTANCE, right under the
-// map header.
 function SummaryChip({ label, value, theme }: { label: string; value: string; theme: ReturnType<typeof useTheme> }) {
   return (
     <View style={{ flex: 1, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 14, paddingVertical: 10, alignItems: 'center', ...shadows.xs }}>
@@ -61,8 +56,6 @@ function SummaryChip({ label, value, theme }: { label: string; value: string; th
   );
 }
 
-// Small uppercase pill label + the white address card beneath it — the
-// route breakdown's FROM/TO rows.
 function AddressRow({ label, value, tone, theme }: { label: string; value: string; tone: 'driver' | 'passenger'; theme: ReturnType<typeof useTheme> }) {
   return (
     <View>
@@ -91,12 +84,11 @@ function DetailRow({ label, value, theme, last = false }: {
   );
 }
 
-export default function RideDetailScreen() {
+export default function HaulingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
   const { getPostById } = useRides();
   const { createAgreement, getAgreementsForPost } = useRideAgreements();
-  const { isFavorited, saveFavorite, removeFavorite } = useFavorites();
   const { findConversation, getOrCreateConversation } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
@@ -107,11 +99,10 @@ export default function RideDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [messaged, setMessaged] = useState(false);
   const [messaging, setMessaging] = useState(false);
-  const [favorited, setFavorited] = useState(false);
-  const [favLoading, setFavLoading] = useState(false);
   const [agreementExists, setAgreementExists] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
+  const [activePhoto, setActivePhoto] = useState(0);
 
   useEffect(() => {
     if (id) loadPost();
@@ -128,7 +119,6 @@ export default function RideDetailScreen() {
         ];
         if (session?.user) {
           tasks.push(
-            isFavorited(data.user_id).then(setFavorited),
             getAgreementsForPost(data.id).then((agreements) => setAgreementExists(
               agreements.some((a) => a.rider_id === session.user.id || a.driver_id === session.user.id)
             )),
@@ -162,35 +152,6 @@ export default function RideDetailScreen() {
     }
   }
 
-  async function handleToggleFavorite() {
-    if (!post || !session?.user) return;
-    setFavLoading(true);
-    try {
-      if (favorited) {
-        Alert.alert(t.favorites.removeConfirmTitle, t.favorites.removeConfirmMsg, [
-          { text: t.favorites.cancel, style: 'cancel' },
-          {
-            text: t.favorites.confirm,
-            style: 'destructive',
-            onPress: async () => {
-              await removeFavorite(post.user_id);
-              setFavorited(false);
-            },
-          },
-        ]);
-      } else {
-        await saveFavorite(post.user_id, post.origin_city);
-        setFavorited(true);
-      }
-    } catch (e: any) {
-      if (e.message === 'LIMIT_REACHED') {
-        Alert.alert(t.favorites.limitTitle, t.favorites.limitMsg);
-      }
-    } finally {
-      setFavLoading(false);
-    }
-  }
-
   async function handleConfirmRide() {
     if (!post || !session?.user) return;
     Alert.alert(t.agreement.confirmTitle, t.agreement.confirmMsg, [
@@ -214,7 +175,7 @@ export default function RideDetailScreen() {
 
   function handleShare() {
     if (!post) return;
-    Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}` });
+    Share.share({ message: `${post.origin_city} — ${t.rideDetail.shareMessage}` });
   }
 
   if (loading) {
@@ -227,41 +188,29 @@ export default function RideDetailScreen() {
 
   if (!post) return null;
 
-  const isOffer = post.type === 'offer';
   const date = new Date(post.scheduled_at);
   const isOwner = post.user_id === session?.user?.id;
   const canEdit = isOwner && (date.getTime() - Date.now() > TWO_HOURS_MS);
-  const canSaveFavorite = !isOwner && isOffer;
   const canConfirmRide = !isOwner && messaged && !agreementExists;
-  const accent = isOffer ? theme.driverText : theme.primary;
+  const accent = theme.haulingText;
 
-  const details = (post.details ?? {}) as RidePostDetailsRide;
-  const activeRules = Object.entries(details.rules ?? {}).filter(([, v]) => v).map(([k]) => k);
-  const bagTypeCounts = (details.bagTypes ?? []).reduce<Record<string, number>>((acc, b) => {
-    acc[b] = (acc[b] ?? 0) + 1;
-    return acc;
-  }, {});
-  const oversizedTypes = Array.from(new Set((details.oversizedInfo ?? []).flatMap((o) => o.types)));
-  const oversizedOthers = (details.oversizedInfo ?? []).map((o) => o.other).filter(Boolean);
-  const hasVehicleInfo = isOffer && (details.vehicleType || (details.comfortPrefs?.length ?? 0) > 0 || (details.climatePrefs?.length ?? 0) > 0);
-  const hasChildSeatInfo = !isOffer && (details.childSeatPrefs?.length ?? 0) > 0;
+  const details = (post.details ?? {}) as RidePostDetailsHauling;
+  const hasDropoff = details.disposal === 'address' && !!post.destination_address;
+  const photos = details.photoUrls ?? (details.photoUrl ? [details.photoUrl] : []);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar style="light" />
 
-      {/* removeClippedSubviews={false} — see app/post/ride.tsx's identical
-          comment: Android's off-screen ScrollView clipping can leave touch
-          handlers stale below the fold until a native scroll forces relayout. */}
       <ScrollView style={{ flex: 1 }} removeClippedSubviews={false} contentContainerStyle={{ paddingBottom: 48 }}>
-        {/* Map header — the route map itself is the header, not a gradient
-            hero, with back/share buttons floating on top of it. */}
         <View style={{ height: 240, backgroundColor: theme.surfaceAlt, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, overflow: 'hidden', ...shadows.lg }}>
-          {post.route_map_url ? (
+          {photos.length > 0 ? (
+            <Image source={{ uri: photos[activePhoto] ?? photos[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          ) : post.route_map_url ? (
             <Image source={{ uri: post.route_map_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="location" size={32} color={theme.textFaint} />
+              <Icon name="truck" size={32} color={theme.textFaint} />
             </View>
           )}
           <View style={{ position: 'absolute', top: insets.top + 8, left: 16 }}>
@@ -272,49 +221,54 @@ export default function RideDetailScreen() {
           </View>
         </View>
 
+        {photos.length > 1 && (
+          <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 14 }}>
+            {photos.map((uri, i) => (
+              <TouchableOpacity key={uri} onPress={() => setActivePhoto(i)} style={{
+                width: 52, height: 52, borderRadius: 12, overflow: 'hidden',
+                borderWidth: 2, borderColor: i === activePhoto ? accent : 'transparent',
+              }}>
+                <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         <View style={{ padding: 20, gap: 18 }}>
-          {/* Leaves / Duration / Distance */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <SummaryChip theme={theme} label={t.rideDetail.leaves} value={formatLeavesIn(post.scheduled_at)} />
-            <SummaryChip theme={theme} label={t.rideDetail.duration} value={post.duration_text ?? '—'} />
+            <SummaryChip theme={theme} label={t.rideDetail.leaves} value={details.flexibleDate ? 'Anytime this week' : formatLeavesIn(post.scheduled_at)} />
+            <SummaryChip theme={theme} label="Load size" value={details.loadSize ?? '—'} />
             <SummaryChip theme={theme} label={t.rideDetail.distance} value={post.distance_text ?? '—'} />
           </View>
 
-          {/* Type + price badges */}
           <View style={{ flexDirection: 'row', gap: 8 }}>
-            <Badge tone={isOffer ? 'driver' : 'passenger'} icon={isOffer ? 'car' : 'passenger'} iconSize={13}>
-              {isOffer ? t.feed.chipPooling : t.feed.chipRide}
-            </Badge>
+            <Badge tone="hauling" icon="truck" iconSize={13}>{t.post.chooserHaulingTitle}</Badge>
             {post.suggested_donation != null && (
               <Badge tone="warning" style={{ marginLeft: 'auto' }}>{`$${post.suggested_donation} OBO`}</Badge>
             )}
+            {details.hazardous && <Badge tone="warning" icon="warning">Hazardous</Badge>}
           </View>
 
-          {/* Route */}
           <View style={{ gap: 12 }}>
-            <AddressRow theme={theme} tone="driver" label={t.rideDetail.origin} value={post.origin_address || post.origin_city} />
-            <AddressRow theme={theme} tone="passenger" label={t.rideDetail.destination} value={post.destination_address || post.destination_city} />
-          </View>
-
-          {/* Date / Time */}
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <StatTile theme={theme} icon="event" label={t.rideDetail.date}
-              value={date.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} />
-            <StatTile theme={theme} icon="schedule" label={t.rideDetail.time}
-              value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
-          </View>
-
-          {/* Seats/Adults / ETA */}
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {isOffer && post.seats_available != null ? (
-              <StatTile theme={theme} icon="seat_recline" label={t.rideDetail.seats} value={String(post.seats_available)} />
-            ) : (
-              <StatTile theme={theme} icon="passenger" label={t.rideDetail.seats} value={String(details.adults ?? 1)} />
+            <AddressRow theme={theme} tone="driver" label="Pickup" value={post.origin_address || post.origin_city} />
+            {hasDropoff && (
+              <AddressRow theme={theme} tone="passenger" label="Drop-off" value={post.destination_address || post.destination_city} />
             )}
-            <StatTile theme={theme} icon="navigation" label={t.rideDetail.eta} value={formatEta(post.scheduled_at, post.duration_seconds, t.locale)} />
           </View>
 
-          {/* Poster */}
+          <View style={{ flexDirection: 'row', gap: 12 }}>
+            {details.flexibleDate ? (
+              <StatTile theme={theme} icon="event" label={t.rideDetail.date} value="Anytime this week" />
+            ) : (
+              <>
+                <StatTile theme={theme} icon="event" label={t.rideDetail.date}
+                  value={date.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} />
+                <StatTile theme={theme} icon="schedule" label={t.rideDetail.time}
+                  value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
+              </>
+            )}
+          </View>
+
           <Card padding={14} elevation="sm">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
@@ -331,124 +285,43 @@ export default function RideDetailScreen() {
             </View>
           </Card>
 
-          {/* Description */}
           {post.description && (
             <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
               {post.description}
             </Text>
           )}
 
-          {/* Donation / Notes leftovers not covered by the badge/description above */}
-          {(!isOffer && !!details.children) && (
+          <Field label="Load details">
             <CardBox style={{ paddingVertical: 2 }}>
-              <DetailRow theme={theme} label={t.post.children} value={String(details.children)} last />
+              <DetailRow theme={theme} label="What happens to it" value={details.disposal === 'address' ? 'Delivered to address' : 'Driver disposes'} />
+              <DetailRow theme={theme} label="Help loading" value={details.helpNeeded ? 'Needed' : 'Not needed'} />
+              <DetailRow theme={theme} label="Hazardous materials" value={details.hazardous ? 'Yes' : 'No'} last={!details.prohibitedConfirmed?.length} />
+              {(details.prohibitedConfirmed?.length ?? 0) > 0 && (
+                <DetailRow theme={theme} label="Prohibited items" value="Confirmed none included" last />
+              )}
             </CardBox>
-          )}
+          </Field>
 
-          {/* Event details */}
-          {!!details.eventName && (
-            <Field label={t.post.eventDetails}>
-              <CardBox style={{ paddingVertical: 2 }}>
-                <DetailRow theme={theme} label={t.post.eventDetails} value={details.eventName} />
-                {!!details.vehiclesNeeded && (
-                  <DetailRow theme={theme} label={t.post.vehiclesNeeded} value={String(details.vehiclesNeeded)} last />
-                )}
-              </CardBox>
-            </Field>
-          )}
-
-          {/* Airport trip */}
-          {post.airport && (
-            <Field label={t.post.airportTrip}>
-              <CardBox style={{ paddingVertical: 2 }}>
-                <DetailRow theme={theme} label={t.post.airportTrip} value={post.airport_leg === 'to' ? t.post.toAirport : t.post.fromAirport} />
-                {!!post.flight_number && (
-                  <DetailRow theme={theme} label={t.rideDetail.flight} value={post.flight_number} last />
-                )}
-              </CardBox>
-            </Field>
-          )}
-
-          {/* Luggage */}
-          {(!!details.bags || oversizedTypes.length > 0 || oversizedOthers.length > 0) && (
-            <Field label={isOffer ? t.post.luggageSpace : t.post.luggageLabel}>
-              <CardBox style={{ paddingVertical: 2 }}>
-                {!!details.bags && <DetailRow theme={theme} label={t.post.bags} value={String(details.bags)} />}
-                {Object.keys(bagTypeCounts).length > 0 && (
-                  <DetailRow theme={theme} label={t.post.luggageLabel}
-                    value={Object.entries(bagTypeCounts).map(([type, n]) => (n > 1 ? `${type} ×${n}` : type)).join(', ')} />
-                )}
-                {(oversizedTypes.length > 0 || oversizedOthers.length > 0) && (
-                  <DetailRow theme={theme} label={t.post.oversizedTitle}
-                    value={[...oversizedTypes, ...oversizedOthers].join(', ')} last />
-                )}
-              </CardBox>
-            </Field>
-          )}
-
-          {/* Vehicle */}
-          {hasVehicleInfo && (
-            <Field label={t.post.vehicle}>
-              <View style={{ gap: 12 }}>
-                {!!details.vehicleType && (
-                  <CardBox style={{ paddingVertical: 2 }}>
-                    <DetailRow theme={theme} label={t.post.vehicleTypeLabel} value={details.vehicleType} last />
-                  </CardBox>
-                )}
-                {(details.comfortPrefs?.length ?? 0) > 0 && (
-                  <View>
-                    <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10, tracking.wide), color: theme.textFaint, marginBottom: 6 }}>
-                      {t.post.comfortSeating}
-                    </Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {details.comfortPrefs!.map((c) => (
-                        <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
-                      ))}
-                    </View>
-                  </View>
-                )}
-                {(details.climatePrefs?.length ?? 0) > 0 && (
-                  <View>
-                    <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10, tracking.wide), color: theme.textFaint, marginBottom: 6 }}>
-                      {t.post.climateControl}
-                    </Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                      {details.climatePrefs!.map((c) => (
-                        <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
-                      ))}
-                      {!!details.tempPref && (
-                        <RuleChip active accent={accent} theme={theme} onPress={() => {}}>{`${details.tempPref}°F`}</RuleChip>
-                      )}
-                    </View>
-                  </View>
-                )}
-              </View>
-            </Field>
-          )}
-
-          {/* Child seat */}
-          {hasChildSeatInfo && (
-            <Field label={t.post.childSeat}>
+          {(details.loadTypes?.length ?? 0) > 0 && (
+            <Field label="What's being hauled">
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {details.childSeatPrefs!.map((c) => (
-                  <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
+                {details.loadTypes!.map((l) => (
+                  <RuleChip key={l} active accent={accent} theme={theme} onPress={() => {}}>{l}</RuleChip>
                 ))}
               </View>
             </Field>
           )}
 
-          {/* Rules / preferences */}
-          {activeRules.length > 0 && (
-            <Field label={isOffer ? t.post.rideRules : t.post.preferences}>
+          {(details.access?.length ?? 0) > 0 && (
+            <Field label="Access at pickup">
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {activeRules.map((r) => (
-                  <RuleChip key={r} active accent={accent} theme={theme} onPress={() => {}}>{r}</RuleChip>
+                {details.access!.map((a) => (
+                  <RuleChip key={a} active accent={accent} theme={theme} onPress={() => {}}>{a}</RuleChip>
                 ))}
               </View>
             </Field>
           )}
 
-          {/* Warning */}
           <View style={{
             flexDirection: 'row', gap: 10,
             backgroundColor: theme.warning + '1A',
@@ -466,11 +339,10 @@ export default function RideDetailScreen() {
             </View>
           </View>
 
-          {/* Owner notice + edit button */}
           {isOwner && (
             <View style={{ gap: 10 }}>
               {canEdit ? (
-                <Button variant="primary" size="lg" fullWidth onPress={() => router.push(`/ride/edit/${post.id}`)}>
+                <Button variant="primary" size="lg" fullWidth onPress={() => router.push({ pathname: '/hauling/edit/[id]', params: { id: post.id } })}>
                   {t.rideDetail.editPost}
                 </Button>
               ) : (
@@ -500,8 +372,6 @@ export default function RideDetailScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky footer — real contact/favorite/confirm actions, styled as
-          the design system's fixed bottom bar. */}
       {!isOwner && (
         <View style={{
           flexDirection: 'row', alignItems: 'center', gap: 14,
@@ -514,20 +384,6 @@ export default function RideDetailScreen() {
           ) : canConfirmRide ? (
             <Button variant="ghost" textColor={theme.driverText} disabled={confirming} onPress={handleConfirmRide}>
               {confirming ? t.rideDetail.processing : t.agreement.confirmRide}
-            </Button>
-          ) : canSaveFavorite ? (
-            // "Interested" doubles as the design's INTERESTED action — mapped
-            // onto our real favorite/save-driver flow. Stays visible but
-            // disabled until you've messaged: saving someone you haven't
-            // engaged with yet reads too close to the "rate a driver you
-            // never rode with" pattern flagged in [[project-legal-tnc-compliance]].
-            <Button
-              variant="ghost"
-              textColor={favorited ? theme.primary : theme.textSecondary}
-              disabled={favLoading || !messaged}
-              onPress={handleToggleFavorite}
-            >
-              {favorited ? t.rideDetail.interestedSaved : t.rideDetail.interested}
             </Button>
           ) : (
             <View style={{ width: 1 }} />

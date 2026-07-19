@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View } from 'react-native';
+import { View, Alert } from 'react-native';
 import { TouchableOpacity } from './TouchableOpacity';
 import { ThemedText as Text } from './ThemedText';
 import { Icon } from './Icon';
@@ -7,9 +7,9 @@ import { AddressAutocomplete } from './AddressAutocomplete';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { IconName } from '@/constants/icons';
-import { fonts, radii, shadows } from '@/constants/themes';
+import { controlHeight, fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import { PlaceDetail } from '@/services/googlePlaces';
+import { PlaceDetail, geocodeAddress } from '@/services/googlePlaces';
 
 export interface AddressBookEntry { id: string; label: string; icon: IconName; value: string }
 export interface AddressBookSlot { id: string; label: string; icon: IconName }
@@ -20,6 +20,14 @@ interface Props {
   value: string;
   onChangeText: (v: string) => void;
   onSelectPlace: (detail: PlaceDetail) => void;
+  // Fired when the value comes from tapping a saved-address slot. A saved
+  // slot only ever stored text, no PlaceDetail — selectFromBook geocodes it
+  // (see services/googlePlaces.ts's geocodeAddress) and calls onSelectPlace
+  // with the resolved lat/lng when that succeeds. onSelectSaved is the
+  // fallback for when geocoding fails (no key, address not found, etc.), so
+  // callers can still derive a city and not leave required-field checks
+  // silently unsatisfied.
+  onSelectSaved?: (value: string) => void;
   savedAddresses: AddressBookEntry[];
   emptySlots: AddressBookSlot[];
   onSaveToSlot: (slotId: string, value: string) => void;
@@ -28,33 +36,61 @@ interface Props {
 }
 
 // Address field with a tap-to-choose "saved address vs. type new" flow, per
-// the design system's components/ride/AddressInput.jsx. Visual only — the
-// underlying address book is session-local state passed in from the parent,
-// so "book" starts empty until you save something to it this session. The
-// real Google Places field (AddressAutocomplete) is reused as-is for the
-// "type" phase so the actual autocomplete/paid-API behavior doesn't change —
-// this only wraps it.
+// the design system's components/ride/AddressInput.jsx. The address book
+// (savedAddresses/emptySlots/onSaveToSlot) is backed by supabase.saved_addresses
+// via hooks/useSavedAddresses.ts — passed in from the parent screen. The real
+// Google Places field (AddressAutocomplete) is reused as-is for the "type"
+// phase so the actual autocomplete/paid-API behavior doesn't change — this
+// only wraps it.
 export function SmartAddressField({
-  label, placeholder, value, onChangeText, onSelectPlace,
+  label, placeholder, value, onChangeText, onSelectPlace, onSelectSaved,
   savedAddresses, emptySlots, onSaveToSlot, theme, t,
 }: Props) {
   const [phase, setPhase] = useState<'idle' | 'choose' | 'book' | 'type' | 'saveNew'>('idle');
   const [sourceSlotId, setSourceSlotId] = useState<string | null>(null);
+  // Whether the user has actively typed a new address this session, as
+  // opposed to `value` just being a pre-filled value from an existing post
+  // (edit screens) — only the former should be offered a "save to book"
+  // prompt, otherwise every prefilled edit field would show one.
+  const [hasTyped, setHasTyped] = useState(false);
+  // Where to return once the save-to-slot sheet closes (Save/Cancel) — opened
+  // either from 'idle' (after a value already settled) or from 'type' (the
+  // save icon next to the live-typing field), so it can't just hardcode 'idle'.
+  const [savePromptFrom, setSavePromptFrom] = useState<'idle' | 'type'>('idle');
 
   const sourceValue = sourceSlotId ? savedAddresses.find((s) => s.id === sourceSlotId)?.value : undefined;
   const isDirty = sourceSlotId !== null && value !== sourceValue;
-  const isNew = sourceSlotId === null && !!value.trim();
+  const isNew = sourceSlotId === null && hasTyped && !!value.trim();
   const showSaveAction = !!value.trim() && (isDirty || isNew);
 
-  function selectFromBook(slot: AddressBookEntry) {
+  async function selectFromBook(slot: AddressBookEntry) {
     onChangeText(slot.value);
     setSourceSlotId(slot.id);
     setPhase('idle');
+    const geocoded = await geocodeAddress(slot.value);
+    if (geocoded) {
+      onSelectPlace({ formattedAddress: slot.value, name: slot.value, ...geocoded });
+    } else {
+      onSelectSaved?.(slot.value);
+    }
   }
   function saveToSlot(slotId: string) {
     onSaveToSlot(slotId, value);
     setSourceSlotId(slotId);
-    setPhase('idle');
+    setPhase(savePromptFrom);
+  }
+  // Occupied slots need a confirm step before overwriting; empty ones save
+  // immediately.
+  function handleSlotPress(slotId: string) {
+    const existing = savedAddresses.find((s) => s.id === slotId);
+    if (existing) {
+      Alert.alert(t.post.addressReplaceTitle, t.post.addressReplaceMsg, [
+        { text: t.post.addressCancel, style: 'cancel' },
+        { text: t.post.addressReplace, style: 'destructive', onPress: () => saveToSlot(slotId) },
+      ]);
+    } else {
+      saveToSlot(slotId);
+    }
   }
 
   const sheetStyle = { borderRadius: radii.md, borderWidth: 1.5, borderColor: theme.primary, backgroundColor: theme.surface, overflow: 'hidden' as const, ...shadows.xs };
@@ -63,19 +99,28 @@ export function SmartAddressField({
   if (phase === 'idle') {
     return (
       <View>
-        {label && <Text style={{ fontSize: 13, color: theme.muted, marginBottom: 4 }}>{label}</Text>}
+        {label && <Text style={{ marginBottom: 7, fontSize: 14, fontFamily: fonts.bodySemibold, color: theme.text }}>{label}</Text>}
         <TouchableOpacity
           activeOpacity={0.7}
           onPress={() => setPhase('choose')}
-          style={{ backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12 }}
+          style={{
+            flexDirection: 'row', alignItems: 'center',
+            height: controlHeight.lg, paddingHorizontal: 16,
+            backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.border,
+            borderRadius: radii.md, ...shadows.xs,
+          }}
         >
-          <Text numberOfLines={1} style={{ fontFamily: fonts.bodyRegular, fontSize: 14, color: value ? theme.text : theme.muted }}>
+          <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 16, color: value ? theme.text : theme.muted }}>
             {value || placeholder}
           </Text>
         </TouchableOpacity>
         {showSaveAction && (
           <TouchableOpacity
-            onPress={() => (isDirty && sourceSlotId ? saveToSlot(sourceSlotId) : setPhase('saveNew'))}
+            onPress={() => {
+              setSavePromptFrom('idle');
+              if (isDirty && sourceSlotId) saveToSlot(sourceSlotId);
+              else setPhase('saveNew');
+            }}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8, alignSelf: 'flex-start' }}
           >
             <Icon name="bookmark" size={13} color={theme.gold400} />
@@ -99,7 +144,7 @@ export function SmartAddressField({
             </View>
             <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11.5, color: theme.muted }}>{t.post.addressChooseSaved}</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setPhase('type')} style={{ flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14 }}>
+          <TouchableOpacity onPress={() => { setHasTyped(true); setPhase('type'); }} style={{ flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14 }}>
             <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="pencil_line" size={18} color={theme.muted} />
             </View>
@@ -122,7 +167,7 @@ export function SmartAddressField({
             <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textFaint, textAlign: 'center', marginTop: 8, lineHeight: 17 }}>
               {t.post.addressBookEmpty}
             </Text>
-            <TouchableOpacity onPress={() => setPhase('type')} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 7, borderRadius: radii.pill, borderWidth: 1, borderColor: theme.border }}>
+            <TouchableOpacity onPress={() => { setHasTyped(true); setPhase('type'); }} style={{ marginTop: 12, paddingHorizontal: 16, paddingVertical: 7, borderRadius: radii.pill, borderWidth: 1, borderColor: theme.border }}>
               <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: theme.muted }}>{t.post.addressTypeAddress}</Text>
             </TouchableOpacity>
           </View>
@@ -145,7 +190,7 @@ export function SmartAddressField({
           ))
         )}
         {savedAddresses.length > 0 && (
-          <TouchableOpacity onPress={() => setPhase('type')} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 11, backgroundColor: theme.surfaceAlt, borderTopWidth: 1, borderTopColor: theme.cardBorder }}>
+          <TouchableOpacity onPress={() => { setHasTyped(true); setPhase('type'); }} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 11, backgroundColor: theme.surfaceAlt, borderTopWidth: 1, borderTopColor: theme.cardBorder }}>
             <Icon name="pencil_line" size={13} color={theme.textFaint} />
             <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: theme.muted }}>{t.post.addressTypeNewAddress}</Text>
           </TouchableOpacity>
@@ -155,38 +200,73 @@ export function SmartAddressField({
   }
 
   if (phase === 'saveNew') {
+    // All slots, occupied first (showing their current value) then empty —
+    // tapping an occupied one confirms before overwriting (handleSlotPress),
+    // an empty one saves immediately.
+    const allSlots = [...savedAddresses, ...emptySlots];
     return (
       <View style={sheetStyle}>
         <View style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: theme.cardBorder }}>
           <Text style={[rowLabelStyle, { marginBottom: 4 }]}>{t.post.addressSaveTo}</Text>
           <Text numberOfLines={1} style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.muted }}>{value}</Text>
         </View>
-        {emptySlots.length === 0 ? (
+        {allSlots.length === 0 ? (
           <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textFaint, textAlign: 'center', padding: 16, lineHeight: 17 }}>
             {t.post.addressBookFull}
           </Text>
         ) : (
-          emptySlots.map((s, i) => (
-            <TouchableOpacity
-              key={s.id}
-              onPress={() => saveToSlot(s.id)}
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: theme.cardBorder }}
-            >
-              <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name={s.icon} size={14} color={theme.gold400} />
-              </View>
-              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: theme.text, flex: 1 }}>{s.label}</Text>
-              <Icon name="chevron_right" size={14} color={theme.textFaint} />
-            </TouchableOpacity>
-          ))
+          allSlots.map((s, i) => {
+            const occupied = 'value' in s;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                onPress={() => handleSlotPress(s.id)}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: i === 0 ? 0 : 1, borderTopColor: theme.cardBorder }}
+              >
+                <View style={{ width: 30, height: 30, borderRadius: 9, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={s.icon} size={14} color={theme.gold400} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: theme.text }}>{s.label}</Text>
+                  {occupied && (
+                    <Text numberOfLines={1} style={{ fontFamily: fonts.bodyMedium, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
+                      {(s as AddressBookEntry).value}
+                    </Text>
+                  )}
+                </View>
+                <Icon name="chevron_right" size={14} color={theme.textFaint} />
+              </TouchableOpacity>
+            );
+          })
         )}
-        <TouchableOpacity onPress={() => setPhase('idle')} style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.cardBorder, alignItems: 'center' }}>
+        <TouchableOpacity onPress={() => setPhase(savePromptFrom)} style={{ paddingVertical: 10, borderTopWidth: 1, borderTopColor: theme.cardBorder, alignItems: 'center' }}>
           <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: theme.textFaint }}>{t.post.addressDontSave}</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // phase === 'type' — the real, functional field (Google Places autocomplete unchanged)
-  return <AddressAutocomplete label={label} placeholder={placeholder} value={value} onChangeText={onChangeText} onSelectPlace={onSelectPlace} />;
+  // phase === 'type' — the real, functional field (Google Places autocomplete
+  // unchanged), always focused on entry, plus a save-to-book icon once
+  // there's something worth saving.
+  return (
+    <AddressAutocomplete
+      label={label}
+      placeholder={placeholder}
+      value={value}
+      onChangeText={onChangeText}
+      onSelectPlace={onSelectPlace}
+      autoFocus
+      rightAccessory={
+        !!value.trim() && (
+          <TouchableOpacity
+            onPress={() => { setSavePromptFrom('type'); setPhase('saveNew'); }}
+            style={{ marginLeft: 8 }}
+          >
+            <Icon name="bookmark" size={18} color={theme.gold400} />
+          </TouchableOpacity>
+        )
+      }
+    />
+  );
 }

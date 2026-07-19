@@ -37,7 +37,7 @@ export function useRides() {
         .select('*, profile:profiles(full_name, avatar_url, default_role)')
         .eq('status', 'active')
         .gt('expires_at', new Date().toISOString())
-        .order('scheduled_at', { ascending: true });
+        .order('created_at', { ascending: false });
 
       if (filters.type !== 'all') query = query.eq('type', filters.type);
       if (filters.originCity)
@@ -88,6 +88,20 @@ export function useRides() {
       .upload(fileName, image, { contentType: 'image/png', upsert: true });
     if (error) return null;
     return supabase.storage.from('route-maps').getPublicUrl(fileName).data.publicUrl;
+  }
+
+  // Optional load photo for the hauling post form (RidePostDetailsHauling.photoUrl).
+  // Same upload shape as useVehicleProfile's uploadVehiclePhoto — ArrayBuffer,
+  // not Blob, since RN's Blob serialization is unreliable for storage uploads.
+  async function uploadHaulingPhoto(userId: string, uri: string): Promise<string | null> {
+    const fileName = `${userId}/${Date.now()}.jpg`;
+    const response = await fetch(uri);
+    const arrayBuffer = await response.arrayBuffer();
+    const { error } = await supabase.storage
+      .from('hauling-photos')
+      .upload(fileName, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
+    if (error) return null;
+    return supabase.storage.from('hauling-photos').getPublicUrl(fileName).data.publicUrl;
   }
 
   async function getPostById(id: string) {
@@ -185,5 +199,5 @@ export function useRides() {
     return data as RidePost;
   }
 
-  return { fetchPosts, createPost, uploadRouteMap, getPostById, getRoutePriceStats, revealContact, cancelPost, updatePost };
+  return { fetchPosts, createPost, uploadRouteMap, uploadHaulingPhoto, getPostById, getRoutePriceStats, revealContact, cancelPost, updatePost };
 }

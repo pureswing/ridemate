@@ -1,4 +1,4 @@
-import { View, ScrollView, Alert } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -33,13 +33,9 @@ export default function PostChooserScreen() {
   ];
 
   function handleSelect(id: RidePostKind) {
-    if (id === 'ride') {
-      router.push('/post/ride');
-    } else {
-      // Package/Hauling forms don't exist yet — design system's PostPackage.jsx
-      // and PostHauling.jsx are a separate build, not in scope here.
-      Alert.alert(t.post.comingSoonTitle, t.post.comingSoonMsg);
-    }
+    if (id === 'ride') router.push('/post/ride');
+    else if (id === 'package') router.push('/post/package');
+    else router.push('/post/hauling');
   }
 
   return (

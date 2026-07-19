@@ -100,3 +100,26 @@ export function dateToTimeString(d: Date): string {
   const m = String(d.getMinutes()).padStart(2, '0');
   return `${h}:${m}`;
 }
+
+// "in 2h 15m" / "in 3d" style countdown for the ride detail screen's
+// "Leaves" stat card. Past-dated posts (shouldn't normally be viewable, but
+// defensive) fall back to a plain "—" rather than a negative duration.
+export function formatLeavesIn(isoString: string): string {
+  const diffMs = new Date(isoString).getTime() - Date.now();
+  if (diffMs <= 0) return '—';
+  const minutes = Math.round(diffMs / 60000);
+  if (minutes < 60) return `in ${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  const remMinutes = minutes % 60;
+  if (hours < 24) return remMinutes > 0 ? `in ${hours}h ${remMinutes}m` : `in ${hours}h`;
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  return remHours > 0 ? `in ${days}d ${remHours}h` : `in ${days}d`;
+}
+
+// "8:00 AM" style arrival clock time — scheduled departure + trip duration.
+export function formatEta(scheduledAtIso: string, durationSeconds: number | undefined, locale: string): string {
+  if (!durationSeconds) return '—';
+  const arrival = new Date(new Date(scheduledAtIso).getTime() + durationSeconds * 1000);
+  return arrival.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+}

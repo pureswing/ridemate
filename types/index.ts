@@ -37,6 +37,7 @@ export interface Profile {
   disclaimer_accepted_at?: string;
   is_active: boolean;
   accessibility_needs: AccessibilityNeed[];
+  accessibility_note?: string;
   // supabase/migrations/012_profile_extra_fields.sql
   home_city?: string;
   bio?: string;
@@ -73,6 +74,19 @@ export interface RidePostDetailsRide {
   children?: number;
   eventName?: string;
   vehiclesNeeded?: number;
+  // Added from the granular-preferences review (2026-07-18). All optional,
+  // self-reported, informational-only — see constants/rideFormOptions.ts and
+  // constants/accessibilityOptions.ts for the option catalogs.
+  accessibilityNeeds?: AccessibilityNeed[];
+  atmospherePrefs?: string[];
+  cleanlinessPrefs?: string[];
+  petPrefs?: string[];
+  pickupPrefs?: string[];
+  driverLanguage?: string;
+  // Intermediate stops, in order — plain address text (same free-text the
+  // "add stop" rows collect), routed through via the Directions API as
+  // waypoints. See services/routeMap.ts.
+  stops?: string[];
 }
 
 export interface RidePostDetailsPackage {
@@ -96,7 +110,18 @@ export interface RidePostDetailsHauling {
   helpNeeded?: boolean;
   hazardous?: boolean;
   prohibitedConfirmed?: string[];
+  // Up to MAX_HAULING_PHOTOS (see app/post/hauling.tsx) — each just a
+  // supabase.storage "hauling-photos" public URL, same as the old single
+  // photoUrl. `photoUrl` is kept optional for reading posts saved before
+  // this became an array.
+  photoUrls?: string[];
+  /** @deprecated superseded by photoUrls — still read for old posts */
   photoUrl?: string;
+  // When true, scheduled_at holds a placeholder timestamp (not a real
+  // commitment) and the UI shows "Anytime this week" instead of the exact
+  // date/time — haulers often care less about a fixed slot than ride
+  // passengers do.
+  flexibleDate?: boolean;
 }
 
 export type RidePostDetails = RidePostDetailsRide | RidePostDetailsPackage | RidePostDetailsHauling;
@@ -129,6 +154,9 @@ export interface RidePost {
   airport_leg?: 'to' | 'from';
   flight_number?: string;
   route_map_url?: string;
+  duration_text?: string;
+  duration_seconds?: number;
+  distance_text?: string;
   details: RidePostDetails;
   created_at: string;
   updated_at: string;
@@ -163,6 +191,42 @@ export interface ContactReveal {
   post?: RidePost;
 }
 
+// Address Book — persisted per (user, slot). See
+// supabase/migrations/018_saved_addresses.sql.
+export interface SavedAddress {
+  id: string;
+  user_id: string;
+  slot_id: string;
+  value: string;
+  icon: string;
+  created_at: string;
+  updated_at: string;
+}
+
+// In-app messaging — replaces the external contact-method flow (WhatsApp/
+// phone/email). One conversation per (post, requester) pair — see
+// supabase/migrations/017_messaging.sql.
+export interface Conversation {
+  id: string;
+  post_id: string;
+  post_owner_id: string;
+  requester_id: string;
+  created_at: string;
+  last_message_at: string;
+  post?: Pick<RidePost, 'id' | 'kind' | 'type' | 'origin_city' | 'destination_city' | 'scheduled_at'>;
+  post_owner?: Pick<Profile, 'full_name' | 'avatar_url'>;
+  requester?: Pick<Profile, 'full_name' | 'avatar_url'>;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+  read_at?: string;
+}
+
 export interface UserFavorite {
   id: string;
   rider_id: string;
@@ -182,7 +246,7 @@ export interface RideAgreement {
   status: AgreementStatus;
   created_at: string;
   updated_at: string;
-  post?: Pick<RidePost, 'origin_city' | 'destination_city' | 'scheduled_at' | 'type'>;
+  post?: Pick<RidePost, 'origin_city' | 'destination_city' | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation'>;
   driver?: Pick<Profile, 'full_name' | 'avatar_url'>;
   rider?: Pick<Profile, 'full_name' | 'avatar_url'>;
 }

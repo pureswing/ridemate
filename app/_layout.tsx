@@ -78,12 +78,18 @@ export default function RootLayout() {
         <Stack>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen
-            name="ride/[id]"
-            options={{ title: t.nav.rideDetail, headerBackTitle: t.nav.back }}
-          />
+          <Stack.Screen name="ride/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="ride/edit/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="package/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="package/edit/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="hauling/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="hauling/edit/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="profile/edit" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/accessibility" options={{ headerShown: false }} />
           <Stack.Screen name="post/ride" options={{ headerShown: false }} />
+          <Stack.Screen name="post/package" options={{ headerShown: false }} />
+          <Stack.Screen name="post/hauling" options={{ headerShown: false }} />
         </Stack>
       </GestureHandlerRootView>
     </SafeAreaProvider>
