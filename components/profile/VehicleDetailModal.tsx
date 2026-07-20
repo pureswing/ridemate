@@ -1,11 +1,18 @@
-import { useState } from 'react';
-import { View, Modal, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Modal, ScrollView, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
+import { IconButton } from '@/components/ui/IconButton';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { VehicleProfile, VehicleAmenity } from '@/types';
 import { IconName } from '@/constants/icons';
+import { fonts, radii, shadows } from '@/constants/themes';
+import { tracking, letterSpacingFor } from '@/constants/typography';
 
 export const AMENITY_LABELS: Record<VehicleAmenity, string> = {
   ev_station:    'Charger',
@@ -32,6 +39,12 @@ export const AMENITY_LABELS: Record<VehicleAmenity, string> = {
   no_pets:       'No Pets',
 };
 
+function fuelIcon(fuel?: string): IconName {
+  if (fuel === 'Electric') return 'bolt';
+  if (fuel === 'Hybrid' || fuel === 'Plug-in Hybrid') return 'eco';
+  return 'fuel';
+}
+
 interface Props {
   visible: boolean;
   vehicle: VehicleProfile;
@@ -39,222 +52,186 @@ interface Props {
   onEdit: () => void;
 }
 
+// Ported from ui_kits/ridemate-app/VehicleProfile.jsx — the design's
+// "isLuxury"/insurance-document fields have no equivalent in VehicleProfile
+// (types/index.ts), so those are left out rather than faked; everything
+// else (vehicle_type, plate, rules) is real vehicle_profiles data.
 export function VehicleDetailModal({ visible, vehicle, onClose, onEdit }: Props) {
   const theme = useTheme();
   const t = useTranslation();
-  const [tooltipAmenity, setTooltipAmenity] = useState<VehicleAmenity | null>(null);
+  const insets = useSafeAreaInsets();
 
-  const cardShadow = {
-    shadowColor: theme.cardShadowColor,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: theme.cardShadowOpacity,
-    shadowRadius: 10,
-    elevation: 5,
-  };
+  const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || t.profile.addVehicle;
+  const kindLabel = vehicle.kind === 'hauling' ? t.profile.haulingCategory : t.profile.ridesCourierCategory;
+  const specs: { icon: IconName; label: string; value: string }[] = [
+    { icon: 'car', label: t.profile.vehicleMake, value: vehicle.make || '—' },
+    { icon: 'verified', label: t.profile.vehicleModel, value: vehicle.model || '—' },
+    { icon: 'sparkles', label: 'Trim', value: vehicle.trim || '—' },
+    { icon: 'event', label: t.profile.vehicleYear, value: String(vehicle.year) },
+    { icon: 'palette', label: t.profile.vehicleColor, value: vehicle.color || '—' },
+    { icon: fuelIcon(vehicle.fuel_type), label: 'Fuel', value: vehicle.fuel_type || '—' },
+    { icon: 'passenger', label: 'Seats', value: vehicle.seats != null ? String(vehicle.seats) : '—' },
+    ...(vehicle.plate ? [{ icon: 'tag' as IconName, label: t.profile.vehiclePlate, value: vehicle.plate }] : []),
+  ];
+  const RULE_KEYS: VehicleAmenity[] = ['smoke_free', 'smoking', 'vape_free', 'cannabis_free', 'cannabis_ok', 'food_off', 'no_pets', 'pets_ok'];
+  const activeFeatures = vehicle.amenities.filter((a) => a in AMENITY_LABELS && !RULE_KEYS.includes(a));
+  const activeRules = vehicle.amenities.filter((a) => RULE_KEYS.includes(a));
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
       <View style={{ flex: 1, backgroundColor: theme.background }}>
+        <StatusBar style="light" />
 
-        {/* Header */}
-        <View style={{
-          flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-          paddingHorizontal: 20, paddingTop: 20, paddingBottom: 16,
-          borderBottomWidth: 1, borderBottomColor: theme.border,
-        }}>
-          <Text style={{ fontSize: 18, fontFamily: theme.fontDisplay, color: theme.text, textTransform: 'uppercase', letterSpacing: 1 }}>
-            {vehicle.year} {vehicle.make} {vehicle.model}
-          </Text>
-          <TouchableOpacity onPress={onClose} style={{ padding: 4 }}>
-            <Icon name="close" size={22} color={theme.muted} />
-          </TouchableOpacity>
-        </View>
+        <LinearGradient
+          colors={theme.gradientGold as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ paddingTop: insets.top + 8, paddingBottom: 18, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
+            <IconButton icon="arrow_back" variant="glass" label={t.post.goBack} onPress={onClose} />
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
+              {kindLabel}
+            </Text>
+            <IconButton icon="sliders" variant="glass" label={t.profile.editVehicle} onPress={onEdit} />
+          </View>
+          <View style={{ paddingHorizontal: 22, paddingTop: 10 }}>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, letterSpacing: letterSpacingFor(24, tracking.tight), color: theme.cream }}>
+              {t.profile.vehicleSection}
+            </Text>
+          </View>
+        </LinearGradient>
 
-        <ScrollView contentContainerStyle={{ padding: 20, gap: 14, paddingBottom: 40 }}>
-
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
           {/* Photo */}
-          <View style={{ borderRadius: 16, overflow: 'hidden', ...cardShadow, backgroundColor: theme.surface }}>
+          <View style={{ width: '100%', height: 188, borderRadius: radii.lg, overflow: 'hidden', borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surfaceAlt, ...shadows.md }}>
             {vehicle.photo_url ? (
-              <Image
-                source={{ uri: vehicle.photo_url }}
-                style={{ width: '100%', height: 210 }}
-                resizeMode="cover"
-              />
+              <Image source={{ uri: vehicle.photo_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
             ) : (
-              <View style={{
-                width: '100%', height: 160,
-                backgroundColor: theme.surfaceAlt,
-                alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Icon name="car" size={56} color={theme.border} />
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name="car" size={48} color={theme.textFaint} />
               </View>
             )}
           </View>
 
-          {/* Basic info card */}
-          <View style={{
-            backgroundColor: theme.surface, borderRadius: 16,
-            padding: 18, ...cardShadow,
-          }}>
-            <Text style={{ color: theme.muted, fontSize: 11, fontFamily: theme.fontDisplay, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 14 }}>
-              Vehicle Info
+          {/* Title + badges */}
+          <View>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, letterSpacing: letterSpacingFor(24, tracking.tight), color: theme.text }}>
+              {title}
             </Text>
-            <InfoRow label="Make"  value={vehicle.make}          theme={theme} />
-            <InfoRow label="Model" value={vehicle.model}         theme={theme} />
-            {vehicle.trim     && <InfoRow label="Trim"      value={vehicle.trim}              theme={theme} />}
-            <InfoRow label="Year"  value={String(vehicle.year)}  theme={theme} />
-            <InfoRow label="Color" value={vehicle.color}         theme={theme} last={!vehicle.fuel_type && !vehicle.seats} />
-            {vehicle.fuel_type && <InfoRow label="Energy"   value={vehicle.fuel_type}          theme={theme} last={!vehicle.seats} />}
-            {vehicle.seats     && <InfoRow label="Passenger Seats" value={String(vehicle.seats)} theme={theme} last />}
+            {(vehicle.vehicle_type || vehicle.insurance_self_certified) && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {vehicle.vehicle_type && <Badge tone="driver" icon="car" iconSize={13}>{vehicle.vehicle_type}</Badge>}
+                {vehicle.insurance_self_certified && (
+                  <Badge tone="success" icon="shield_check" iconSize={13}>{t.messages.vehicleInsured}</Badge>
+                )}
+              </View>
+            )}
           </View>
 
-          {/* Amenities card */}
-          {vehicle.amenities.length > 0 && (
-            <View style={{
-              backgroundColor: theme.surface, borderRadius: 16,
-              padding: 18, ...cardShadow,
-            }}>
-              <Text style={{ color: theme.muted, fontSize: 11, fontFamily: theme.fontDisplay, letterSpacing: 1.2, textTransform: 'uppercase', marginBottom: 16 }}>
-                {t.profile.vehicleAmenities}
-              </Text>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
-                {vehicle.amenities.filter(a => a in AMENITY_LABELS).map(a => {
-                  const detail = vehicle.amenity_details?.[a];
-                  const hasDetail = detail && (detail.choices.length > 0 || detail.note.trim());
-                  return (
-                    <TouchableOpacity
-                      key={a}
-                      onPress={() => setTooltipAmenity(a)}
-                      activeOpacity={0.7}
-                      style={{ alignItems: 'center', gap: 5, width: 56 }}
-                    >
-                      <View style={{ position: 'relative' }}>
-                        <View style={{
-                          width: 44, height: 44, borderRadius: 22,
-                          backgroundColor: theme.primary + '15',
-                          borderWidth: 1, borderColor: theme.primary + '30',
-                          alignItems: 'center', justifyContent: 'center',
-                        }}>
-                          <Icon name={a as IconName} size={20} color={theme.primary} />
-                        </View>
-                        {hasDetail && (
-                          <View style={{
-                            position: 'absolute', top: 0, right: 0,
-                            width: 8, height: 8, borderRadius: 4,
-                            backgroundColor: theme.primary,
-                          }} />
-                        )}
-                      </View>
-                      <Text style={{
-                        color: theme.muted, fontSize: 9, fontFamily: theme.fontDisplay,
-                        textAlign: 'center', textTransform: 'uppercase', letterSpacing: 0.3,
-                      }}>
-                        {AMENITY_LABELS[a] ?? a}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-          )}
-
-          {/* Amenity tooltip */}
-          {tooltipAmenity && (() => {
-            const detail = vehicle.amenity_details?.[tooltipAmenity];
-            const choiceText = detail?.choices.join(' / ') ?? '';
-            const note = detail?.note.trim() ?? '';
-            return (
-              <Modal transparent animationType="fade" visible onRequestClose={() => setTooltipAmenity(null)}>
-                <TouchableOpacity
-                  style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', alignItems: 'center' }}
-                  onPress={() => setTooltipAmenity(null)}
-                  activeOpacity={1}
-                >
-                  <View style={{
-                    backgroundColor: theme.surface, borderRadius: 16,
-                    paddingHorizontal: 20, paddingVertical: 16,
-                    maxWidth: 280, minWidth: 180,
-                    borderWidth: 1, borderColor: theme.primary + '30',
-                    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.25, shadowRadius: 12, elevation: 8,
-                    gap: 4,
-                  }}>
-                    <Text style={{ color: theme.primary, fontFamily: theme.fontDisplay, fontSize: 14 }}>
-                      {AMENITY_LABELS[tooltipAmenity] ?? tooltipAmenity}
-                    </Text>
-                    {choiceText ? (
-                      <Text style={{ color: theme.text, fontSize: 13, fontFamily: theme.fontBody }}>
-                        {choiceText}
-                      </Text>
-                    ) : null}
-                    {note ? (
-                      <Text style={{ color: theme.textSecondary, fontSize: 12, fontFamily: theme.fontBody, lineHeight: 18 }}>
-                        {note}
-                      </Text>
-                    ) : null}
-                  </View>
-                </TouchableOpacity>
-              </Modal>
-            );
-          })()}
-
-          {/* Insurance card */}
-          {vehicle.insurance_self_certified && (
-            <View style={{
-              backgroundColor: theme.success + '12', borderRadius: 16,
-              padding: 18, ...cardShadow,
-              flexDirection: 'row', alignItems: 'center', gap: 14,
-              borderWidth: 1, borderColor: theme.success + '30',
-            }}>
-              <View style={{
-                width: 44, height: 44, borderRadius: 22,
-                backgroundColor: theme.success + '25',
-                alignItems: 'center', justifyContent: 'center',
+          {/* Spec grid */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            {specs.map((s) => (
+              <View key={s.label} style={{
+                width: '47%', flexDirection: 'row', alignItems: 'center', gap: 11,
+                backgroundColor: theme.surface, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder,
+                padding: 12, ...shadows.xs,
               }}>
-                <Icon name="shield" size={22} color={theme.success} />
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={s.icon} size={17} color={theme.textSecondary} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: letterSpacingFor(9.5, tracking.wide), color: theme.textFaint }}>
+                    {s.label}
+                  </Text>
+                  <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: theme.text, marginTop: 1 }}>
+                    {s.value}
+                  </Text>
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ color: theme.success, fontFamily: theme.fontDisplay, fontSize: 14 }}>
-                  Insurance self-certified
-                </Text>
-                <Text style={{ color: theme.success, fontSize: 12, marginTop: 2, opacity: 0.75 }}>
-                  Driver has confirmed personal insurance coverage
-                </Text>
-              </View>
-            </View>
-          )}
+            ))}
+          </View>
 
-          {/* Edit CTA */}
-          <TouchableOpacity
-            onPress={() => { onClose(); setTimeout(onEdit, 300); }}
-            style={{
-              backgroundColor: theme.primary, borderRadius: 16,
-              paddingVertical: 16, alignItems: 'center',
-              flexDirection: 'row', justifyContent: 'center', gap: 8,
-              marginTop: 4, ...cardShadow,
-            }}
-          >
-            <Icon name="edit" size={18} color="#fff" />
-            <Text style={{ color: '#fff', fontFamily: theme.fontDisplay, fontSize: 16 }}>
-              {t.profile.editVehicle}
+          {/* Features & extras */}
+          <View>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, letterSpacing: letterSpacingFor(16, tracking.tight), color: theme.text, marginBottom: 10 }}>
+              {t.profile.vehicleAmenities}
             </Text>
-          </TouchableOpacity>
+            {activeFeatures.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {activeFeatures.map((a) => (
+                  <View key={a} style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
+                    borderRadius: radii.pill, backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.cardBorder, ...shadows.xs,
+                  }}>
+                    <Icon name={a as IconName} size={15} color={theme.primary} />
+                    <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text }}>{AMENITY_LABELS[a]}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted, lineHeight: 19 }}>
+                {t.profile.vehicleAmenitiesEmpty}
+              </Text>
+            )}
+          </View>
 
+          {/* Rules — its own section, not folded into Features & extras */}
+          <View>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, letterSpacing: letterSpacingFor(16, tracking.tight), color: theme.text, marginBottom: 10 }}>
+              {t.profile.vehicleRules}
+            </Text>
+            {activeRules.length > 0 ? (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {activeRules.map((a) => (
+                  <View key={a} style={{
+                    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
+                    borderRadius: radii.pill, backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.cardBorder, ...shadows.xs,
+                  }}>
+                    <Icon name={a as IconName} size={15} color={theme.primary} />
+                    <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text }}>{AMENITY_LABELS[a]}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted, lineHeight: 19 }}>
+                {t.profile.vehicleAmenitiesEmpty}
+              </Text>
+            )}
+          </View>
+
+          {/* Insurance */}
+          <View>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, letterSpacing: letterSpacingFor(16, tracking.tight), color: theme.text, marginBottom: 10 }}>
+              {t.profile.insuranceSection}
+            </Text>
+            {vehicle.insurance_self_certified ? (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12,
+                backgroundColor: theme.surface, borderRadius: radii.md, borderWidth: 1, borderColor: theme.driverBorder,
+                padding: 14, ...shadows.xs,
+              }}>
+                <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: theme.driverSoft, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="shield_check" size={20} color={theme.driverText} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.text }}>{t.profile.insuredVehicle}</Text>
+                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 1 }}>{t.profile.insuredVehicleSub}</Text>
+                </View>
+              </View>
+            ) : (
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted, lineHeight: 19 }}>
+                {t.profile.insuranceEmpty}
+              </Text>
+            )}
+          </View>
         </ScrollView>
+
+        <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16, ...shadows.lg }}>
+          <Button variant="primary" size="lg" icon="sliders" fullWidth onPress={onEdit}>
+            {t.profile.editVehicle}
+          </Button>
+        </View>
       </View>
     </Modal>
-  );
-}
-
-function InfoRow({ label, value, theme, last = false }: { label: string; value: string; theme: any; last?: boolean }) {
-  return (
-    <View style={{
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-      paddingVertical: 10,
-      borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.border,
-    }}>
-      <Text style={{ color: theme.muted, fontSize: 12 }}>{label}</Text>
-      <Text style={{ color: theme.text, fontFamily: theme.fontDisplay, fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8 }}>{value}</Text>
-    </View>
   );
 }

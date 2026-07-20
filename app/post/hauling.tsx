@@ -24,7 +24,7 @@ import { PostVisibility, RidePostDetailsHauling } from '@/types';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { generateRouteMapImage, getRouteDetails, RouteDetails } from '@/services/routeMap';
+import { generateRouteMapImage, generatePinMapImage, getRouteDetails, RouteDetails } from '@/services/routeMap';
 import { PlaceDetail } from '@/services/googlePlaces';
 import { cityFromAddress } from '@/utils/address';
 import { IconName } from '@/constants/icons';
@@ -81,13 +81,13 @@ export default function PostHaulingScreen() {
     setOriginAddress(detail.formattedAddress);
     setOriginLat(detail.lat);
     setOriginLng(detail.lng);
-    setOriginCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setOriginCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   function handleDestinationPlace(detail: PlaceDetail) {
     setDestinationAddress(detail.formattedAddress);
     setDestinationLat(detail.lat);
     setDestinationLng(detail.lng);
-    setDestinationCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setDestinationCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   // Real destination columns used only when there's a real second location
   // (disposal === 'address') — otherwise the pickup location doubles as the
@@ -226,6 +226,11 @@ export default function PostHaulingScreen() {
         durationText = route.durationText ?? undefined;
         durationSeconds = route.durationSeconds ?? undefined;
         distanceText = route.distanceText ?? undefined;
+      } else if (originLat != null && originLng != null) {
+        // Driver handles disposal — no second location to draw a route
+        // between, but a pin on the pickup point still beats no map at all.
+        const pinImage = await generatePinMapImage({ lat: originLat, lng: originLng });
+        if (pinImage) routeMapUrl = (await uploadRouteMap(session!.user.id, pinImage)) ?? undefined;
       }
 
       await createPost({
@@ -242,6 +247,7 @@ export default function PostHaulingScreen() {
         destination_lng: effectiveDestLng,
         scheduled_at: scheduledAt.toISOString(),
         suggested_donation: donation ? parseFloat(donation) : undefined,
+        price_mode: priceMode,
         description: note || undefined,
         contact_method: 'in_app',
         visibility,

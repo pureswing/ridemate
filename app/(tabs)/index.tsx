@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { View, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
@@ -37,7 +38,14 @@ export default function FeedScreen() {
   // native pull-to-refresh spinner up mid-screen.
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => { fetchPosts(); }, [fetchPosts]);
+  // Refetches every time this screen regains focus — not just on mount —
+  // so a post created/edited/cancelled elsewhere shows up here immediately
+  // instead of needing a manual pull-to-refresh.
+  useFocusEffect(
+    useCallback(() => {
+      fetchPosts();
+    }, [fetchPosts])
+  );
 
   async function handleRefresh() {
     setRefreshing(true);

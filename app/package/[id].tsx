@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
-import { CardBox } from '@/components/ui/CardBox';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -22,7 +21,7 @@ import { RidePost, RidePostDetailsPackage } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatLeavesIn, formatEta } from '@/utils/dateFormat';
+import { formatEta, formatDurationShort } from '@/utils/dateFormat';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
@@ -67,28 +66,12 @@ function AddressRow({ label, value, tone, theme }: { label: string; value: strin
   );
 }
 
-function DetailRow({ label, value, theme, last = false }: {
-  label: string; value: string; theme: ReturnType<typeof useTheme>; last?: boolean;
-}) {
-  return (
-    <View style={{
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-      paddingVertical: 11,
-      borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.border,
-    }}>
-      <Text style={{ color: theme.muted, fontSize: 13, fontFamily: fonts.bodyMedium }}>{label}</Text>
-      <Text style={{ color: theme.text, fontSize: 13, fontFamily: fonts.bodyBold, flex: 1, textAlign: 'right', marginLeft: 16 }}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 export default function PackageDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
-  const { getPostById } = useRides();
-  const { createAgreement, getAgreementsForPost } = useRideAgreements();
+  const { getPostById, incrementPostViews } = useRides();
+  const { getAgreementsForPost } = useRideAgreements();
   const { findConversation, getOrCreateConversation } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
@@ -100,7 +83,6 @@ export default function PackageDetailScreen() {
   const [messaged, setMessaged] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [agreementExists, setAgreementExists] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -113,6 +95,8 @@ export default function PackageDetailScreen() {
       const data = await getPostById(id);
       setPost(data);
       if (data) {
+        // Don't count the poster's own views of their own post.
+        if (session?.user && data.user_id !== session.user.id) incrementPostViews(data.id);
         const tasks: Promise<any>[] = [
           getBadgeCounts(data.user_id).then((counts) => setPosterBadgeCount(counts.reduce((sum, c) => sum + c.count, 0))),
         ];
@@ -151,27 +135,6 @@ export default function PackageDetailScreen() {
     }
   }
 
-  async function handleConfirmRide() {
-    if (!post || !session?.user) return;
-    Alert.alert(t.agreement.confirmTitle, t.agreement.confirmMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.confirm,
-        onPress: async () => {
-          setConfirming(true);
-          try {
-            await createAgreement(post.id, post.user_id);
-            setAgreementExists(true);
-          } catch (e: any) {
-            Alert.alert(t.rideDetail.errorTitle, e.message);
-          } finally {
-            setConfirming(false);
-          }
-        },
-      },
-    ]);
-  }
-
   function handleShare() {
     if (!post) return;
     Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}` });
@@ -190,7 +153,6 @@ export default function PackageDetailScreen() {
   const date = new Date(post.scheduled_at);
   const isOwner = post.user_id === session?.user?.id;
   const canEdit = isOwner && (date.getTime() - Date.now() > TWO_HOURS_MS);
-  const canConfirmRide = !isOwner && messaged && !agreementExists;
   const accent = theme.courierText;
 
   const details = (post.details ?? {}) as RidePostDetailsPackage;
@@ -218,15 +180,17 @@ export default function PackageDetailScreen() {
 
         <View style={{ padding: 20, gap: 18 }}>
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <SummaryChip theme={theme} label={t.rideDetail.leaves} value={formatLeavesIn(post.scheduled_at)} />
-            <SummaryChip theme={theme} label={t.rideDetail.duration} value={post.duration_text ?? '—'} />
+            <SummaryChip theme={theme} label={t.rideDetail.eta} value={formatEta(post.scheduled_at, post.duration_seconds, t.locale)} />
+            <SummaryChip theme={theme} label={t.rideDetail.duration} value={formatDurationShort(post.duration_seconds)} />
             <SummaryChip theme={theme} label={t.rideDetail.distance} value={post.distance_text ?? '—'} />
           </View>
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Badge tone="courier" icon="package" iconSize={13}>{t.post.chooserPackageTitle}</Badge>
             {post.suggested_donation != null && (
-              <Badge tone="warning" style={{ marginLeft: 'auto' }}>{`$${post.suggested_donation} OBO`}</Badge>
+              <Badge tone="warning" style={{ marginLeft: 'auto' }}>
+                {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} OBO`}
+              </Badge>
             )}
           </View>
 
@@ -235,19 +199,64 @@ export default function PackageDetailScreen() {
             <AddressRow theme={theme} tone="passenger" label={t.rideDetail.destination} value={post.destination_address || post.destination_city} />
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <StatTile theme={theme} icon="event" label={t.rideDetail.date}
-              value={date.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} />
-            <StatTile theme={theme} icon="schedule" label={t.rideDetail.time}
-              value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
+          {/* Matches the design's unified MetaTile grid (RideDetail.jsx's
+              package section) — date/time/qty/size/declared-value/eta all as
+              equal tiles, not a separate "Package details" list card. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+            <View style={{ width: '47%' }}>
+              <StatTile theme={theme} icon="event" label={t.rideDetail.date}
+                value={date.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} />
+            </View>
+            <View style={{ width: '47%' }}>
+              <StatTile theme={theme} icon="schedule" label={t.rideDetail.time}
+                value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
+            </View>
+            {(details.qty ?? 1) > 1 && (
+              <View style={{ width: '47%' }}>
+                <StatTile theme={theme} icon="package" label="Quantity" value={`${details.qty} packages`} />
+              </View>
+            )}
+            {!!details.packageSize && (
+              <View style={{ width: '47%' }}>
+                <StatTile theme={theme} icon="package" label="Size" value={details.packageSize} />
+              </View>
+            )}
+            {!!details.declaredValue && (
+              <View style={{ width: '47%' }}>
+                <StatTile theme={theme} icon="sparkles" label="Declared value" value={`$${details.declaredValue}`} />
+              </View>
+            )}
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <StatTile theme={theme} icon="package" label="Qty" value={String(details.qty ?? 1)} />
-            <StatTile theme={theme} icon="navigation" label={t.rideDetail.eta} value={formatEta(post.scheduled_at, post.duration_seconds, t.locale)} />
-          </View>
+          {post.description && (
+            <Field label={t.rideDetail.notes}>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
+                {post.description}
+              </Text>
+            </Field>
+          )}
 
-          <Card padding={14} elevation="sm">
+          {(details.contentTags?.length ?? 0) > 0 && (
+            <Field label="Contents (declared)">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {details.contentTags!.map((c) => (
+                  <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
+                ))}
+              </View>
+            </Field>
+          )}
+
+          {(details.handling?.length ?? 0) > 0 && (
+            <Field label="Special handling">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {details.handling!.map((h) => (
+                  <RuleChip key={h} active accent={accent} theme={theme} onPress={() => {}}>{h}</RuleChip>
+                ))}
+              </View>
+            </Field>
+          )}
+
+          <Card padding={14} elevation="sm" interactive onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -262,42 +271,6 @@ export default function PackageDetailScreen() {
               </View>
             </View>
           </Card>
-
-          {post.description && (
-            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
-              {post.description}
-            </Text>
-          )}
-
-          {/* Package details */}
-          <Field label="Package details">
-            <CardBox style={{ paddingVertical: 2 }}>
-              {!!details.packageSize && <DetailRow theme={theme} label="Size" value={details.packageSize} />}
-              {!!details.declaredValue && <DetailRow theme={theme} label="Declared value" value={`$${details.declaredValue}`} />}
-              <DetailRow theme={theme} label="OK to inspect" value={details.inspectionOk ? 'Yes' : 'No'} last={!details.oathAccepted} />
-              {details.oathAccepted && <DetailRow theme={theme} label="Prohibited items" value="Confirmed none included" last />}
-            </CardBox>
-          </Field>
-
-          {(details.contentTags?.length ?? 0) > 0 && (
-            <Field label="What's inside">
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {details.contentTags!.map((c) => (
-                  <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
-                ))}
-              </View>
-            </Field>
-          )}
-
-          {(details.handling?.length ?? 0) > 0 && (
-            <Field label="Handling instructions">
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {details.handling!.map((h) => (
-                  <RuleChip key={h} active accent={accent} theme={theme} onPress={() => {}}>{h}</RuleChip>
-                ))}
-              </View>
-            </Field>
-          )}
 
           <View style={{
             flexDirection: 'row', gap: 10,
@@ -358,13 +331,7 @@ export default function PackageDetailScreen() {
         }}>
           {agreementExists ? (
             <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.driverText }}>{t.agreement.active}</Text>
-          ) : canConfirmRide ? (
-            <Button variant="ghost" textColor={theme.driverText} disabled={confirming} onPress={handleConfirmRide}>
-              {confirming ? t.rideDetail.processing : t.agreement.confirmRide}
-            </Button>
-          ) : (
-            <View style={{ width: 1 }} />
-          )}
+          ) : null}
 
           <View style={{ flex: 1 }}>
             <Button variant="primary" size="lg" fullWidth disabled={messaging} onPress={handleMessage}>

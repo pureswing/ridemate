@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { supabase } from '@/lib/supabase';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -16,13 +17,13 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { PaywallModal } from '@/components/subscription/PaywallModal';
-import { EditVehicleModal } from '@/components/profile/EditVehicleModal';
-import { PreferencesModal } from '@/components/profile/PreferencesModal';
 import { RideHistoryModal } from '@/components/profile/RideHistoryModal';
+import { VehicleDetailModal } from '@/components/profile/VehicleDetailModal';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
-import { BadgeCount, StrikeLevel, VehicleProfile, VehicleKind, BadgeType } from '@/types';
+import { BadgeCount, StrikeLevel, VehicleProfile, VehicleKind } from '@/types';
 import { IconName } from '@/constants/icons';
+import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
 
@@ -36,21 +37,6 @@ const categoryLabelStyle = {
   lineHeight: Math.round(11 * leading.tight),
   letterSpacing: letterSpacingFor(11, tracking.wide),
   textTransform: 'uppercase' as const,
-};
-
-// Icon + accent color per badge type — BadgeDisplay (community list) has no
-// per-type icon convention yet, this is a new mapping just for this row.
-const BADGE_ICONS: Record<BadgeType, { icon: IconName; color: string }> = {
-  clean_car:     { icon: 'car',          color: '#0E9C93' },
-  punctual:      { icon: 'schedule',     color: '#B8860B' },
-  friendly:      { icon: 'handshake',    color: '#ED4A2B' },
-  good_vibes:    { icon: 'music_ok',     color: '#D6409F' },
-  smooth_ride:   { icon: 'route',        color: '#0A7E77' },
-  on_time:       { icon: 'schedule',     color: '#B8860B' },
-  communicative: { icon: 'chat',         color: '#08637A' },
-  respectful:    { icon: 'handshake',    color: '#ED4A2B' },
-  tidy:          { icon: 'check_circle', color: '#0A7E77' },
-  great_company: { icon: 'star',         color: '#9E4A14' },
 };
 
 // Category label + bold title + optional subtitle + chevron — the settings-list
@@ -140,14 +126,31 @@ export default function ProfileScreen() {
 
   const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
 
-  const [editingVehicleKind, setEditingVehicleKind] = useState<VehicleKind | null>(null);
-  const [showPreferences, setShowPreferences] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [viewingVehicle, setViewingVehicle] = useState<VehicleProfile | null>(null);
 
   const userId = session?.user?.id ?? '';
   const verified = vehicles.some((v) => v.insurance_self_certified);
   const totalBadges = badges.reduce((s, b) => s + b.count, 0);
+
+  // Mini-cards open the read-only detail view when a vehicle already
+  // exists (its own "Edit" CTA goes to the routed editor from there) —
+  // straight to the editor only when there's nothing to view yet.
+  function openVehicle(kind: VehicleKind) {
+    const existing = vehicles.find((v) => v.kind === kind);
+    if (existing) setViewingVehicle(existing);
+    else router.push({ pathname: '/profile/vehicle-edit', params: { kind, mode: 'add' } });
+  }
+
+  // Keeps the detail modal's data in sync (or closes it if the vehicle was
+  // deleted) whenever the vehicles list is refetched — e.g. after the routed
+  // editor's own back button returns here and the detail modal reappears
+  // (see onEdit below, which leaves viewingVehicle set instead of clearing it).
+  useEffect(() => {
+    if (!viewingVehicle) return;
+    setViewingVehicle(vehicles.find((v) => v.kind === viewingVehicle.kind) ?? null);
+  }, [vehicles]);
 
   useEffect(() => {
     if (userId) {
@@ -156,6 +159,15 @@ export default function ProfileScreen() {
       loadStats();
     }
   }, [userId]);
+
+  // Vehicle edit and settings now live on routed screens (not modals) —
+  // refetch vehicles whenever this screen regains focus so an edit made
+  // there shows up here without a full remount.
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) loadVehicles();
+    }, [userId])
+  );
 
   // Re-measure from a fresh single-line attempt whenever the underlying text
   // changes (e.g. home_city edited shorter) — otherwise, once wrapped, it'd stay
@@ -263,12 +275,22 @@ export default function ProfileScreen() {
           variant="glass"
           shadow={shadows.xs}
           label={t.profile.settingsLabel}
-          onPress={() => setShowPreferences(true)}
+          onPress={() => router.push('/profile/settings')}
           style={{ position: 'absolute', top: insets.top + 12, right: 20 }}
         />
 
         <TouchableOpacity onPress={() => router.push('/profile/edit')} activeOpacity={0.85} style={{ marginBottom: 8, marginTop: 8 }}>
-          <View style={{ padding: 3, borderRadius: 51, backgroundColor: 'rgba(255,255,255,0.9)', ...shadows.md }}>
+          <View style={{ width: 90, height: 90 }}>
+            {/* A thin ring drawn OUTSIDE the photo's own bounds, not a
+                same-size fill sitting behind it — a full-size backing layer
+                shows through as an ugly halo whenever the photo itself
+                doesn't reach edge-to-edge (e.g. one with its own baked-in
+                padding/corners). Sharp edge, no blur, so it stays visible
+                against the gradient without needing to be looked for. */}
+            <View style={{
+              position: 'absolute', top: -3, left: -3, right: -3, bottom: -3,
+              borderRadius: 48, borderWidth: 3, borderColor: 'rgba(20,12,6,0.4)',
+            }} />
             <Avatar
               name={profile?.full_name ?? ''}
               src={profile?.avatar_url}
@@ -278,14 +300,18 @@ export default function ProfileScreen() {
               verified={verified}
             />
           </View>
+          {/* Styled to match Avatar's own built-in "verified" badge exactly
+              (same border formula, same overlap-the-ring placement) instead
+              of a separate floating glass button — reads as one element
+              with the avatar instead of two unrelated pieces stacked up. */}
           <View style={{
-            position: 'absolute', bottom: -2, right: -2,
-            width: 30, height: 30, borderRadius: 15,
-            backgroundColor: theme.secondary,
+            position: 'absolute', top: -2, right: -2,
+            width: 26, height: 26, borderRadius: 13,
+            backgroundColor: theme.primary,
             alignItems: 'center', justifyContent: 'center',
-            borderWidth: 2.5, borderColor: theme.tabBarBg,
+            borderWidth: 1, borderColor: 'rgba(0,0,0,0.4)',
           }}>
-            <Icon name="camera" size={14} color="#FFFFFF" />
+            <Icon name="user_pen" size={13} color="#FFFFFF" strokeWidth={2.2} />
           </View>
         </TouchableOpacity>
 
@@ -392,7 +418,7 @@ export default function ProfileScreen() {
           category={t.profile.statsCategory}
           title={t.profile.statsDashboard}
           subtitle={t.profile.statsDashboardSubtitle}
-          onPress={comingSoon}
+          onPress={() => router.push('/profile/dashboard')}
         />
         <SettingRow
           icon="history"
@@ -408,7 +434,7 @@ export default function ProfileScreen() {
           category={t.profile.trustedCategory}
           title={t.profile.savedDrivers}
           subtitle={t.profile.savedDriversSubtitle}
-          onPress={comingSoon}
+          onPress={() => router.push('/profile/saved-drivers')}
         />
         <SettingRow
           icon="event"
@@ -416,20 +442,20 @@ export default function ProfileScreen() {
           category={t.profile.scheduleCategory}
           title={upcomingCount === null ? '—' : upcomingCount === 0 ? t.profile.noUpcomingRides : `${upcomingCount} ${t.profile.upcomingRidesSuffix}`}
           subtitle={nextRideAt ? `${t.profile.nextRidePrefix} ${new Date(nextRideAt).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}, ${new Date(nextRideAt).toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}` : undefined}
-          onPress={comingSoon}
+          onPress={() => router.push('/(tabs)/calendar')}
         />
         <View style={{ flexDirection: 'row', gap: 10, marginBottom: 20 }}>
           <VehicleMiniCard
             icon="car"
             label={t.profile.ridesCourierCategory}
             vehicle={vehicles.find((v) => v.kind === 'rides_courier')}
-            onPress={() => setEditingVehicleKind('rides_courier')}
+            onPress={() => openVehicle('rides_courier')}
           />
           <VehicleMiniCard
             icon="truck"
             label={t.profile.haulingCategory}
             vehicle={vehicles.find((v) => v.kind === 'hauling')}
-            onPress={() => setEditingVehicleKind('hauling')}
+            onPress={() => openVehicle('hauling')}
           />
         </View>
         <SettingRow
@@ -494,20 +520,22 @@ export default function ProfileScreen() {
       </View>
 
       {/* ── Modals ── */}
-      <EditVehicleModal
-        visible={editingVehicleKind !== null}
-        userId={userId}
-        kind={editingVehicleKind ?? 'rides_courier'}
-        existing={vehicles.find((v) => v.kind === editingVehicleKind) ?? null}
-        onSaved={(v) => {
-          setVehicles((prev) => [...prev.filter((p) => p.kind !== v.kind), v]);
-          setEditingVehicleKind(null);
-        }}
-        onClose={() => setEditingVehicleKind(null)}
-      />
-      <PreferencesModal visible={showPreferences} onClose={() => setShowPreferences(false)} />
       <RideHistoryModal visible={showHistory} userId={userId} onClose={() => setShowHistory(false)} />
       <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
+      {viewingVehicle && (
+        <VehicleDetailModal
+          visible
+          vehicle={viewingVehicle}
+          onClose={() => setViewingVehicle(null)}
+          onEdit={() => {
+            // Deliberately NOT clearing viewingVehicle here — the routed
+            // editor's back button just calls router.back(), which reveals
+            // this screen again; leaving it set makes the detail modal
+            // reappear instead of dropping all the way to the profile body.
+            router.push({ pathname: '/profile/vehicle-edit', params: { kind: viewingVehicle.kind, mode: 'edit' } });
+          }}
+        />
+      )}
     </View>
   );
 }

@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { PlatformPressable } from '@react-navigation/elements';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -13,6 +14,7 @@ export default function TabsLayout() {
   const { session, loading } = useAuthStore();
   const theme = useTheme();
   const t = useTranslation();
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!loading && !session) router.replace('/(auth)/welcome');
@@ -31,8 +33,14 @@ export default function TabsLayout() {
           backgroundColor: theme.tabBarBg,
           borderTopColor:  theme.tabBorder,
           borderTopWidth:  1,
-          paddingBottom: 10,
+          // insets.bottom, not a fixed value — Android 15+/Expo 54's
+          // edge-to-edge display means the tab bar draws under the system
+          // gesture/nav bar, and a fixed paddingBottom left the label text
+          // sitting underneath it. See the KeyboardAvoidingView/edge-to-edge
+          // note for the same root cause elsewhere in the app.
+          paddingBottom: insets.bottom + 10,
           paddingTop: 8,
+          height: 58 + insets.bottom,
         },
         // Design spec is font-body bold (see AppShell.jsx's TabBar), not the display
         // face — was also pairing a custom fontFamily with a numeric fontWeight,

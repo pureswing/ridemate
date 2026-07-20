@@ -50,7 +50,6 @@ export function RideCard({ post, style }: Props) {
   const insets = useSafeAreaInsets();
   const isOffer = post.type === 'offer';
   const date = new Date(post.scheduled_at);
-  const wasEdited = post.info_updated || post.original_scheduled_at != null || post.original_suggested_donation != null;
   const verified = post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false;
   const [accessOpen, setAccessOpen] = useState(false);
   const [airportOpen, setAirportOpen] = useState(false);
@@ -87,9 +86,6 @@ export function RideCard({ post, style }: Props) {
       <Card accent={config.accent} elevation="lg" interactive onPress={() => router.push({ pathname: config.pathname, params: { id: post.id } })}>
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14, gap: 8 }}>
           <Badge tone={config.tone} icon={config.icon} iconSize={13}>{config.label}</Badge>
-          {wasEdited && (
-            <Badge tone="neutral" icon="edit" size="sm">{t.feed.edited}</Badge>
-          )}
           {/* Plain RN Pressable, not the shared gesture-handler TouchableOpacity —
               it needs to nest under Card's own RN Pressable (see Card.tsx's
               comment: nested RN Pressables correctly claim the touch first and
@@ -134,14 +130,22 @@ export function RideCard({ post, style }: Props) {
         <View style={{ height: 1, backgroundColor: theme.cardBorder, marginHorizontal: -18, marginBottom: 14 }} />
 
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
+          {/* Plain RN Pressable, not the shared gesture-handler TouchableOpacity —
+              same reasoning as the accessibility/airport buttons above: it needs
+              to claim the tap before it falls through to the Card's own onPress. */}
+          <Pressable
+            onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}
+          >
             <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={34} verified={verified} />
             <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: theme.text, flexShrink: 1 }}>
               {post.profile?.full_name}
             </Text>
-          </View>
+          </Pressable>
           {post.suggested_donation != null && (
-            <Badge tone="warning" fontSize={14} style={{ paddingHorizontal: 14, paddingVertical: 7 }}>{`$${post.suggested_donation} · OBO`}</Badge>
+            <Badge tone="warning" fontSize={14} style={{ paddingHorizontal: 14, paddingVertical: 7 }}>
+              {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
+            </Badge>
           )}
         </View>
       </Card>

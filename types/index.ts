@@ -144,6 +144,9 @@ export interface RidePost {
   scheduled_at: string;
   seats_available?: number;
   suggested_donation?: number;
+  // supabase/migrations/027_price_mode.sql — 'firm' hides the "OBO" suffix
+  // wherever suggested_donation is shown.
+  price_mode?: 'firm' | 'open';
   description?: string;
   contact_method: ContactMethod;
   contact_value?: string;
@@ -225,6 +228,11 @@ export interface Message {
   body: string;
   created_at: string;
   read_at?: string;
+  // supabase/migrations/023_message_is_system.sql — true for the automatic
+  // "offer accepted" confirmation, rendered as a centered system pill
+  // instead of a chat bubble. sender_id is still a real participant (RLS
+  // requires it), this flag is purely a rendering hint.
+  is_system?: boolean;
 }
 
 export interface UserFavorite {
@@ -263,6 +271,17 @@ export interface RideBadge {
 export interface BadgeCount {
   badge_type: BadgeType;
   count: number;
+}
+
+// supabase/migrations/024_user_reports.sql — write-only from the app; a
+// human reviews these directly in the Supabase dashboard for now.
+export interface UserReport {
+  id: string;
+  reporter_id: string;
+  reported_id: string;
+  reasons: string[];
+  note?: string;
+  created_at: string;
 }
 
 export interface NoShowReport {
@@ -326,6 +345,8 @@ export interface VehicleProfile {
   trim?: string;
   year: number;
   color: string;
+  plate?: string;
+  vehicle_type?: string;
   fuel_type?: string;
   seats?: number;
   photo_url?: string;
@@ -334,6 +355,23 @@ export interface VehicleProfile {
   insurance_self_certified: boolean;
   created_at: string;
   updated_at: string;
+}
+
+// supabase/migrations/026_notifications.sql — rows are written only by
+// SECURITY DEFINER triggers (new message, agreement created/completed,
+// badge received), never inserted directly by the client. `data` carries
+// whatever ids the notification deep-links to (conversation_id, agreement_id...).
+export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received';
+
+export interface AppNotification {
+  id: string;
+  user_id: string;
+  type: NotificationType;
+  title: string;
+  body?: string;
+  data: Record<string, string>;
+  read_at?: string;
+  created_at: string;
 }
 
 export interface TripRecord {

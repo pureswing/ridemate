@@ -38,6 +38,26 @@ export interface PlaceDetail {
   lat: number;
   lng: number;
   name: string;
+  // Parsed from address_components, not guessed from formattedAddress's
+  // comma position — an establishment result (e.g. "Home Depot, 1530
+  // FL-50, Clermont, FL 34711, USA") shifts every segment over by one
+  // versus a plain street address, so a fixed-index split silently grabs
+  // the street ("1530 FL-50") instead of the city. Null if Google didn't
+  // return a locality-level component at all.
+  city: string | null;
+}
+
+// Google's address_components don't have a single "city" type — prefer
+// locality (the common case), fall through to the levels that stand in for
+// it in areas without an incorporated locality (e.g. some unincorporated
+// Florida communities).
+function cityFromComponents(components: { long_name: string; types: string[] }[]): string | null {
+  const preferredTypes = ['locality', 'postal_town', 'sublocality', 'administrative_area_level_3'];
+  for (const type of preferredTypes) {
+    const match = components.find((c) => c.types.includes(type));
+    if (match) return match.long_name;
+  }
+  return null;
 }
 
 export async function getPlacePredictions(input: string, sessionToken?: string): Promise<PlacePrediction[]> {
@@ -99,7 +119,7 @@ export async function getPlaceDetail(placeId: string, sessionToken?: string): Pr
   const params = new URLSearchParams({
     place_id: placeId,
     key: API_KEY,
-    fields: 'place_id,name,formatted_address,geometry',
+    fields: 'place_id,name,formatted_address,geometry,address_components',
   });
   if (sessionToken) params.set('sessiontoken', sessionToken);
 
@@ -116,6 +136,7 @@ export async function getPlaceDetail(placeId: string, sessionToken?: string): Pr
       name: r.name,
       lat: r.geometry.location.lat,
       lng: r.geometry.location.lng,
+      city: cityFromComponents(r.address_components ?? []),
     };
   } catch {
     return null;

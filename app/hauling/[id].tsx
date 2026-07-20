@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Alert, ActivityIndicator, Image, Share } from 'react-native';
+import { View, ScrollView, Alert, ActivityIndicator, Image, Share, Modal, Pressable as RNPressable } from 'react-native';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -10,7 +10,6 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
-import { CardBox } from '@/components/ui/CardBox';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -67,28 +66,12 @@ function AddressRow({ label, value, tone, theme }: { label: string; value: strin
   );
 }
 
-function DetailRow({ label, value, theme, last = false }: {
-  label: string; value: string; theme: ReturnType<typeof useTheme>; last?: boolean;
-}) {
-  return (
-    <View style={{
-      flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start',
-      paddingVertical: 11,
-      borderBottomWidth: last ? 0 : 1, borderBottomColor: theme.border,
-    }}>
-      <Text style={{ color: theme.muted, fontSize: 13, fontFamily: fonts.bodyMedium }}>{label}</Text>
-      <Text style={{ color: theme.text, fontSize: 13, fontFamily: fonts.bodyBold, flex: 1, textAlign: 'right', marginLeft: 16 }}>
-        {value}
-      </Text>
-    </View>
-  );
-}
 
 export default function HaulingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
-  const { getPostById } = useRides();
-  const { createAgreement, getAgreementsForPost } = useRideAgreements();
+  const { getPostById, incrementPostViews } = useRides();
+  const { getAgreementsForPost } = useRideAgreements();
   const { findConversation, getOrCreateConversation } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
@@ -100,9 +83,8 @@ export default function HaulingDetailScreen() {
   const [messaged, setMessaged] = useState(false);
   const [messaging, setMessaging] = useState(false);
   const [agreementExists, setAgreementExists] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
-  const [activePhoto, setActivePhoto] = useState(0);
+  const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) loadPost();
@@ -114,6 +96,8 @@ export default function HaulingDetailScreen() {
       const data = await getPostById(id);
       setPost(data);
       if (data) {
+        // Don't count the poster's own views of their own post.
+        if (session?.user && data.user_id !== session.user.id) incrementPostViews(data.id);
         const tasks: Promise<any>[] = [
           getBadgeCounts(data.user_id).then((counts) => setPosterBadgeCount(counts.reduce((sum, c) => sum + c.count, 0))),
         ];
@@ -152,27 +136,6 @@ export default function HaulingDetailScreen() {
     }
   }
 
-  async function handleConfirmRide() {
-    if (!post || !session?.user) return;
-    Alert.alert(t.agreement.confirmTitle, t.agreement.confirmMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.confirm,
-        onPress: async () => {
-          setConfirming(true);
-          try {
-            await createAgreement(post.id, post.user_id);
-            setAgreementExists(true);
-          } catch (e: any) {
-            Alert.alert(t.rideDetail.errorTitle, e.message);
-          } finally {
-            setConfirming(false);
-          }
-        },
-      },
-    ]);
-  }
-
   function handleShare() {
     if (!post) return;
     Share.share({ message: `${post.origin_city} — ${t.rideDetail.shareMessage}` });
@@ -191,7 +154,6 @@ export default function HaulingDetailScreen() {
   const date = new Date(post.scheduled_at);
   const isOwner = post.user_id === session?.user?.id;
   const canEdit = isOwner && (date.getTime() - Date.now() > TWO_HOURS_MS);
-  const canConfirmRide = !isOwner && messaged && !agreementExists;
   const accent = theme.haulingText;
 
   const details = (post.details ?? {}) as RidePostDetailsHauling;
@@ -203,11 +165,14 @@ export default function HaulingDetailScreen() {
       <StatusBar style="light" />
 
       <ScrollView style={{ flex: 1 }} removeClippedSubviews={false} contentContainerStyle={{ paddingBottom: 48 }}>
+        {/* Route map is the hero — same priority as ride/package's detail
+            screens — not the cargo photos, which have their own gallery
+            section below instead of silently replacing the map. */}
         <View style={{ height: 240, backgroundColor: theme.surfaceAlt, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, overflow: 'hidden', ...shadows.lg }}>
-          {photos.length > 0 ? (
-            <Image source={{ uri: photos[activePhoto] ?? photos[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-          ) : post.route_map_url ? (
+          {post.route_map_url ? (
             <Image source={{ uri: post.route_map_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+          ) : photos.length > 0 ? (
+            <Image source={{ uri: photos[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="truck" size={32} color={theme.textFaint} />
@@ -221,32 +186,22 @@ export default function HaulingDetailScreen() {
           </View>
         </View>
 
-        {photos.length > 1 && (
-          <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 20, paddingTop: 14 }}>
-            {photos.map((uri, i) => (
-              <TouchableOpacity key={uri} onPress={() => setActivePhoto(i)} style={{
-                width: 52, height: 52, borderRadius: 12, overflow: 'hidden',
-                borderWidth: 2, borderColor: i === activePhoto ? accent : 'transparent',
-              }}>
-                <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-
         <View style={{ padding: 20, gap: 18 }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}>
-            <SummaryChip theme={theme} label={t.rideDetail.leaves} value={details.flexibleDate ? 'Anytime this week' : formatLeavesIn(post.scheduled_at)} />
-            <SummaryChip theme={theme} label="Load size" value={details.loadSize ?? '—'} />
-            <SummaryChip theme={theme} label={t.rideDetail.distance} value={post.distance_text ?? '—'} />
-          </View>
+          {hasDropoff && (
+            <View style={{ flexDirection: 'row', gap: 10 }}>
+              <SummaryChip theme={theme} label={t.rideDetail.leaves} value={details.flexibleDate ? 'Anytime this week' : formatLeavesIn(post.scheduled_at)} />
+              <SummaryChip theme={theme} label="Load size" value={details.loadSize ?? '—'} />
+              <SummaryChip theme={theme} label={t.rideDetail.distance} value={post.distance_text ?? '—'} />
+            </View>
+          )}
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Badge tone="hauling" icon="truck" iconSize={13}>{t.post.chooserHaulingTitle}</Badge>
             {post.suggested_donation != null && (
-              <Badge tone="warning" style={{ marginLeft: 'auto' }}>{`$${post.suggested_donation} OBO`}</Badge>
+              <Badge tone="warning" style={{ marginLeft: 'auto' }}>
+                {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} OBO`}
+              </Badge>
             )}
-            {details.hazardous && <Badge tone="warning" icon="warning">Hazardous</Badge>}
           </View>
 
           <View style={{ gap: 12 }}>
@@ -256,20 +211,87 @@ export default function HaulingDetailScreen() {
             )}
           </View>
 
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          {/* Matches the design's unified MetaTile grid (RideDetail.jsx's
+              hauling section) — date/time/load-size/help-needed all as equal
+              tiles, not a separate "Load details" list card. */}
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
             {details.flexibleDate ? (
-              <StatTile theme={theme} icon="event" label={t.rideDetail.date} value="Anytime this week" />
+              <View style={{ width: '47%' }}>
+                <StatTile theme={theme} icon="event" label={t.rideDetail.date} value="Anytime this week" />
+              </View>
             ) : (
               <>
-                <StatTile theme={theme} icon="event" label={t.rideDetail.date}
-                  value={date.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} />
-                <StatTile theme={theme} icon="schedule" label={t.rideDetail.time}
-                  value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
+                <View style={{ width: '47%' }}>
+                  <StatTile theme={theme} icon="event" label={t.rideDetail.date}
+                    value={date.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} />
+                </View>
+                <View style={{ width: '47%' }}>
+                  <StatTile theme={theme} icon="schedule" label={t.rideDetail.time}
+                    value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
+                </View>
               </>
+            )}
+            {!!details.loadSize && (
+              <View style={{ width: '47%' }}>
+                <StatTile theme={theme} icon="truck" label="Load size" value={details.loadSize} />
+              </View>
+            )}
+            {details.helpNeeded && (
+              <View style={{ width: '47%' }}>
+                <StatTile theme={theme} icon="passenger" label="Help needed" value="Yes" />
+              </View>
             )}
           </View>
 
-          <Card padding={14} elevation="sm">
+          {photos.length > 0 && (
+            <Field label={t.rideDetail.photos}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {photos.map((uri, i) => (
+                  <TouchableOpacity key={`${uri}-${i}`} onPress={() => setViewingPhoto(uri)} style={{
+                    width: 84, height: 84, borderRadius: 12, overflow: 'hidden',
+                  }}>
+                    <Image source={{ uri }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </Field>
+          )}
+
+          {post.description && (
+            <Field label={t.rideDetail.notes}>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
+                {post.description}
+              </Text>
+            </Field>
+          )}
+
+          {(details.loadTypes?.length ?? 0) > 0 && (
+            <Field label="What needs hauling">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {details.loadTypes!.map((l) => (
+                  <RuleChip key={l} active accent={accent} theme={theme} onPress={() => {}}>{l}</RuleChip>
+                ))}
+              </View>
+            </Field>
+          )}
+
+          {(details.access?.length ?? 0) > 0 && (
+            <Field label="Site access">
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {details.access!.map((a) => (
+                  <RuleChip key={a} active accent={accent} theme={theme} onPress={() => {}}>{a}</RuleChip>
+                ))}
+              </View>
+            </Field>
+          )}
+
+          {details.hazardous && (
+            <Field label="Hazardous materials">
+              <Badge tone="warning" icon="warning">Yes</Badge>
+            </Field>
+          )}
+
+          <Card padding={14} elevation="sm" interactive onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
               <View style={{ flex: 1, minWidth: 0 }}>
@@ -284,43 +306,6 @@ export default function HaulingDetailScreen() {
               </View>
             </View>
           </Card>
-
-          {post.description && (
-            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
-              {post.description}
-            </Text>
-          )}
-
-          <Field label="Load details">
-            <CardBox style={{ paddingVertical: 2 }}>
-              <DetailRow theme={theme} label="What happens to it" value={details.disposal === 'address' ? 'Delivered to address' : 'Driver disposes'} />
-              <DetailRow theme={theme} label="Help loading" value={details.helpNeeded ? 'Needed' : 'Not needed'} />
-              <DetailRow theme={theme} label="Hazardous materials" value={details.hazardous ? 'Yes' : 'No'} last={!details.prohibitedConfirmed?.length} />
-              {(details.prohibitedConfirmed?.length ?? 0) > 0 && (
-                <DetailRow theme={theme} label="Prohibited items" value="Confirmed none included" last />
-              )}
-            </CardBox>
-          </Field>
-
-          {(details.loadTypes?.length ?? 0) > 0 && (
-            <Field label="What's being hauled">
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {details.loadTypes!.map((l) => (
-                  <RuleChip key={l} active accent={accent} theme={theme} onPress={() => {}}>{l}</RuleChip>
-                ))}
-              </View>
-            </Field>
-          )}
-
-          {(details.access?.length ?? 0) > 0 && (
-            <Field label="Access at pickup">
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                {details.access!.map((a) => (
-                  <RuleChip key={a} active accent={accent} theme={theme} onPress={() => {}}>{a}</RuleChip>
-                ))}
-              </View>
-            </Field>
-          )}
 
           <View style={{
             flexDirection: 'row', gap: 10,
@@ -381,13 +366,7 @@ export default function HaulingDetailScreen() {
         }}>
           {agreementExists ? (
             <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.driverText }}>{t.agreement.active}</Text>
-          ) : canConfirmRide ? (
-            <Button variant="ghost" textColor={theme.driverText} disabled={confirming} onPress={handleConfirmRide}>
-              {confirming ? t.rideDetail.processing : t.agreement.confirmRide}
-            </Button>
-          ) : (
-            <View style={{ width: 1 }} />
-          )}
+          ) : null}
 
           <View style={{ flex: 1 }}>
             <Button variant="primary" size="lg" fullWidth disabled={messaging} onPress={handleMessage}>
@@ -396,6 +375,19 @@ export default function HaulingDetailScreen() {
           </View>
         </View>
       )}
+
+      {/* Full-screen cargo photo viewer — plain RN Pressable, not the shared
+          gesture-handler TouchableOpacity, since this is a Modal. */}
+      <Modal visible={!!viewingPhoto} transparent animationType="fade" onRequestClose={() => setViewingPhoto(null)}>
+        <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center' }} onPress={() => setViewingPhoto(null)}>
+          {viewingPhoto && (
+            <Image source={{ uri: viewingPhoto }} style={{ width: '100%', height: '70%' }} resizeMode="contain" />
+          )}
+          <View style={{ position: 'absolute', top: insets.top + 8, right: 16 }}>
+            <IconButton icon="close" variant="glass" label={t.post.close} onPress={() => setViewingPhoto(null)} />
+          </View>
+        </RNPressable>
+      </Modal>
     </View>
   );
 }

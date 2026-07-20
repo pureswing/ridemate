@@ -37,6 +37,8 @@ export function useVehicleProfile() {
       trim?: string;
       year: number;
       color: string;
+      plate?: string;
+      vehicle_type?: string;
       fuel_type?: string;
       seats?: number;
       photo_url?: string;
@@ -59,6 +61,15 @@ export function useVehicleProfile() {
     }
   }
 
+  async function deleteVehicle(userId: string, kind: VehicleKind): Promise<void> {
+    const { error } = await supabase
+      .from('vehicle_profiles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('kind', kind);
+    if (error) throw error;
+  }
+
   async function uploadVehiclePhoto(userId: string, kind: VehicleKind, uri: string): Promise<string> {
     // kind in the path — otherwise both vehicles would overwrite the same file.
     const fileName = `${userId}/${kind}.jpg`;
@@ -75,5 +86,5 @@ export function useVehicleProfile() {
     return `${data.publicUrl}?t=${Date.now()}`;
   }
 
-  return { getMyVehicle, getMyVehicles, upsertVehicle, uploadVehiclePhoto, loading };
+  return { getMyVehicle, getMyVehicles, upsertVehicle, deleteVehicle, uploadVehiclePhoto, loading };
 }

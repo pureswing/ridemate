@@ -94,7 +94,12 @@ export function useRides() {
   // Same upload shape as useVehicleProfile's uploadVehiclePhoto — ArrayBuffer,
   // not Blob, since RN's Blob serialization is unreliable for storage uploads.
   async function uploadHaulingPhoto(userId: string, uri: string): Promise<string | null> {
-    const fileName = `${userId}/${Date.now()}.jpg`;
+    // Random suffix, not just Date.now() — the hauling form uploads all
+    // selected photos in parallel via Promise.all, and two uploads landing
+    // in the same millisecond would otherwise collide on the same filename
+    // (upsert:true silently overwrites one), leaving photoUrls with the
+    // same URL twice and React throwing a duplicate-key error at render.
+    const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.jpg`;
     const response = await fetch(uri);
     const arrayBuffer = await response.arrayBuffer();
     const { error } = await supabase.storage
@@ -113,6 +118,23 @@ export function useRides() {
     if (error) throw error;
     const [withVerification] = await withVehicleVerification([data as RidePost]);
     return withVerification;
+  }
+
+  // Active posts by a given user — the public user-profile screen's
+  // "Active posts" list. Same public-feed visibility rules as fetchPosts
+  // (status active, not expired) since this is shown to any viewer, not
+  // just the post owner.
+  async function getPostsByUser(userId: string, limit = 5): Promise<RidePost[]> {
+    const { data, error } = await supabase
+      .from('ride_posts')
+      .select('*, profile:profiles(full_name, avatar_url, default_role)')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (error) throw error;
+    return await withVehicleVerification((data as RidePost[]) ?? []);
   }
 
   // supabase/migrations/009_route_price_stats.sql — historical average donation
@@ -135,6 +157,17 @@ export function useRides() {
     if (error) throw error;
     // increment view count
     await supabase.rpc('increment_post_views', { post_id: postId });
+  }
+
+  // Called once per detail-screen mount (see app/ride|package|hauling/[id].tsx)
+  // — this was the only wiring `increment_post_views` ever had before, via
+  // the old external-contact-reveal flow that in-app messaging replaced, so
+  // views_count never actually moved. Silently no-ops on failure — a missed
+  // view count is never worth surfacing an error over.
+  async function incrementPostViews(postId: string) {
+    try {
+      await supabase.rpc('increment_post_views', { post_id: postId });
+    } catch {}
   }
 
   async function cancelPost(postId: string) {
@@ -199,5 +232,5 @@ export function useRides() {
     return data as RidePost;
   }
 
-  return { fetchPosts, createPost, uploadRouteMap, uploadHaulingPhoto, getPostById, getRoutePriceStats, revealContact, cancelPost, updatePost };
+  return { fetchPosts, createPost, uploadRouteMap, uploadHaulingPhoto, getPostById, getPostsByUser, getRoutePriceStats, revealContact, incrementPostViews, cancelPost, updatePost };
 }

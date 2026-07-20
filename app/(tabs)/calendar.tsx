@@ -235,58 +235,64 @@ export default function CalendarScreen() {
           </View>
         )}
 
-        <View style={{ padding: 16 }}>
-          <View style={{
-            backgroundColor: theme.surface, borderRadius: radii.lg, overflow: 'hidden',
-            borderWidth: 1, borderColor: reminderOn ? theme.borderGold : theme.cardBorder,
-            ...(reminderOn ? shadows.sm : shadows.xs),
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
-              <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: reminderOn ? theme.gold400 + '24' : theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="notification" size={19} color={reminderOn ? theme.gold500 : theme.muted} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: theme.text }}>{t.calendar.reminders}</Text>
-                <Text numberOfLines={1} style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
-                  {reminderSubtitle}
-                </Text>
-              </View>
-              <TouchableOpacity
-                disabled={!nextRide}
-                onPress={() => setReminderOn((v) => !v)}
-                style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: reminderOn ? theme.gold500 : theme.border, opacity: nextRide ? 1 : 0.4 }}
-              >
-                <View style={{ position: 'absolute', top: 3, left: reminderOn ? 21 : 3, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', ...shadows.sm }} />
-              </TouchableOpacity>
-            </View>
-
-            {reminderOn && (
-              <View style={{ padding: 14, paddingTop: 0 }}>
-                <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
-                  {REMINDER_STEPS.map((s, i) => (
-                    <TouchableOpacity
-                      key={s}
-                      onPress={() => setReminderStep(i)}
-                      style={{ flex: 1, height: 30, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: i === reminderStep ? theme.gold500 : theme.surfaceAlt }}
-                    >
-                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: i === reminderStep ? '#1A1209' : theme.textFaint }}>{s}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted }}>{t.calendar.recurring}</Text>
-                  <TouchableOpacity
-                    onPress={() => setReminderRecurring((v) => !v)}
-                    style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: reminderRecurring ? theme.driverText : theme.border }}
-                  >
-                    <View style={{ position: 'absolute', top: 3, left: reminderRecurring ? 21 : 3, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', ...shadows.sm }} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-          </View>
-        </View>
       </ScrollView>
+
+      {/* Fixed to the bottom of the screen, not scrolling with the ride list —
+          a sibling of the ScrollView, not inside its content. */}
+      <View style={{
+        backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.cardBorder,
+        paddingHorizontal: 16, paddingTop: 12, paddingBottom: insets.bottom - 30, ...shadows.lg,
+      }}>
+        <View style={{
+          backgroundColor: theme.surface, borderRadius: radii.lg, overflow: 'hidden',
+          borderWidth: 1, borderColor: reminderOn ? theme.borderGold : theme.cardBorder,
+          ...(reminderOn ? shadows.sm : shadows.xs),
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14 }}>
+            <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: reminderOn ? theme.gold400 + '24' : theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="notification" size={19} color={reminderOn ? theme.gold500 : theme.muted} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: theme.text }}>{t.calendar.reminders}</Text>
+              <Text numberOfLines={1} style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
+                {reminderSubtitle}
+              </Text>
+            </View>
+            <TouchableOpacity
+              disabled={!nextRide}
+              onPress={() => setReminderOn((v) => !v)}
+              style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: reminderOn ? theme.gold500 : theme.border, opacity: nextRide ? 1 : 0.4 }}
+            >
+              <View style={{ position: 'absolute', top: 3, left: reminderOn ? 21 : 3, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', ...shadows.sm }} />
+            </TouchableOpacity>
+          </View>
+
+          {reminderOn && (
+            <View style={{ padding: 14, paddingTop: 0 }}>
+              <View style={{ flexDirection: 'row', gap: 6, marginBottom: 10 }}>
+                {REMINDER_STEPS.map((s, i) => (
+                  <TouchableOpacity
+                    key={s}
+                    onPress={() => setReminderStep(i)}
+                    style={{ flex: 1, height: 30, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: i === reminderStep ? theme.gold500 : theme.surfaceAlt }}
+                  >
+                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: i === reminderStep ? '#1A1209' : theme.textFaint }}>{s}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted }}>{t.calendar.recurring}</Text>
+                <TouchableOpacity
+                  onPress={() => setReminderRecurring((v) => !v)}
+                  style={{ width: 44, height: 26, borderRadius: 13, backgroundColor: reminderRecurring ? theme.driverText : theme.border }}
+                >
+                  <View style={{ position: 'absolute', top: 3, left: reminderRecurring ? 21 : 3, width: 20, height: 20, borderRadius: 10, backgroundColor: '#fff', ...shadows.sm }} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
     </View>
   );
 }

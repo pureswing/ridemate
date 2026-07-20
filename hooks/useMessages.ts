@@ -78,13 +78,13 @@ export function useMessages() {
     return (data as Message[]) ?? [];
   }, []);
 
-  const sendMessage = useCallback(async (conversationId: string, body: string): Promise<Message> => {
+  const sendMessage = useCallback(async (conversationId: string, body: string, isSystem = false): Promise<Message> => {
     if (!session?.user) throw new Error('Not authenticated');
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('messages')
-        .insert({ conversation_id: conversationId, sender_id: session.user.id, body })
+        .insert({ conversation_id: conversationId, sender_id: session.user.id, body, is_system: isSystem })
         .select()
         .single();
       if (error) throw error;

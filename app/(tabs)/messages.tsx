@@ -3,11 +3,13 @@ import { View, FlatList, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
+import { Chip } from '@/components/ui/Chip';
 import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
+import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
@@ -20,22 +22,31 @@ import { tracking, letterSpacingFor } from '@/constants/typography';
 
 type Tone = 'neutral' | 'driver' | 'passenger' | 'courier' | 'hauling' | 'success' | 'warning' | 'accent' | 'inverse';
 
+// Filter buckets for the inbox header chips — 'active' is the default.
+// Cancelled/no_show agreements are folded into 'completed' (both are
+// "closed" threads) since there's no dedicated 4th chip for them.
+type FilterBucket = 'negotiating' | 'active' | 'completed';
+
+function bucketOf(agreement: RideAgreement | null): FilterBucket {
+  if (!agreement) return 'negotiating';
+  if (agreement.status === 'completed' || agreement.status === 'cancelled' || agreement.status === 'no_show') return 'completed';
+  return 'active';
+}
+
 function statusConfig(agreement: RideAgreement | null, t: ReturnType<typeof useTranslation>): { tone: Tone; label: string } {
   if (!agreement) return { tone: 'accent', label: t.agreement.statusActive };
   switch (agreement.status) {
     case 'completed': return { tone: 'success', label: t.agreement.statusCompleted };
     case 'cancelled': return { tone: 'neutral', label: t.calendar.cancelled };
     case 'no_show': return { tone: 'neutral', label: t.calendar.cancelled };
-    default: return { tone: 'accent', label: t.agreement.statusActive };
+    default: return { tone: 'success', label: t.agreement.statusConfirmed };
   }
 }
 
-function ConversationRow({ conversation, myId }: { conversation: Conversation; myId: string }) {
+function ConversationRow({ conversation, myId, agreement, insured }: { conversation: Conversation; myId: string; agreement: RideAgreement | null; insured: boolean }) {
   const theme = useTheme();
   const t = useTranslation();
-  const { getAgreementsForPost } = useRideAgreements();
   const { getLastMessage, getUnreadCount } = useMessages();
-  const [agreement, setAgreement] = useState<RideAgreement | null>(null);
   const [lastMessage, setLastMessage] = useState<Message | null>(null);
   const [unread, setUnread] = useState(0);
 
@@ -52,12 +63,6 @@ function ConversationRow({ conversation, myId }: { conversation: Conversation; m
         setLastMessage(msg);
         setUnread(count);
       } catch {}
-      if (!post) return;
-      try {
-        const list = await getAgreementsForPost(post.id);
-        const mine = list.find((a) => a.rider_id === myId || a.driver_id === myId);
-        if (mine) setAgreement(mine);
-      } catch {}
     })();
   }, [conversation.id]);
 
@@ -69,7 +74,7 @@ function ConversationRow({ conversation, myId }: { conversation: Conversation; m
       style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 }}
     >
       <View style={{ flexShrink: 0 }}>
-        <Avatar name={otherParty?.full_name ?? '?'} src={otherParty?.avatar_url} size={50} />
+        <Avatar name={otherParty?.full_name ?? '?'} src={otherParty?.avatar_url} size={50} verified={insured} />
         {unread > 0 && (
           <View style={{
             position: 'absolute', top: -2, right: -2, width: 18, height: 18, borderRadius: 9,
@@ -115,11 +120,20 @@ function ConversationRow({ conversation, myId }: { conversation: Conversation; m
 export default function MessagesScreen() {
   const { session } = useAuthStore();
   const { getConversations } = useMessages();
+  const { getAgreementsForPost } = useRideAgreements();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  // Keyed by conversation.id — fetched once here (not per-row) so the
+  // filter chips can bucket every conversation without each row doing its
+  // own redundant getAgreementsForPost call.
+  const [agreements, setAgreements] = useState<Record<string, RideAgreement | null>>({});
+  // Keyed by the OTHER party's user id — vehicle_profiles is publicly
+  // readable, batch-fetched once here (not per-row) same as agreements above.
+  const [insuredUsers, setInsuredUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<FilterBucket>('active');
 
   useEffect(() => {
     if (!session?.user) return;
@@ -129,11 +143,51 @@ export default function MessagesScreen() {
   async function fetchConversations() {
     setLoading(true);
     try {
-      setConversations(await getConversations());
+      const myId = session!.user.id;
+      const convs = await getConversations();
+      setConversations(convs);
+
+      // Dedupe by post_id — several conversations can share the same post.
+      const postIds = Array.from(new Set(convs.map((c) => c.post_id)));
+      const agreementsByPost = new Map<string, RideAgreement[]>();
+      await Promise.all(postIds.map(async (postId) => {
+        try {
+          agreementsByPost.set(postId, await getAgreementsForPost(postId));
+        } catch {
+          agreementsByPost.set(postId, []);
+        }
+      }));
+      const map: Record<string, RideAgreement | null> = {};
+      for (const c of convs) {
+        const list = agreementsByPost.get(c.post_id) ?? [];
+        map[c.id] = list.find((a) => a.rider_id === myId || a.driver_id === myId) ?? null;
+      }
+      setAgreements(map);
+
+      const otherPartyIds = Array.from(new Set(convs.map((c) => (c.post_owner_id === myId ? c.requester_id : c.post_owner_id))));
+      if (otherPartyIds.length > 0) {
+        const { data } = await supabase
+          .from('vehicle_profiles')
+          .select('user_id, insurance_self_certified')
+          .in('user_id', otherPartyIds);
+        const insuredMap: Record<string, boolean> = {};
+        for (const v of data ?? []) {
+          if (v.insurance_self_certified) insuredMap[v.user_id] = true;
+        }
+        setInsuredUsers(insuredMap);
+      }
     } finally {
       setLoading(false);
     }
   }
+
+  const filtered = conversations.filter((c) => bucketOf(agreements[c.id] ?? null) === filter);
+
+  const filters: { key: FilterBucket; label: string }[] = [
+    { key: 'active', label: t.messages.filterActive },
+    { key: 'negotiating', label: t.messages.filterNegotiating },
+    { key: 'completed', label: t.messages.filterCompleted },
+  ];
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -150,15 +204,39 @@ export default function MessagesScreen() {
         <Text style={{ fontFamily: fonts.displayBold, fontSize: 28, letterSpacing: letterSpacingFor(28, tracking.tight), color: theme.cream, marginTop: 4 }}>
           {t.messages.title}
         </Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 14 }}>
+          {filters.map((f) => (
+            <Chip
+              key={f.key}
+              size="sm"
+              selected={filter === f.key}
+              color={theme.gradientJade}
+              shadow={shadows.xs}
+              onPress={() => setFilter(f.key)}
+            >
+              {f.label}
+            </Chip>
+          ))}
+        </View>
       </LinearGradient>
 
       {loading ? (
         <ActivityIndicator style={{ marginTop: 40 }} size="large" color={theme.primary} />
       ) : (
         <FlatList
-          data={conversations}
+          data={filtered}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ConversationRow conversation={item} myId={session!.user.id} />}
+          renderItem={({ item }) => {
+            const otherPartyId = item.post_owner_id === session!.user.id ? item.requester_id : item.post_owner_id;
+            return (
+              <ConversationRow
+                conversation={item}
+                myId={session!.user.id}
+                agreement={agreements[item.id] ?? null}
+                insured={insuredUsers[otherPartyId] ?? false}
+              />
+            );
+          }}
           ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: theme.cardBorder, marginLeft: 64 }} />}
           contentContainerStyle={{ padding: 20, flexGrow: 1 }}
           ListEmptyComponent={
@@ -171,11 +249,13 @@ export default function MessagesScreen() {
                 <Icon name="chat" size={36} color={theme.primary} />
               </View>
               <Text style={{ color: theme.text, fontFamily: fonts.displayBold, fontSize: 18, marginBottom: 8 }}>
-                {t.messages.empty}
+                {conversations.length === 0 ? t.messages.empty : t.messages.filterEmpty}
               </Text>
-              <Text style={{ color: theme.muted, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 }}>
-                {t.messages.emptySubtitle}
-              </Text>
+              {conversations.length === 0 && (
+                <Text style={{ color: theme.muted, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 }}>
+                  {t.messages.emptySubtitle}
+                </Text>
+              )}
             </View>
           }
           refreshing={loading}

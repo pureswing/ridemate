@@ -38,6 +38,7 @@ import { lookupFlight, parseFlightTime, FlightInfo } from '@/services/flightInfo
 import { generateRouteMapImage, getRouteDetails, buildStaticMapUrl, RouteDetails } from '@/services/routeMap';
 import { AirportPicker } from '@/components/ui/AirportPicker';
 import { PlaceDetail } from '@/services/googlePlaces';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { cityFromAddress } from '@/utils/address';
 import { dateToDateString, dateToTimeString } from '@/utils/dateFormat';
 import { useSavedAddresses } from '@/hooks/useSavedAddresses';
@@ -151,8 +152,8 @@ export default function EditRideScreen() {
   const [oversizedInfo, setOversizedInfo] = useState<Record<number, { types: string[]; other: string }>>({});
   const [pickingOversized, setPickingOversized] = useState<number | null>(null);
 
-  // ── Price — rateBasis/priceMode/vehicle are visual only, no schema field,
-  // same as create form; nothing to prefill for them. ──
+  // ── Price — rateBasis/vehicle are still visual only, no schema field.
+  // priceMode IS real (price_mode column) and prefilled below. ──
   const [donation, setDonation] = useState('');
   const [rateBasis, setRateBasis] = useState<'trip' | 'hourly'>('trip');
   const [priceMode, setPriceMode] = useState<'firm' | 'open'>('firm');
@@ -182,6 +183,8 @@ export default function EditRideScreen() {
   const [privateDelayHours, setPrivateDelayHours] = useState(6);
 
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   useEffect(() => { load(); }, [id]);
 
@@ -234,6 +237,7 @@ export default function EditRideScreen() {
 
     setSeats(post.seats_available ?? 2);
     setDonation(post.suggested_donation != null ? String(post.suggested_donation) : '');
+    setPriceMode(post.price_mode ?? 'firm');
     setNote(post.description ?? '');
     setVisibility(post.visibility);
 
@@ -288,13 +292,13 @@ export default function EditRideScreen() {
     setOriginAddress(detail.formattedAddress);
     setOriginLat(detail.lat);
     setOriginLng(detail.lng);
-    setOriginCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setOriginCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   function handleDestinationPlace(detail: PlaceDetail) {
     setDestinationAddress(detail.formattedAddress);
     setDestinationLat(detail.lat);
     setDestinationLng(detail.lng);
-    setDestinationCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setDestinationCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   function handleOriginAirportSelect(a: Airport) {
     setSelectedOriginAirport(a);
@@ -429,6 +433,7 @@ export default function EditRideScreen() {
           scheduled_at: scheduledAt.toISOString(),
           seats_available: isDriver ? seats : undefined,
           suggested_donation: donation ? parseFloat(donation) : undefined,
+          price_mode: priceMode,
           description: note || undefined,
           visibility,
           airport,
@@ -442,7 +447,8 @@ export default function EditRideScreen() {
         },
         original
       );
-      Alert.alert(t.post.updatedTitle, t.post.updatedMsg, [{ text: 'OK', onPress: () => router.back() }]);
+      setSaved(true);
+      setTimeout(() => router.back(), 1500);
     } catch (e: any) {
       Alert.alert(t.post.errorTitle, e.message);
     } finally {
@@ -480,6 +486,28 @@ export default function EditRideScreen() {
     );
   }
 
+  if (saved) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center', gap: 20, padding: 32 }}>
+        <LinearGradient
+          colors={theme.gradientGold as [string, string, ...string[]]}
+          start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+          style={{ width: 88, height: 88, borderRadius: 44, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Icon name="check" size={44} color={theme.textOnPrimary} strokeWidth={2.6} />
+        </LinearGradient>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, letterSpacing: letterSpacingFor(26, tracking.tight), color: theme.text, textAlign: 'center' }}>
+            {t.post.updatedTitle}
+          </Text>
+          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 14.5, color: theme.muted, marginTop: 6, maxWidth: 260, textAlign: 'center' }}>
+            {t.post.updatedMsg}
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar style="light" />
@@ -491,7 +519,7 @@ export default function EditRideScreen() {
         style={{ paddingTop: insets.top + 8, paddingBottom: 20, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
-          <IconButton icon="close" variant="glass" label={t.post.close} onPress={() => router.back()} />
+          <IconButton icon="close" variant="glass" label={t.post.close} onPress={() => setShowDiscardConfirm(true)} />
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
             {t.post.editRideEyebrow}
           </Text>
@@ -964,6 +992,18 @@ export default function EditRideScreen() {
           </TouchableOpacity>
         </GestureHandlerRootView>
       </Modal>
+
+      <ConfirmSheet
+        visible={showDiscardConfirm}
+        tone="danger"
+        icon="close"
+        title={t.post.discardTitle}
+        message={t.post.discardMsg}
+        confirmLabel={t.post.discardConfirm}
+        cancelLabel={t.post.discardCancel}
+        onConfirm={() => router.back()}
+        onCancel={() => setShowDiscardConfirm(false)}
+      />
     </View>
   );
 }

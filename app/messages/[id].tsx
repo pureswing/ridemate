@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { BadgeSelector } from '@/components/community/BadgeSelector';
 import { TripSummaryModal } from '@/components/ride/TripSummaryModal';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
@@ -166,7 +167,7 @@ function AgreementPanel({
       <View style={{ flexDirection: 'row', gap: 8 }}>
         {!myConfirmedAt && (
           <TouchableOpacity
-            style={{ flex: 1, backgroundColor: theme.gold500, borderRadius: radii.md, paddingVertical: 11, alignItems: 'center' }}
+            style={{ flex: 1, backgroundColor: theme.driverText, borderRadius: radii.md, paddingVertical: 11, alignItems: 'center' }}
             onPress={handleMarkComplete}
             disabled={loading}
           >
@@ -174,11 +175,11 @@ function AgreementPanel({
           </TouchableOpacity>
         )}
         <TouchableOpacity
-          style={{ flex: 1, borderWidth: 1, borderColor: theme.danger + '66', borderRadius: radii.md, paddingVertical: 11, alignItems: 'center' }}
+          style={{ flex: 1, backgroundColor: theme.danger, borderRadius: radii.md, paddingVertical: 11, alignItems: 'center' }}
           onPress={handleReportNoShow}
           disabled={loading}
         >
-          <Text style={{ color: theme.danger, fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.reportNoShow}</Text>
+          <Text style={{ color: '#fff', fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.reportNoShow}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -309,6 +310,9 @@ export default function ConversationScreen() {
   const [vehicle, setVehicle] = useState<VehicleProfile | null>(null);
   const [prospectiveDriverId, setProspectiveDriverId] = useState<string | null>(null);
   const [accepting, setAccepting] = useState(false);
+  const [showAcceptSheet, setShowAcceptSheet] = useState(false);
+  const [showDeclineSheet, setShowDeclineSheet] = useState(false);
+  const [declining, setDeclining] = useState(false);
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
@@ -399,43 +403,33 @@ export default function ConversationScreen() {
     }
   }
 
-  function handleAcceptOffer() {
+  async function confirmAccept() {
     if (!conversation?.post || !prospectiveDriverId) return;
-    Alert.alert(t.agreement.confirmTitle, t.agreement.confirmMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.confirm,
-        onPress: async () => {
-          setAccepting(true);
-          try {
-            await createAgreement(conversation.post!.id, prospectiveDriverId);
-            await load();
-          } catch (e: any) {
-            Alert.alert(t.rideDetail.errorTitle, e.message);
-          } finally {
-            setAccepting(false);
-          }
-        },
-      },
-    ]);
+    setAccepting(true);
+    try {
+      await createAgreement(conversation.post.id, prospectiveDriverId);
+      // Confirmation pill in the thread — the only side-effect asked for
+      // beyond the agreement row itself; deliberately not touching post
+      // status/seats or the other pending conversations for this post.
+      await sendMessage(id, t.agreement.acceptedSystemMessage, true);
+      setShowAcceptSheet(false);
+      await load();
+    } catch (e: any) {
+      Alert.alert(t.rideDetail.errorTitle, e.message);
+    } finally {
+      setAccepting(false);
+    }
   }
 
-  function handleDeclineOffer() {
-    Alert.alert(t.agreement.declineTitle, t.agreement.declineMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.decline,
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await deleteConversation(id);
-            router.back();
-          } catch (e: any) {
-            Alert.alert(t.rideDetail.errorTitle, e.message);
-          }
-        },
-      },
-    ]);
+  async function confirmDecline() {
+    setDeclining(true);
+    try {
+      await deleteConversation(id);
+      router.back();
+    } catch (e: any) {
+      setDeclining(false);
+      Alert.alert(t.rideDetail.errorTitle, e.message);
+    }
   }
 
   if (loading || !conversation) {
@@ -454,7 +448,10 @@ export default function ConversationScreen() {
       ? { tone: 'success' as const, label: t.agreement.statusCompleted }
       : agreement.status === 'cancelled' || agreement.status === 'no_show'
         ? { tone: 'neutral' as const, label: t.calendar.cancelled }
-        : { tone: 'accent' as const, label: t.agreement.statusActive };
+        // Agreement created but not yet completed — same "confirmed" green
+        // used by the detail screens' footer text (t.agreement.active,
+        // theme.driverText) once an offer is accepted.
+        : { tone: 'success' as const, label: t.agreement.statusConfirmed };
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -513,6 +510,20 @@ export default function ConversationScreen() {
             </View>
           }
           renderItem={({ item }) => {
+            if (item.is_system) {
+              return (
+                <View style={{ alignItems: 'center', marginVertical: 4 }}>
+                  <View style={{
+                    paddingHorizontal: 14, paddingVertical: 8, borderRadius: radii.pill,
+                    backgroundColor: theme.driverSoft, borderWidth: 1, borderColor: theme.driverBorder,
+                  }}>
+                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.driverText, textAlign: 'center' }}>
+                      {item.body}
+                    </Text>
+                  </View>
+                </View>
+              );
+            }
             const mine = item.sender_id === myId;
             return (
               <View style={{ alignItems: mine ? 'flex-end' : 'flex-start' }}>
@@ -529,7 +540,10 @@ export default function ConversationScreen() {
                     <LinearGradient
                       colors={theme.gradientGold as [string, string, ...string[]]}
                       start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                      style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                      style={{
+                        position: 'absolute', left: 0, right: 0, top: 0, bottom: 0,
+                        borderRadius: radii.lg, borderBottomRightRadius: 4,
+                      }}
                     />
                   )}
                   <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 14.5, lineHeight: 20, color: mine ? theme.textOnPrimary : theme.text }}>
@@ -557,8 +571,8 @@ export default function ConversationScreen() {
               driverAvatar={otherParty?.avatar_url}
               theme={theme}
               t={t}
-              onAccept={!agreement ? handleAcceptOffer : undefined}
-              onDecline={!agreement ? handleDeclineOffer : undefined}
+              onAccept={!agreement ? () => setShowAcceptSheet(true) : undefined}
+              onDecline={!agreement ? () => setShowDeclineSheet(true) : undefined}
               accepting={accepting}
             />
           )}
@@ -571,14 +585,15 @@ export default function ConversationScreen() {
             padding: 12, paddingBottom: insets.bottom + 12,
             borderTopWidth: agreement ? 0 : 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface,
           }}>
-            <View style={{ flex: 1, backgroundColor: theme.surfaceAlt, borderRadius: radii.pill, borderWidth: 1.5, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 10, maxHeight: 100 }}>
+            <View style={{ flex: 1, minHeight: 46, maxHeight: 100, justifyContent: 'center', backgroundColor: theme.surfaceAlt, borderRadius: radii.pill, borderWidth: 1.5, borderColor: theme.border, paddingHorizontal: 16, paddingVertical: 8 }}>
               <TextInput
                 value={body}
                 onChangeText={setBody}
                 placeholder={t.messages.typeMessage}
                 placeholderTextColor={theme.muted}
                 multiline
-                style={{ fontFamily: fonts.bodyMedium, fontSize: 14.5, color: theme.text, maxHeight: 80 }}
+                textAlignVertical="center"
+                style={{ fontFamily: fonts.bodyMedium, fontSize: 14.5, lineHeight: 18, color: theme.text, padding: 0, maxHeight: 80 }}
               />
             </View>
             <TouchableOpacity
@@ -594,7 +609,7 @@ export default function ConversationScreen() {
                 <LinearGradient
                   colors={theme.gradientGold as [string, string, ...string[]]}
                   start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-                  style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }}
+                  style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 23 }}
                 />
               )}
               <Icon name="send" size={18} color={body.trim() ? theme.textOnPrimary : theme.textFaint} />
@@ -602,6 +617,31 @@ export default function ConversationScreen() {
           </View>
         </Animated.View>
       </View>
+
+      <ConfirmSheet
+        visible={showAcceptSheet}
+        tone="success"
+        icon="check"
+        title={t.agreement.confirmTitle}
+        message={t.agreement.confirmMsg}
+        confirmLabel={t.agreement.confirm}
+        cancelLabel={t.agreement.cancel}
+        onConfirm={confirmAccept}
+        onCancel={() => setShowAcceptSheet(false)}
+        busy={accepting}
+      />
+      <ConfirmSheet
+        visible={showDeclineSheet}
+        tone="danger"
+        icon="ban"
+        title={t.agreement.declineTitle}
+        message={t.agreement.declineMsg}
+        confirmLabel={t.agreement.decline}
+        cancelLabel={t.agreement.cancel}
+        onConfirm={confirmDecline}
+        onCancel={() => setShowDeclineSheet(false)}
+        busy={declining}
+      />
     </View>
   );
 }

@@ -76,13 +76,13 @@ export default function PostPackageScreen() {
     setOriginAddress(detail.formattedAddress);
     setOriginLat(detail.lat);
     setOriginLng(detail.lng);
-    setOriginCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setOriginCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   function handleDestinationPlace(detail: PlaceDetail) {
     setDestinationAddress(detail.formattedAddress);
     setDestinationLat(detail.lat);
     setDestinationLng(detail.lng);
-    setDestinationCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setDestinationCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
 
   // ── Live route map preview — see app/post/ride.tsx's identical block ──
@@ -215,6 +215,7 @@ export default function PostPackageScreen() {
         destination_lng: destinationLng,
         scheduled_at: scheduledAt.toISOString(),
         suggested_donation: donation ? parseFloat(donation) : undefined,
+        price_mode: priceMode,
         description: note || undefined,
         contact_method: 'in_app',
         visibility,

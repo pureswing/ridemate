@@ -92,6 +92,35 @@ export function buildStaticMapUrl(origin: LatLng, destination: LatLng, polyline:
   return `https://maps.googleapis.com/maps/api/staticmap?${params}`;
 }
 
+// Single-point static map — hauling posts with disposal:'driver' have no
+// second location at all (the driver picks the dump site themselves), so
+// there's no route to draw. A plain pin on the pickup point beats no map at
+// all, matching every other kind's "always show something in the header" rule.
+export function buildPinMapUrl(point: LatLng): string {
+  const params = new URLSearchParams({
+    size: '640x480',
+    scale: '2',
+    maptype: 'roadmap',
+    zoom: '14',
+    key: API_KEY ?? '',
+  });
+  params.append('style', 'feature:poi|visibility:off');
+  params.append('style', 'feature:transit|visibility:off');
+  params.append('markers', `color:0x0E9C93|${point.lat},${point.lng}`);
+  return `https://maps.googleapis.com/maps/api/staticmap?${params}`;
+}
+
+export async function generatePinMapImage(point: LatLng): Promise<ArrayBuffer | null> {
+  if (!API_KEY) return null;
+  try {
+    const res = await fetch(buildPinMapUrl(point));
+    if (!res.ok) return null;
+    return await res.arrayBuffer();
+  } catch {
+    return null;
+  }
+}
+
 export interface RouteMapResult {
   image: ArrayBuffer | null;
   durationText: string | null;

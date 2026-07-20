@@ -139,10 +139,11 @@ export default function PostRideScreen() {
   const [donation, setDonation] = useState('');
   const [routeStats, setRouteStats] = useState<RouteStats | null>(null);
   const routeStatsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // rateBasis/priceMode are visual only, same reasoning as `stops` above â€” no
-  // hourly rate or counter-offer-mode column exists on ride_posts, and the
-  // app's real counter-offer mechanic already lives in messaging (Send Offer
-  // on any post), independent of how the creator priced it here.
+  // rateBasis is still visual only — no hourly-rate column exists on
+  // ride_posts. priceMode IS real now (price_mode column, gates the "OBO"
+  // suffix everywhere the price is shown); the app's counter-offer
+  // mechanic still lives in messaging (Send Offer on any post) independent
+  // of this flag.
   const [rateBasis, setRateBasis] = useState<'trip' | 'hourly'>('trip');
   const [priceMode, setPriceMode] = useState<'firm' | 'open'>('firm');
 
@@ -259,13 +260,13 @@ export default function PostRideScreen() {
     setOriginAddress(detail.formattedAddress);
     setOriginLat(detail.lat);
     setOriginLng(detail.lng);
-    setOriginCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setOriginCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   function handleDestinationPlace(detail: PlaceDetail) {
     setDestinationAddress(detail.formattedAddress);
     setDestinationLat(detail.lat);
     setDestinationLng(detail.lng);
-    setDestinationCity(cityFromAddress(detail.formattedAddress) ?? detail.name);
+    setDestinationCity(detail.city ?? cityFromAddress(detail.formattedAddress) ?? detail.name);
   }
   function handleOriginAirportSelect(a: Airport) {
     setSelectedOriginAirport(a);
@@ -373,6 +374,7 @@ export default function PostRideScreen() {
         scheduled_at: scheduledAt.toISOString(),
         seats_available: isDriver ? seats : undefined,
         suggested_donation: donation ? parseFloat(donation) : undefined,
+        price_mode: priceMode,
         description: note || undefined,
         contact_method: 'in_app',
         visibility,

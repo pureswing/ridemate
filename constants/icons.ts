@@ -43,6 +43,9 @@ import {
   Hammer, Layers, WashingMachine, Sofa, BrickWall,
   // accessibility / granular ride preferences
   Ear, PersonStanding, Weight, Volume2, Hand, MessageSquareText, Glasses,
+  // dashboard (mock/visual only)
+  TrendingUp, TrendingDown, Minus, Lightbulb, Brain, Target,
+  Palette, Tag, UserPen, Scale, CircleQuestionMark,
 } from 'lucide-react-native';
 
 export const icons = {
@@ -224,6 +227,20 @@ export const icons = {
   message_square_text: MessageSquareText,
   glasses: Glasses,
   volume_x: VolumeX,
+
+  // ── Dashboard (mock/visual only) ─────────────────────────────────────────
+  trending_up: TrendingUp,
+  trending_down: TrendingDown,
+  trending_flat: Minus,
+  lightbulb: Lightbulb,
+  brain: Brain,
+  target: Target,
+  palette: Palette,
+  tag: Tag,
+  user_pen: UserPen,
+  scale: Scale,
+  help_circle: CircleQuestionMark,
+  minus: Minus,
 } as const;
 
 export type IconName = keyof typeof icons;

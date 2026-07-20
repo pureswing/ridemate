@@ -1,6 +1,9 @@
+import { useState, useCallback } from 'react';
 import { View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Chip } from '@/components/ui/Chip';
@@ -10,6 +13,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useAuthStore } from '@/store/authStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useWeather } from '@/hooks/useWeather';
+import { useNotifications } from '@/hooks/useNotifications';
 import { PostType } from '@/types';
 import { fonts, shadows } from '@/constants/themes';
 import { textStyles, leading } from '@/constants/typography';
@@ -43,11 +47,21 @@ function greeting(name: string, t: any): { line1: string; line2: string; accent:
 // warm gold gradient in the single Miami Sunset theme (see welcome.tsx note).
 export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, onFiltersPress, layout, onLayoutChange, resultsCount }: Props) {
   const theme = useTheme();
-  const { profile } = useAuthStore();
+  const { profile, session } = useAuthStore();
+  const { getUnreadCount } = useNotifications();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const weather = useWeather();
   const { line1, line2, accent } = greeting(profile?.full_name ?? t.header.you, t);
+  const [unread, setUnread] = useState(0);
+
+  // Refetches every time this screen regains focus — e.g. right after
+  // coming back from the notifications screen, which marks everything read.
+  useFocusEffect(
+    useCallback(() => {
+      if (session?.user) getUnreadCount(session.user.id).then(setUnread).catch(() => {});
+    }, [session?.user?.id])
+  );
 
   return (
     <LinearGradient
@@ -104,7 +118,26 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
             )}
           </View>
         </View>
-        <IconButton icon="notification" variant="glass" shadow={shadows.xs} label={t.header.notifications} onPress={onNotificationsPress} />
+        <View>
+          <IconButton
+            icon="notification"
+            variant="glass"
+            shadow={shadows.xs}
+            label={t.header.notifications}
+            onPress={onNotificationsPress ?? (() => router.push('/notifications'))}
+          />
+          {unread > 0 && (
+            <View style={{
+              position: 'absolute', top: -2, right: -2, minWidth: 18, height: 18, borderRadius: 9,
+              paddingHorizontal: 4, backgroundColor: theme.danger, borderWidth: 2, borderColor: theme.primary,
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9.5, lineHeight: 12, color: '#fff' }}>
+                {unread > 9 ? '9+' : unread}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>

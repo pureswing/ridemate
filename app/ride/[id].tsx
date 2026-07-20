@@ -23,7 +23,7 @@ import { RidePost, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { formatLeavesIn, formatEta } from '@/utils/dateFormat';
+import { formatEta, formatDurationShort } from '@/utils/dateFormat';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
@@ -94,8 +94,8 @@ function DetailRow({ label, value, theme, last = false }: {
 export default function RideDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
-  const { getPostById } = useRides();
-  const { createAgreement, getAgreementsForPost } = useRideAgreements();
+  const { getPostById, incrementPostViews } = useRides();
+  const { getAgreementsForPost } = useRideAgreements();
   const { isFavorited, saveFavorite, removeFavorite } = useFavorites();
   const { findConversation, getOrCreateConversation } = useMessages();
   const { getBadgeCounts } = useBadges();
@@ -110,7 +110,6 @@ export default function RideDetailScreen() {
   const [favorited, setFavorited] = useState(false);
   const [favLoading, setFavLoading] = useState(false);
   const [agreementExists, setAgreementExists] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -123,6 +122,8 @@ export default function RideDetailScreen() {
       const data = await getPostById(id);
       setPost(data);
       if (data) {
+        // Don't count the poster's own views of their own post.
+        if (session?.user && data.user_id !== session.user.id) incrementPostViews(data.id);
         const tasks: Promise<any>[] = [
           getBadgeCounts(data.user_id).then((counts) => setPosterBadgeCount(counts.reduce((sum, c) => sum + c.count, 0))),
         ];
@@ -191,27 +192,6 @@ export default function RideDetailScreen() {
     }
   }
 
-  async function handleConfirmRide() {
-    if (!post || !session?.user) return;
-    Alert.alert(t.agreement.confirmTitle, t.agreement.confirmMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.confirm,
-        onPress: async () => {
-          setConfirming(true);
-          try {
-            await createAgreement(post.id, post.user_id);
-            setAgreementExists(true);
-          } catch (e: any) {
-            Alert.alert(t.rideDetail.errorTitle, e.message);
-          } finally {
-            setConfirming(false);
-          }
-        },
-      },
-    ]);
-  }
-
   function handleShare() {
     if (!post) return;
     Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}` });
@@ -232,7 +212,6 @@ export default function RideDetailScreen() {
   const isOwner = post.user_id === session?.user?.id;
   const canEdit = isOwner && (date.getTime() - Date.now() > TWO_HOURS_MS);
   const canSaveFavorite = !isOwner && isOffer;
-  const canConfirmRide = !isOwner && messaged && !agreementExists;
   const accent = isOffer ? theme.driverText : theme.primary;
 
   const details = (post.details ?? {}) as RidePostDetailsRide;
@@ -273,10 +252,10 @@ export default function RideDetailScreen() {
         </View>
 
         <View style={{ padding: 20, gap: 18 }}>
-          {/* Leaves / Duration / Distance */}
+          {/* ETA / Duration / Distance */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <SummaryChip theme={theme} label={t.rideDetail.leaves} value={formatLeavesIn(post.scheduled_at)} />
-            <SummaryChip theme={theme} label={t.rideDetail.duration} value={post.duration_text ?? '—'} />
+            <SummaryChip theme={theme} label={t.rideDetail.eta} value={formatEta(post.scheduled_at, post.duration_seconds, t.locale)} />
+            <SummaryChip theme={theme} label={t.rideDetail.duration} value={formatDurationShort(post.duration_seconds)} />
             <SummaryChip theme={theme} label={t.rideDetail.distance} value={post.distance_text ?? '—'} />
           </View>
 
@@ -286,7 +265,9 @@ export default function RideDetailScreen() {
               {isOffer ? t.feed.chipPooling : t.feed.chipRide}
             </Badge>
             {post.suggested_donation != null && (
-              <Badge tone="warning" style={{ marginLeft: 'auto' }}>{`$${post.suggested_donation} OBO`}</Badge>
+              <Badge tone="warning" style={{ marginLeft: 'auto' }}>
+                {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} OBO`}
+              </Badge>
             )}
           </View>
 
@@ -304,38 +285,22 @@ export default function RideDetailScreen() {
               value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
           </View>
 
-          {/* Seats/Adults / ETA */}
+          {/* Seats/Adults */}
           <View style={{ flexDirection: 'row', gap: 12 }}>
             {isOffer && post.seats_available != null ? (
               <StatTile theme={theme} icon="seat_recline" label={t.rideDetail.seats} value={String(post.seats_available)} />
             ) : (
               <StatTile theme={theme} icon="passenger" label={t.rideDetail.seats} value={String(details.adults ?? 1)} />
             )}
-            <StatTile theme={theme} icon="navigation" label={t.rideDetail.eta} value={formatEta(post.scheduled_at, post.duration_seconds, t.locale)} />
           </View>
-
-          {/* Poster */}
-          <Card padding={14} elevation="sm">
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: theme.text }}>
-                  {post.profile?.full_name ?? '—'}
-                </Text>
-                {posterBadgeCount != null && posterBadgeCount > 0 && (
-                  <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.muted, marginTop: 1 }}>
-                    {posterBadgeCount} {posterBadgeCount === 1 ? t.rideDetail.badge : t.rideDetail.badges}
-                  </Text>
-                )}
-              </View>
-            </View>
-          </Card>
 
           {/* Description */}
           {post.description && (
-            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
-              {post.description}
-            </Text>
+            <Field label={t.rideDetail.notes}>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
+                {post.description}
+              </Text>
+            </Field>
           )}
 
           {/* Donation / Notes leftovers not covered by the badge/description above */}
@@ -448,6 +413,23 @@ export default function RideDetailScreen() {
             </Field>
           )}
 
+          {/* Poster */}
+          <Card padding={14} elevation="sm" interactive onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: theme.text }}>
+                  {post.profile?.full_name ?? '—'}
+                </Text>
+                {posterBadgeCount != null && posterBadgeCount > 0 && (
+                  <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.muted, marginTop: 1 }}>
+                    {posterBadgeCount} {posterBadgeCount === 1 ? t.rideDetail.badge : t.rideDetail.badges}
+                  </Text>
+                )}
+              </View>
+            </View>
+          </Card>
+
           {/* Warning */}
           <View style={{
             flexDirection: 'row', gap: 10,
@@ -511,10 +493,6 @@ export default function RideDetailScreen() {
         }}>
           {agreementExists ? (
             <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.driverText }}>{t.agreement.active}</Text>
-          ) : canConfirmRide ? (
-            <Button variant="ghost" textColor={theme.driverText} disabled={confirming} onPress={handleConfirmRide}>
-              {confirming ? t.rideDetail.processing : t.agreement.confirmRide}
-            </Button>
           ) : canSaveFavorite ? (
             // "Interested" doubles as the design's INTERESTED action — mapped
             // onto our real favorite/save-driver flow. Stays visible but
@@ -529,9 +507,7 @@ export default function RideDetailScreen() {
             >
               {favorited ? t.rideDetail.interestedSaved : t.rideDetail.interested}
             </Button>
-          ) : (
-            <View style={{ width: 1 }} />
-          )}
+          ) : null}
 
           <View style={{ flex: 1 }}>
             <Button variant="primary" size="lg" fullWidth disabled={messaging} onPress={handleMessage}>

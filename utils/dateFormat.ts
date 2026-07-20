@@ -123,3 +123,16 @@ export function formatEta(scheduledAtIso: string, durationSeconds: number | unde
   const arrival = new Date(new Date(scheduledAtIso).getTime() + durationSeconds * 1000);
   return arrival.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
+
+// Compact "1h 10m" duration, computed from raw seconds — not a reformat of
+// Google's own duration_text ("1 hour 10 mins"), since parsing that string
+// back apart is more fragile than just deriving it from the number already
+// stored alongside it.
+export function formatDurationShort(seconds: number | null | undefined): string {
+  if (!seconds) return '—';
+  const totalMinutes = Math.round(seconds / 60);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours === 0) return `${minutes}m`;
+  return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+}

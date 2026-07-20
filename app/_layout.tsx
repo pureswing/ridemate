@@ -85,8 +85,15 @@ export default function RootLayout() {
           <Stack.Screen name="hauling/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="hauling/edit/[id]" options={{ headerShown: false }} />
           <Stack.Screen name="messages/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="user/[id]" options={{ headerShown: false }} />
+          <Stack.Screen name="notifications" options={{ headerShown: false }} />
           <Stack.Screen name="profile/edit" options={{ headerShown: false }} />
           <Stack.Screen name="profile/accessibility" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/vehicle-edit" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/dashboard" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/about" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/saved-drivers" options={{ headerShown: false }} />
           <Stack.Screen name="post/ride" options={{ headerShown: false }} />
           <Stack.Screen name="post/package" options={{ headerShown: false }} />
           <Stack.Screen name="post/hauling" options={{ headerShown: false }} />

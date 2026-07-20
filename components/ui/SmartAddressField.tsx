@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Alert } from 'react-native';
+import { View } from 'react-native';
 import { TouchableOpacity } from './TouchableOpacity';
 import { ThemedText as Text } from './ThemedText';
 import { Icon } from './Icon';
 import { AddressAutocomplete } from './AddressAutocomplete';
+import { ConfirmSheet } from './ConfirmSheet';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { IconName } from '@/constants/icons';
@@ -69,7 +70,11 @@ export function SmartAddressField({
     setPhase('idle');
     const geocoded = await geocodeAddress(slot.value);
     if (geocoded) {
-      onSelectPlace({ formattedAddress: slot.value, name: slot.value, ...geocoded });
+      // No address_components available from a plain saved-address string
+      // (geocodeAddress only returns coordinates) — city: null lets callers'
+      // existing cityFromAddress(formattedAddress) string-split fallback
+      // handle it, same as before this field existed.
+      onSelectPlace({ formattedAddress: slot.value, name: slot.value, city: null, ...geocoded });
     } else {
       onSelectSaved?.(slot.value);
     }
@@ -80,14 +85,14 @@ export function SmartAddressField({
     setPhase(savePromptFrom);
   }
   // Occupied slots need a confirm step before overwriting; empty ones save
-  // immediately.
+  // immediately. Uses the app's own ConfirmSheet (same one as accept-offer/
+  // discard-changes) instead of the OS-native Alert, which read as
+  // unstyled/out of place here — see components/ui/ConfirmSheet.tsx.
+  const [replaceTarget, setReplaceTarget] = useState<string | null>(null);
   function handleSlotPress(slotId: string) {
     const existing = savedAddresses.find((s) => s.id === slotId);
     if (existing) {
-      Alert.alert(t.post.addressReplaceTitle, t.post.addressReplaceMsg, [
-        { text: t.post.addressCancel, style: 'cancel' },
-        { text: t.post.addressReplace, style: 'destructive', onPress: () => saveToSlot(slotId) },
-      ]);
+      setReplaceTarget(slotId);
     } else {
       saveToSlot(slotId);
     }
@@ -205,6 +210,7 @@ export function SmartAddressField({
     // an empty one saves immediately.
     const allSlots = [...savedAddresses, ...emptySlots];
     return (
+      <>
       <View style={sheetStyle}>
         <View style={{ paddingHorizontal: 14, paddingTop: 12, paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: theme.cardBorder }}>
           <Text style={[rowLabelStyle, { marginBottom: 4 }]}>{t.post.addressSaveTo}</Text>
@@ -243,6 +249,18 @@ export function SmartAddressField({
           <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, color: theme.textFaint }}>{t.post.addressDontSave}</Text>
         </TouchableOpacity>
       </View>
+      <ConfirmSheet
+        visible={!!replaceTarget}
+        tone="danger"
+        icon="loop"
+        title={t.post.addressReplaceTitle}
+        message={t.post.addressReplaceMsg}
+        confirmLabel={t.post.addressReplace}
+        cancelLabel={t.post.addressCancel}
+        onConfirm={() => { if (replaceTarget) saveToSlot(replaceTarget); setReplaceTarget(null); }}
+        onCancel={() => setReplaceTarget(null)}
+      />
+      </>
     );
   }
 
