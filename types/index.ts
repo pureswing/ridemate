@@ -16,7 +16,13 @@ export type AccessibilityNeed =
   | 'service-animal'
   | 'sensory';
 export type SubscriptionStatus = 'free' | 'active' | 'expired' | 'cancelled';
-export type SubscriptionPlan = 'monthly' | 'annual' | 'donation';
+// Single paid plan (donation-only — see [[project-legal-tnc-compliance]] on why this
+// stays a voluntary platform donation, never tied to a ride). Kept as its own type
+// rather than inlining 'donor' everywhere, so a second tier could be reintroduced later
+// without touching every call site.
+export type SubscriptionPlan = 'donor';
+// Free is derived (no active/non-expired Subscription row), not a SubscriptionPlan value.
+export type MembershipTier = 'free' | SubscriptionPlan;
 export type AgreementStatus = 'pending' | 'active' | 'completed' | 'cancelled' | 'no_show';
 
 // Driver badges (given by passenger to driver)

@@ -16,7 +16,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
-import { PaywallModal } from '@/components/subscription/PaywallModal';
 import { RideHistoryModal } from '@/components/profile/RideHistoryModal';
 import { VehicleDetailModal } from '@/components/profile/VehicleDetailModal';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -24,6 +23,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { BadgeCount, StrikeLevel, VehicleProfile, VehicleKind } from '@/types';
 import { IconName } from '@/constants/icons';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
+import { TIER_ICON } from '@/constants/membershipPlans';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
 
@@ -107,7 +107,7 @@ function VehicleMiniCard({
 export default function ProfileScreen() {
   const { profile, session } = useAuthStore();
   const { signOut } = useAuth();
-  const { isActive, isFree, daysRemaining } = useSubscription();
+  const { tier, daysRemaining } = useSubscription();
   const { getBadgeCounts, getStrikeLevel } = useBadges();
   const { getMyVehicles } = useVehicleProfile();
   const t = useTranslation();
@@ -127,7 +127,6 @@ export default function ProfileScreen() {
   const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
 
   const [showHistory, setShowHistory] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
   const [viewingVehicle, setViewingVehicle] = useState<VehicleProfile | null>(null);
 
   const userId = session?.user?.id ?? '';
@@ -375,7 +374,7 @@ export default function ProfileScreen() {
           <View style={{ paddingHorizontal: 20, paddingTop: 74 }}>
           <Card
             interactive
-            onPress={() => isFree ? setShowPaywall(true) : undefined}
+            onPress={() => router.push('/profile/membership')}
             padding={14}
             radius={16}
             elevation="lg"
@@ -390,17 +389,23 @@ export default function ProfileScreen() {
           >
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden' }}>
-                <LinearGradient colors={theme.gradientGold as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-                  <Icon name="star" size={21} color={theme.textOnPrimary} />
-                </LinearGradient>
+                {tier === 'donor' ? (
+                  <View style={{ flex: 1, backgroundColor: theme.donorText, alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name={TIER_ICON.donor} size={21} color="#FFFFFF" />
+                  </View>
+                ) : (
+                  <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
+                    <Icon name={TIER_ICON.free} size={21} color="rgba(255,255,255,0.75)" />
+                  </View>
+                )}
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={{ ...categoryLabelStyle, color: theme.gold300 }}>{t.profile.membershipCategory}</Text>
                 <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 17, lineHeight: Math.round(17 * leading.tight), letterSpacing: letterSpacingFor(17, tracking.tight), color: '#FFFFFF', marginTop: 2 }}>
-                  {isActive ? t.profile.subscriberTitle : t.profile.freeTitle}
+                  {t.subscription[tier]}
                 </Text>
                 <Text numberOfLines={1} style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, lineHeight: Math.round(12.5 * leading.tight), color: 'rgba(255,255,255,0.6)', marginTop: 1 }}>
-                  {isActive
+                  {tier !== 'free'
                     ? (daysRemaining != null ? `${daysRemaining} ${t.profile.daysRemaining}` : t.profile.subscriberSubtitleActive)
                     : t.profile.subscriberSubtitleFree}
                 </Text>
@@ -521,7 +526,6 @@ export default function ProfileScreen() {
 
       {/* ── Modals ── */}
       <RideHistoryModal visible={showHistory} userId={userId} onClose={() => setShowHistory(false)} />
-      <PaywallModal visible={showPaywall} onClose={() => setShowPaywall(false)} />
       {viewingVehicle && (
         <VehicleDetailModal
           visible

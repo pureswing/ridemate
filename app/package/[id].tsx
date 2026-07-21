@@ -223,7 +223,7 @@ export default function PackageDetailScreen() {
             )}
             {!!details.declaredValue && (
               <View style={{ width: '47%' }}>
-                <StatTile theme={theme} icon="sparkles" label="Declared value" value={`$${details.declaredValue}`} />
+                <StatTile theme={theme} icon="dollar_sign_square" label="Value" value={`$${details.declaredValue}`} />
               </View>
             )}
           </View>

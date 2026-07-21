@@ -3,6 +3,9 @@
 // MDI's filled/outline pairs (star/star_outline, person/person_outline, ...)
 // collapse onto the same Lucide icon here — kept as separate keys only so
 // existing call sites don't need to change.
+import { createElement } from 'react';
+import { Icon as LucideLabIcon } from 'lucide-react-native';
+import { dollarSignSquare, luggageCabin } from '@lucide/lab';
 import {
   Home, Compass, MessageCircle, Plus, User,
   Car, Truck, Users,
@@ -35,7 +38,7 @@ import {
   Church, School, Factory, Store, TreePine,
   PencilLine, Package2,
   // post-ride form
-  Luggage, Thermometer, CarFront, BusFront, Ticket, PlaneLanding, PlaneTakeoff, LockOpen,
+  Luggage, BaggageClaim, Thermometer, CarFront, BusFront, Ticket, PlaneLanding, PlaneTakeoff, LockOpen,
   Bookmark,
   // post-package form
   Sparkles, Ban, ArrowUpDown,
@@ -46,7 +49,22 @@ import {
   // dashboard (mock/visual only)
   TrendingUp, TrendingDown, Minus, Lightbulb, Brain, Target,
   Palette, Tag, UserPen, Scale, CircleQuestionMark,
+  // membership
+  Heart, CreditCard,
 } from 'lucide-react-native';
+
+// @lucide/lab icons aren't individual components like the main set above —
+// each is an "icon node" (raw SVG element data) rendered through
+// lucide-react-native's generic <Icon iconNode={...}> renderer. Wrapping it
+// once here lets it drop into the `icons` map below like any other entry, so
+// components/ui/Icon.tsx doesn't need to know the two sets differ. Plain
+// createElement (not JSX) since this file is .ts, not .tsx.
+function DollarSignSquare({ size, color, strokeWidth }: { size?: number; color?: string; strokeWidth?: number }) {
+  return createElement(LucideLabIcon, { iconNode: dollarSignSquare, size, color, strokeWidth });
+}
+function LuggageCabin({ size, color, strokeWidth }: { size?: number; color?: string; strokeWidth?: number }) {
+  return createElement(LucideLabIcon, { iconNode: luggageCabin, size, color, strokeWidth });
+}
 
 export const icons = {
   // ── Navigation / Tab bar ─────────────────────────────────────────────
@@ -241,6 +259,18 @@ export const icons = {
   scale: Scale,
   help_circle: CircleQuestionMark,
   minus: Minus,
+
+  // ── Membership ───────────────────────────────────────────────────────
+  heart: Heart,
+  credit_card: CreditCard,
+
+  // ── Luggage type icons (ride detail) ────────────────────────────────
+  baggage_claim: BaggageClaim,
+
+  // ── @lucide/lab (icon nodes, not standalone components — see the
+  //    createElement wrapper above) ────────────────────────────────────
+  dollar_sign_square: DollarSignSquare,
+  luggage_cabin: LuggageCabin,
 } as const;
 
 export type IconName = keyof typeof icons;

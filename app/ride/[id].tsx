@@ -31,7 +31,7 @@ import { IconName } from '@/constants/icons';
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
 // Two-across icon+label+value card — the ride detail screen's DATE/TIME and
-// SEATS/ETA rows.
+// SEATS/CHILDREN rows.
 function StatTile({ icon, label, value, theme }: { icon: IconName; label: string; value: string; theme: ReturnType<typeof useTheme> }) {
   return (
     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 14, padding: 12, ...shadows.xs }}>
@@ -44,6 +44,16 @@ function StatTile({ icon, label, value, theme }: { icon: IconName; label: string
         </Text>
         <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: theme.text, marginTop: 1 }}>{value}</Text>
       </View>
+    </View>
+  );
+}
+
+// Bare icon + count, no icon container — the LUGGAGE card's per-type rows.
+function LuggageStat({ icon, count, theme }: { icon: IconName; count: number; theme: ReturnType<typeof useTheme> }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <Icon name={icon} size={16} color={theme.muted} />
+      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{count}</Text>
     </View>
   );
 }
@@ -216,12 +226,17 @@ export default function RideDetailScreen() {
 
   const details = (post.details ?? {}) as RidePostDetailsRide;
   const activeRules = Object.entries(details.rules ?? {}).filter(([, v]) => v).map(([k]) => k);
-  const bagTypeCounts = (details.bagTypes ?? []).reduce<Record<string, number>>((acc, b) => {
-    acc[b] = (acc[b] ?? 0) + 1;
-    return acc;
-  }, {});
-  const oversizedTypes = Array.from(new Set((details.oversizedInfo ?? []).flatMap((o) => o.types)));
-  const oversizedOthers = (details.oversizedInfo ?? []).map((o) => o.other).filter(Boolean);
+  // Per-type bag counts — matching the post form's per-bag Carry-on/Checked/
+  // Oversized chips (app/post/ride.tsx), which store each bag's type at
+  // bagTypes[i] (defaulting to Carry-on when unset, same as the form does).
+  const bagCount = details.bags ?? details.bagTypes?.length ?? 0;
+  let carryOnCount = 0, checkedCount = 0, oversizedCount = 0;
+  for (let i = 0; i < bagCount; i++) {
+    const type = details.bagTypes?.[i] || t.post.bagCarryOn;
+    if (type === t.post.bagOversized) oversizedCount++;
+    else if (type === t.post.bagChecked) checkedCount++;
+    else carryOnCount++;
+  }
   const hasVehicleInfo = isOffer && (details.vehicleType || (details.comfortPrefs?.length ?? 0) > 0 || (details.climatePrefs?.length ?? 0) > 0);
   const hasChildSeatInfo = !isOffer && (details.childSeatPrefs?.length ?? 0) > 0;
 
@@ -285,12 +300,15 @@ export default function RideDetailScreen() {
               value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
           </View>
 
-          {/* Seats/Adults */}
+          {/* Seats/Adults + Children */}
           <View style={{ flexDirection: 'row', gap: 12 }}>
             {isOffer && post.seats_available != null ? (
               <StatTile theme={theme} icon="seat_recline" label={t.rideDetail.seats} value={String(post.seats_available)} />
             ) : (
               <StatTile theme={theme} icon="passenger" label={t.rideDetail.seats} value={String(details.adults ?? 1)} />
+            )}
+            {!isOffer && !!details.children && (
+              <StatTile theme={theme} icon="baby_seat" label={t.post.children} value={String(details.children)} />
             )}
           </View>
 
@@ -301,13 +319,6 @@ export default function RideDetailScreen() {
                 {post.description}
               </Text>
             </Field>
-          )}
-
-          {/* Donation / Notes leftovers not covered by the badge/description above */}
-          {(!isOffer && !!details.children) && (
-            <CardBox style={{ paddingVertical: 2 }}>
-              <DetailRow theme={theme} label={t.post.children} value={String(details.children)} last />
-            </CardBox>
           )}
 
           {/* Event details */}
@@ -334,21 +345,35 @@ export default function RideDetailScreen() {
             </Field>
           )}
 
-          {/* Luggage */}
-          {(!!details.bags || oversizedTypes.length > 0 || oversizedOthers.length > 0) && (
-            <Field label={isOffer ? t.post.luggageSpace : t.post.luggageLabel}>
-              <CardBox style={{ paddingVertical: 2 }}>
-                {!!details.bags && <DetailRow theme={theme} label={t.post.bags} value={String(details.bags)} />}
-                {Object.keys(bagTypeCounts).length > 0 && (
-                  <DetailRow theme={theme} label={t.post.luggageLabel}
-                    value={Object.entries(bagTypeCounts).map(([type, n]) => (n > 1 ? `${type} ×${n}` : type)).join(', ')} />
-                )}
-                {(oversizedTypes.length > 0 || oversizedOthers.length > 0) && (
-                  <DetailRow theme={theme} label={t.post.oversizedTitle}
-                    value={[...oversizedTypes, ...oversizedOthers].join(', ')} last />
-                )}
-              </CardBox>
-            </Field>
+          {/* Luggage — same chrome as StatTile, but a bespoke two-column layout
+              (Luggage/count on the left, Types + the per-type breakdown icons
+              stacked under it on the right) instead of StatTile's single value. */}
+          {bagCount > 0 && (
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.cardBorder, borderRadius: 14, padding: 12, ...shadows.xs }}>
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name="luggage" size={17} color={theme.muted} />
+                </View>
+                <View style={{ flex: 1, minWidth: 0, flexDirection: 'row' }}>
+                  <View style={{ flex: 1 }}>
+                    <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: letterSpacingFor(9.5, tracking.wide), color: theme.textFaint }}>
+                      {isOffer ? t.post.luggageSpace : t.post.luggageLabel}
+                    </Text>
+                    <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: theme.text, marginTop: 1 }}>{bagCount}</Text>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: letterSpacingFor(9.5, tracking.wide), color: theme.textFaint }}>
+                      {t.post.luggageTypes}
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 10, marginTop: 3 }}>
+                      {carryOnCount > 0 && <LuggageStat theme={theme} icon="luggage_cabin" count={carryOnCount} />}
+                      {checkedCount > 0 && <LuggageStat theme={theme} icon="luggage" count={checkedCount} />}
+                      {oversizedCount > 0 && <LuggageStat theme={theme} icon="baggage_claim" count={oversizedCount} />}
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
           )}
 
           {/* Vehicle */}

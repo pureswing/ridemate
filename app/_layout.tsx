@@ -94,6 +94,7 @@ export default function RootLayout() {
           <Stack.Screen name="profile/dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="profile/about" options={{ headerShown: false }} />
           <Stack.Screen name="profile/saved-drivers" options={{ headerShown: false }} />
+          <Stack.Screen name="profile/membership" options={{ headerShown: false }} />
           <Stack.Screen name="post/ride" options={{ headerShown: false }} />
           <Stack.Screen name="post/package" options={{ headerShown: false }} />
           <Stack.Screen name="post/hauling" options={{ headerShown: false }} />

@@ -85,6 +85,11 @@ export interface AppTheme {
   haulingText: string;
   haulingSoft: string;
   haulingBorder: string;
+  // Membership tier badge (Donor) — same text/soft/border triad shape as the
+  // ride-type semantics above, used on the tier pill/badge and the Membership screen.
+  donorText: string;
+  donorSoft: string;
+  donorBorder: string;
   // Gradients (expo-linear-gradient colors arrays)
   gradientGold: [string, string, string];
   gradientOrchid: [string, string];
@@ -101,7 +106,7 @@ export interface ShadowStyle {
   elevation: number;
 }
 
-export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orchid' | 'goldTight' | 'jadeTight' | 'orchidTight', ShadowStyle> = {
+export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orchid' | 'goldTight' | 'jadeTight' | 'orchidTight' | 'donorTight', ShadowStyle> = {
   xs:     { shadowColor: '#1E2A32', shadowOffset: { width: 0, height: 1 },  shadowOpacity: 0.06, shadowRadius: 2,  elevation: 1 },
   sm:     { shadowColor: '#1E2A32', shadowOffset: { width: 0, height: 2 },  shadowOpacity: 0.06, shadowRadius: 4,  elevation: 2 },
   md:     { shadowColor: '#1E2A32', shadowOffset: { width: 0, height: 6 },  shadowOpacity: 0.08, shadowRadius: 16, elevation: 4 },
@@ -114,6 +119,7 @@ export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orch
   goldTight:   { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
   jadeTight:   { shadowColor: '#0E9C93', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
   orchidTight: { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
+  donorTight: { shadowColor: '#C97BFF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
 };
 
 export const theme: AppTheme = {
@@ -181,6 +187,10 @@ export const theme: AppTheme = {
   haulingText:   '#9E4A14',
   haulingSoft:   'rgba(224,123,57,0.14)',
   haulingBorder: 'rgba(224,123,57,0.34)',
+  // Donor purple has no existing token — new accent, scoped to the donor tier badge only.
+  donorText:   '#C97BFF',
+  donorSoft:   'rgba(201,123,255,0.14)',
+  donorBorder: 'rgba(201,123,255,0.34)',
   gradientGold:   ['#FF6243', '#FF9B57', '#FFC15E'],
   gradientOrchid: ['#FF7A5E', '#ED4A2B'],
   gradientJade:   ['#1FB6AC', '#0E9C93'],

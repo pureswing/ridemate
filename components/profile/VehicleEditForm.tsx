@@ -428,6 +428,9 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
         <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: vinDecoded ? theme.driverText : theme.textFaint, marginTop: 7 }}>
           {vinDecoded ? '✓ Auto-filled from VIN — you can still edit any field below.' : 'Enter your 17-digit VIN to auto-fill make, model, year, trim and fuel type.'}
         </Text>
+        <Text style={{ fontFamily: fonts.bodyRegular, fontStyle: 'italic', fontSize: 10.5, color: theme.textFaint, marginTop: 4, lineHeight: 15 }}>
+          {t.profile.vinDisclaimer}
+        </Text>
       </Field>
 
       {/* Make + Model */}

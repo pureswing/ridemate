@@ -18,8 +18,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useSavedAddresses } from '@/hooks/useSavedAddresses';
-import { RuleChip } from '@/components/ui/RuleChip';
-import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
 import { AccessibilityNeed } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -88,7 +86,10 @@ export default function EditProfileScreen() {
   const [legalName, setLegalName] = useState('');
   const [homeCity, setHomeCity] = useState(profile?.home_city ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
-  const [accessibilityNeeds, setAccessibilityNeeds] = useState<AccessibilityNeed[]>(profile?.accessibility_needs ?? []);
+  // Editing lives on its own screen now (app/profile/accessibility.tsx) —
+  // this just carries the current value through to the save payload
+  // unchanged, so saving other profile fields here doesn't clobber it.
+  const [accessibilityNeeds] = useState<AccessibilityNeed[]>(profile?.accessibility_needs ?? []);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -360,30 +361,7 @@ export default function EditProfileScreen() {
           </Button>
           {changingPassword && <ActivityIndicator style={{ marginTop: 12 }} color={theme.primary} />}
 
-          <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginTop: 32, marginBottom: 6 }}>
-            Accessibility
-          </Text>
-          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.muted, marginBottom: 16, lineHeight: 18 }}>
-            Shared with drivers so they know what to expect — shown as requested, not guaranteed. These also appear pre-selected whenever you post a ride, but changing them there won't change this list.
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 32 }}>
-            {ACCESSIBILITY_OPTIONS.map((opt) => (
-              <RuleChip
-                key={opt.id}
-                active={accessibilityNeeds.includes(opt.id)}
-                icon={opt.icon}
-                accent={theme.primary}
-                theme={theme}
-                onPress={() => setAccessibilityNeeds((prev) =>
-                  prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id]
-                )}
-              >
-                {opt.label}
-              </RuleChip>
-            ))}
-          </View>
-
-          <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginBottom: 16 }}>
+          <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginTop: 32, marginBottom: 16 }}>
             {t.profile.addressBookSection}
           </Text>
 
