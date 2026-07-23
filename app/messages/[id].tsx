@@ -13,11 +13,13 @@ import { Avatar } from '@/components/ui/Avatar';
 import { BadgeSelector } from '@/components/community/BadgeSelector';
 import { TripSummaryModal } from '@/components/ride/TripSummaryModal';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { renderBodyWithBoldPrice } from '@/components/ui/HighlightedPrice';
 import { useAuthStore } from '@/store/authStore';
 import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
+import { usePublicProfile } from '@/hooks/usePublicProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -42,34 +44,42 @@ const POLL_MS = 4000;
 function AgreementPanel({
   agreement,
   currentUserId,
+  conversationId,
   theme,
   t,
   onUpdate,
 }: {
   agreement: RideAgreement;
   currentUserId: string;
+  conversationId: string;
   theme: ReturnType<typeof useTheme>;
   t: ReturnType<typeof useTranslation>;
   onUpdate: () => void;
 }) {
-  const { confirmCompletion, reportNoShow, loading } = useRideAgreements();
+  const { confirmCompletion, reportNoShow, cancelAgreement, loading } = useRideAgreements();
   const { hasGivenBadges } = useBadges();
+  const { sendMessage } = useMessages();
   const [showBadges, setShowBadges] = useState(false);
   const [alreadyBadged, setAlreadyBadged] = useState(false);
   const [tripRecord, setTripRecord] = useState<TripRecord | null>(null);
+  const [showCancelSheet, setShowCancelSheet] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showNoShowSheet, setShowNoShowSheet] = useState(false);
+  const [reporting, setReporting] = useState(false);
 
   const isDriver = agreement.driver_id === currentUserId;
   const myRole = isDriver ? 'driver' : 'rider';
   const myConfirmedAt = isDriver ? agreement.driver_confirmed_at : agreement.rider_confirmed_at;
   const otherId = isDriver ? agreement.rider_id : agreement.driver_id;
   const otherName = isDriver ? agreement.rider?.full_name ?? '—' : agreement.driver?.full_name ?? '—';
+  const otherAvatar = isDriver ? agreement.rider?.avatar_url : agreement.driver?.avatar_url;
 
   useEffect(() => {
-    if (agreement.status === 'completed') {
-      hasGivenBadges(agreement.id).then(setAlreadyBadged);
-    }
-  }, [agreement.status]);
+    hasGivenBadges(agreement.id).then(setAlreadyBadged);
+  }, [agreement.id]);
 
+  // Badges fire immediately off MY OWN confirmation, not once both parties
+  // have — see 034_completion_badges.sql's matching RLS relaxation.
   function handleMarkComplete() {
     Alert.alert(t.agreement.markCompleteTitle, t.agreement.markCompleteMsg, [
       { text: t.agreement.cancel, style: 'cancel' },
@@ -78,6 +88,7 @@ function AgreementPanel({
         onPress: async () => {
           try {
             await confirmCompletion(agreement.id, myRole);
+            if (!alreadyBadged) setShowBadges(true);
             onUpdate();
           } catch (e: any) {
             Alert.alert('Error', e.message);
@@ -87,23 +98,31 @@ function AgreementPanel({
     ]);
   }
 
-  function handleReportNoShow() {
-    Alert.alert(t.agreement.reportTitle, t.agreement.reportMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.report,
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await reportNoShow(agreement.id, otherId);
-            Alert.alert('', t.agreement.reportedSuccess);
-            onUpdate();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
-      },
-    ]);
+  async function handleReportNoShow() {
+    setReporting(true);
+    try {
+      await reportNoShow(agreement.id, otherId);
+      setShowNoShowSheet(false);
+      onUpdate();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setReporting(false);
+    }
+  }
+
+  async function handleCancelJob() {
+    setCancelling(true);
+    try {
+      await cancelAgreement(agreement.id);
+      await sendMessage(conversationId, t.agreement.cancelledSystemMessage, true);
+      setShowCancelSheet(false);
+      onUpdate();
+    } catch (e: any) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setCancelling(false);
+    }
   }
 
   function openTripRecord() {
@@ -143,7 +162,12 @@ function AgreementPanel({
           agreementId={agreement.id}
           receiverId={otherId}
           receiverName={otherName}
+          receiverAvatar={otherAvatar}
           currentRole={myRole}
+          kind={agreement.post?.kind ?? 'ride'}
+          originCity={agreement.post?.origin_city ?? '—'}
+          destinationCity={agreement.post?.destination_city ?? '—'}
+          scheduledAt={agreement.post?.scheduled_at ?? ''}
           onDone={() => { setShowBadges(false); setAlreadyBadged(true); }}
         />
         <TripSummaryModal visible={!!tripRecord} record={tripRecord} onClose={() => setTripRecord(null)} />
@@ -176,12 +200,58 @@ function AgreementPanel({
         )}
         <TouchableOpacity
           style={{ flex: 1, backgroundColor: theme.danger, borderRadius: radii.md, paddingVertical: 11, alignItems: 'center' }}
-          onPress={handleReportNoShow}
+          onPress={() => setShowNoShowSheet(true)}
           disabled={loading}
         >
           <Text style={{ color: '#fff', fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.reportNoShow}</Text>
         </TouchableOpacity>
       </View>
+      {isDriver && (
+        <TouchableOpacity
+          style={{ borderRadius: radii.md, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: theme.danger }}
+          onPress={() => setShowCancelSheet(true)}
+          disabled={loading}
+        >
+          <Text style={{ color: theme.danger, fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.cancelJob}</Text>
+        </TouchableOpacity>
+      )}
+      <ConfirmSheet
+        visible={showCancelSheet}
+        tone="danger"
+        icon="ban"
+        title={t.agreement.cancelJobTitle}
+        message={t.agreement.cancelJobMsg}
+        confirmLabel={t.agreement.cancelJobConfirm}
+        cancelLabel={t.agreement.cancel}
+        onConfirm={handleCancelJob}
+        onCancel={() => setShowCancelSheet(false)}
+        busy={cancelling}
+      />
+      <ConfirmSheet
+        visible={showNoShowSheet}
+        tone="danger"
+        icon="warning"
+        title={t.agreement.reportTitle}
+        message={t.agreement.reportMsg}
+        confirmLabel={t.agreement.report}
+        cancelLabel={t.agreement.cancel}
+        onConfirm={handleReportNoShow}
+        onCancel={() => setShowNoShowSheet(false)}
+        busy={reporting}
+      />
+      <BadgeSelector
+        visible={showBadges}
+        agreementId={agreement.id}
+        receiverId={otherId}
+        receiverName={otherName}
+        receiverAvatar={otherAvatar}
+        currentRole={myRole}
+        kind={agreement.post?.kind ?? 'ride'}
+        originCity={agreement.post?.origin_city ?? '—'}
+        destinationCity={agreement.post?.destination_city ?? '—'}
+        scheduledAt={agreement.post?.scheduled_at ?? ''}
+        onDone={() => { setShowBadges(false); setAlreadyBadged(true); }}
+      />
     </View>
   );
 }
@@ -197,17 +267,24 @@ function AgreementPanel({
 // button makes), decline deletes this unconfirmed conversation outright.
 function VehiclePeekCard({
   vehicle,
-  driverName,
-  driverAvatar,
+  partyName,
+  partyAvatar,
+  tripCount,
+  badgeCount,
   theme,
   t,
   onAccept,
   onDecline,
   accepting,
 }: {
-  vehicle: VehicleProfile;
-  driverName: string;
-  driverAvatar?: string;
+  // Absent for a pooling 'offer' post's owner-side card — the other party
+  // there is a rider, who has no vehicle relevant to the trip. Falls back
+  // to a trips/badges subtitle instead (see tripCount/badgeCount below).
+  vehicle?: VehicleProfile | null;
+  partyName: string;
+  partyAvatar?: string;
+  tripCount?: number;
+  badgeCount?: number;
   theme: ReturnType<typeof useTheme>;
   t: ReturnType<typeof useTranslation>;
   onAccept?: () => void;
@@ -215,6 +292,10 @@ function VehiclePeekCard({
   accepting?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  const subtitle = vehicle
+    ? `${vehicle.year} ${vehicle.make} ${vehicle.model} · ${vehicle.color}`
+    : `${tripCount ?? 0} ${t.userProfile.trips} · ${badgeCount ?? 0} ${t.userProfile.badges}`;
 
   return (
     <View style={{ position: 'relative' }}>
@@ -248,7 +329,8 @@ function VehiclePeekCard({
       )}
 
       <TouchableOpacity
-        activeOpacity={0.9}
+        activeOpacity={vehicle ? 0.9 : 1}
+        disabled={!vehicle}
         onPress={() => setExpanded((v) => !v)}
         style={{
           marginHorizontal: 12, marginBottom: -1, backgroundColor: theme.surface,
@@ -259,16 +341,16 @@ function VehiclePeekCard({
       >
         <View style={{ width: 36, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginTop: 8 }} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, paddingTop: 8 }}>
-          <Avatar name={driverName} src={driverAvatar} size={34} />
+          <Avatar name={partyName} src={partyAvatar} size={34} />
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 14, lineHeight: 17, color: theme.text }}>{driverName}</Text>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 14, lineHeight: 17, color: theme.text }}>{partyName}</Text>
             <Text numberOfLines={1} style={{ fontFamily: fonts.bodyMedium, fontSize: 12, lineHeight: 15, color: theme.muted, marginTop: 2 }}>
-              {vehicle.year} {vehicle.make} {vehicle.model} · {vehicle.color}
+              {subtitle}
             </Text>
           </View>
         </View>
 
-        {expanded && (
+        {expanded && vehicle && (
           <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, padding: 14, paddingTop: 12, gap: 12 }}>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
               {vehicle.seats != null && <Badge tone="neutral" size="sm">{`${vehicle.seats} ${t.messages.vehicleSeats}`}</Badge>}
@@ -300,6 +382,8 @@ export default function ConversationScreen() {
   const { getConversationById, getMessages, sendMessage, markConversationRead, deleteConversation } = useMessages();
   const { getAgreementsForPost, createAgreement } = useRideAgreements();
   const { getMyVehicle } = useVehicleProfile();
+  const { getBadgeCounts } = useBadges();
+  const { getCompletedTripCount } = usePublicProfile();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -309,6 +393,10 @@ export default function ConversationScreen() {
   const [agreement, setAgreement] = useState<RideAgreement | null>(null);
   const [vehicle, setVehicle] = useState<VehicleProfile | null>(null);
   const [prospectiveDriverId, setProspectiveDriverId] = useState<string | null>(null);
+  // The other party's trip/badge counts — only fetched for a pooling
+  // 'offer' post's owner-side card, which has no vehicle to show instead.
+  const [otherPartyTripCount, setOtherPartyTripCount] = useState(0);
+  const [otherPartyBadgeCount, setOtherPartyBadgeCount] = useState(0);
   const [accepting, setAccepting] = useState(false);
   const [showAcceptSheet, setShowAcceptSheet] = useState(false);
   const [showDeclineSheet, setShowDeclineSheet] = useState(false);
@@ -373,6 +461,17 @@ export default function ConversationScreen() {
       } else {
         setVehicle(null);
       }
+      // I'm the driver on a pooling 'offer' post — my review card shows the
+      // rider's trips/badges instead of a vehicle (see VehiclePeekCard).
+      if (prospectiveDriver === myId && conv.post?.type === 'offer') {
+        const otherPartyId = conv.post_owner_id === myId ? conv.requester_id : conv.post_owner_id;
+        const [trips, counts] = await Promise.all([
+          getCompletedTripCount(otherPartyId),
+          getBadgeCounts(otherPartyId),
+        ]);
+        setOtherPartyTripCount(trips);
+        setOtherPartyBadgeCount(counts.reduce((sum, c) => sum + c.count, 0));
+      }
     } catch {
       Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
     } finally {
@@ -407,7 +506,13 @@ export default function ConversationScreen() {
     if (!conversation?.post || !prospectiveDriverId) return;
     setAccepting(true);
     try {
-      await createAgreement(conversation.post.id, prospectiveDriverId);
+      // Whoever isn't the driver in this conversation is the rider — true
+      // regardless of which party's turn it is to click "accept" (post
+      // owner for a pooling 'offer' post, or the other party for a 'request').
+      const riderId = conversation.post_owner_id === prospectiveDriverId
+        ? conversation.requester_id
+        : conversation.post_owner_id;
+      await createAgreement(conversation.post.id, prospectiveDriverId, riderId);
       // Confirmation pill in the thread — the only side-effect asked for
       // beyond the agreement row itself; deliberately not touching post
       // status/seats or the other pending conversations for this post.
@@ -440,7 +545,8 @@ export default function ConversationScreen() {
     );
   }
 
-  const otherParty = conversation.post_owner_id === myId ? conversation.requester : conversation.post_owner;
+  const isOwner = conversation.post_owner_id === myId;
+  const otherParty = isOwner ? conversation.requester : conversation.post_owner;
   const post = conversation.post;
   const status = !agreement
     ? { tone: 'accent' as const, label: t.agreement.statusActive }
@@ -474,7 +580,7 @@ export default function ConversationScreen() {
             </View>
             {post && (
               <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 11, color: theme.gold300, marginTop: 1 }}>
-                {post.origin_city} → {post.destination_city}
+                {post.origin_city}{post.destination_city !== post.origin_city ? ` → ${post.destination_city}` : ''}
               </Text>
             )}
           </View>
@@ -493,7 +599,7 @@ export default function ConversationScreen() {
               {post && (
                 <View style={{ alignSelf: 'center', paddingHorizontal: 14, paddingVertical: 5, borderRadius: radii.pill, backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.cardBorder }}>
                   <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: theme.textFaint }}>
-                    {post.origin_city} → {post.destination_city} · {new Date(post.scheduled_at).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}
+                    {post.origin_city}{post.destination_city !== post.origin_city ? ` → ${post.destination_city}` : ''} · {new Date(post.scheduled_at).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}
                   </Text>
                 </View>
               )}
@@ -547,7 +653,7 @@ export default function ConversationScreen() {
                     />
                   )}
                   <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 14.5, lineHeight: 20, color: mine ? theme.textOnPrimary : theme.text }}>
-                    {item.body}
+                    {renderBodyWithBoldPrice(item.body)}
                   </Text>
                 </View>
                 <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 10.5, color: theme.textFaint, marginTop: 3, marginHorizontal: 4 }}>
@@ -564,20 +670,35 @@ export default function ConversationScreen() {
             gesture-nav gap the input row's own paddingBottom already reserves
             for when the keyboard is closed. */}
         <Animated.View style={kbSpacerStyle}>
-          {vehicle && (
+          {isOwner && !agreement && post?.type === 'offer' ? (
+            // Pooling 'offer' post — I'm the driver reviewing a rider's
+            // request. They have no vehicle relevant to this trip, so no
+            // vehicle card — just who they are + accept/decline.
             <VehiclePeekCard
-              vehicle={vehicle}
-              driverName={otherParty?.full_name ?? '—'}
-              driverAvatar={otherParty?.avatar_url}
+              partyName={otherParty?.full_name ?? '—'}
+              partyAvatar={otherParty?.avatar_url}
+              tripCount={otherPartyTripCount}
+              badgeCount={otherPartyBadgeCount}
               theme={theme}
               t={t}
-              onAccept={!agreement ? () => setShowAcceptSheet(true) : undefined}
-              onDecline={!agreement ? () => setShowDeclineSheet(true) : undefined}
+              onAccept={() => setShowAcceptSheet(true)}
+              onDecline={() => setShowDeclineSheet(true)}
               accepting={accepting}
             />
-          )}
+          ) : vehicle ? (
+            <VehiclePeekCard
+              vehicle={vehicle}
+              partyName={otherParty?.full_name ?? '—'}
+              partyAvatar={otherParty?.avatar_url}
+              theme={theme}
+              t={t}
+              onAccept={isOwner && !agreement ? () => setShowAcceptSheet(true) : undefined}
+              onDecline={isOwner && !agreement ? () => setShowDeclineSheet(true) : undefined}
+              accepting={accepting}
+            />
+          ) : null}
           {agreement && (
-            <AgreementPanel agreement={agreement} currentUserId={myId!} theme={theme} t={t} onUpdate={load} />
+            <AgreementPanel agreement={agreement} currentUserId={myId!} conversationId={id} theme={theme} t={t} onUpdate={load} />
           )}
 
           <View style={{

@@ -12,7 +12,7 @@ export function useRideAgreements() {
       .from('ride_agreements')
       .select(`
         *,
-        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation),
+        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation, duration_seconds),
         driver:profiles!driver_id(full_name, avatar_url),
         rider:profiles!rider_id(full_name, avatar_url)
       `)
@@ -28,7 +28,7 @@ export function useRideAgreements() {
       .from('ride_agreements')
       .select(`
         *,
-        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation),
+        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation, duration_seconds),
         driver:profiles!driver_id(full_name, avatar_url),
         rider:profiles!rider_id(full_name, avatar_url)
       `)
@@ -38,13 +38,40 @@ export function useRideAgreements() {
     return (data as RideAgreement[]) ?? [];
   }, [session]);
 
-  const createAgreement = useCallback(async (postId: string, driverId: string): Promise<RideAgreement> => {
+  // Agreements I haven't confirmed my side of, whose job's estimated end
+  // time (scheduled_at + duration_seconds) is 2+ hours in the past — the
+  // trigger for CompletionGate's app-open auto-prompt. Filtered client-side
+  // off getMyAgreements rather than a dedicated RPC, matching this app's
+  // existing convention (e.g. messages.tsx's bucketOf) of fetching then
+  // bucketing in JS instead of adding narrow single-purpose queries.
+  const getPendingCompletions = useCallback(async (): Promise<RideAgreement[]> => {
+    if (!session?.user) return [];
+    const uid = session.user.id;
+    const all = await getMyAgreements();
+    const twoHoursMs = 2 * 60 * 60 * 1000;
+    const now = Date.now();
+    return all.filter((a) => {
+      if (a.status !== 'pending' && a.status !== 'active') return false;
+      const myConfirmedAt = a.driver_id === uid ? a.driver_confirmed_at : a.rider_confirmed_at;
+      if (myConfirmedAt) return false;
+      if (!a.post?.scheduled_at) return false;
+      const endTime = new Date(a.post.scheduled_at).getTime() + (a.post.duration_seconds ?? 0) * 1000;
+      return now - endTime >= twoHoursMs;
+    });
+  }, [session, getMyAgreements]);
+
+  // riderId is explicit (not assumed to be the caller) because whoever
+  // confirms the agreement isn't always the rider — e.g. on a pooling
+  // 'offer' post, the post owner (the driver) is the one who accepts a
+  // rider's request, not the other way around. See messages/[id].tsx's
+  // confirmAccept for how riderId is derived from the conversation.
+  const createAgreement = useCallback(async (postId: string, driverId: string, riderId: string): Promise<RideAgreement> => {
     if (!session?.user) throw new Error('Not authenticated');
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from('ride_agreements')
-        .insert({ post_id: postId, driver_id: driverId, rider_id: session.user.id })
+        .insert({ post_id: postId, driver_id: driverId, rider_id: riderId })
         .select()
         .single();
       if (error) throw error;
@@ -85,5 +112,22 @@ export function useRideAgreements() {
     }
   }, [session]);
 
-  return { getMyAgreements, getAgreementsForPost, createAgreement, confirmCompletion, reportNoShow, loading };
+  // The driver backing out of a confirmed job — see
+  // supabase/migrations/033_post_privacy_on_agreement.sql's trigger, which
+  // automatically flips the post back to 'active' (public) the moment this
+  // status change lands.
+  const cancelAgreement = useCallback(async (agreementId: string): Promise<void> => {
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('ride_agreements')
+        .update({ status: 'cancelled' })
+        .eq('id', agreementId);
+      if (error) throw error;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { getMyAgreements, getAgreementsForPost, getPendingCompletions, createAgreement, confirmCompletion, reportNoShow, cancelAgreement, loading };
 }

@@ -7,7 +7,10 @@ import { fonts } from '@/constants/themes';
 
 interface Props {
   origin: string;
-  destination: string;
+  // Omit for a pickup-only post (e.g. hauling with disposal:'driver', where
+  // origin_city is reused as destination_city in the DB since that column
+  // is NOT NULL) — renders just the origin dot, no line/arrow/second dot.
+  destination?: string;
   originColor?: string;
   destColor?: string;
   style?: StyleProp<ViewStyle>;
@@ -51,7 +54,7 @@ export function RouteLine({ origin, destination, originColor, destColor, style }
   const overflow = Math.max(0, naturalWidth - containerWidth);
 
   useEffect(() => {
-    if (overflow === 0) {
+    if (!destination || overflow === 0) {
       translateX.setValue(0);
       return;
     }
@@ -63,9 +66,18 @@ export function RouteLine({ origin, destination, originColor, destColor, style }
     );
     loop.start();
     return () => loop.stop();
-  }, [overflow, translateX]);
+  }, [destination, overflow, translateX]);
 
   const textStyle = { fontFamily: fonts.displayBold, fontSize: 17, color: theme.text, letterSpacing: -0.1, flexShrink: 0 } as const;
+
+  if (!destination) {
+    return (
+      <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 3 }, style]}>
+        <PulseDot color={oColor} />
+        <Text style={textStyle}>{origin}</Text>
+      </View>
+    );
+  }
 
   return (
     <View

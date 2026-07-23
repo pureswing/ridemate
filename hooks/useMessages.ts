@@ -22,6 +22,21 @@ export function useMessages() {
     return (data as Conversation) ?? null;
   }, [session]);
 
+  // Same lookup as findConversation, but for the post owner: they're never
+  // the requester on their own post, so they need the OTHER party's id —
+  // e.g. the accepted agreement's counterpart — to find "the" conversation
+  // once several people may have messaged about the same post.
+  const findConversationWithParty = useCallback(async (postId: string, requesterId: string): Promise<Conversation | null> => {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('post_id', postId)
+      .eq('requester_id', requesterId)
+      .maybeSingle();
+    if (error) throw error;
+    return (data as Conversation) ?? null;
+  }, []);
+
   const getOrCreateConversation = useCallback(async (postId: string, postOwnerId: string): Promise<Conversation> => {
     if (!session?.user) throw new Error('Not authenticated');
     const existing = await findConversation(postId);
@@ -138,12 +153,15 @@ export function useMessages() {
   // requester can still message again afterward; that starts a brand-new
   // conversation row, not a reopened thread.
   const deleteConversation = useCallback(async (conversationId: string): Promise<void> => {
-    const { error } = await supabase.from('conversations').delete().eq('id', conversationId);
+    // .select() so a silent RLS no-op (0 rows matched, no error) surfaces as
+    // a real failure instead of the caller believing it succeeded.
+    const { data, error } = await supabase.from('conversations').delete().eq('id', conversationId).select();
     if (error) throw error;
+    if (!data || data.length === 0) throw new Error('Conversation could not be deleted');
   }, []);
 
   return {
-    findConversation, getOrCreateConversation, getConversations, getConversationById,
+    findConversation, findConversationWithParty, getOrCreateConversation, getConversations, getConversationById,
     getMessages, sendMessage, getLastMessage, getUnreadCount, markConversationRead,
     deleteConversation, loading,
   };

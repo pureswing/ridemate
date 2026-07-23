@@ -11,13 +11,15 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { RuleChip } from '@/components/ui/RuleChip';
+import { OfferSheet } from '@/components/ride/OfferSheet';
+import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useMessages } from '@/hooks/useMessages';
 import { useBadges } from '@/hooks/useBadges';
-import { RidePost, RidePostDetailsHauling } from '@/types';
+import { RidePost, RidePostDetailsHauling, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -58,7 +60,7 @@ function SummaryChip({ label, value, theme }: { label: string; value: string; th
 function AddressRow({ label, value, tone, theme }: { label: string; value: string; tone: 'driver' | 'passenger'; theme: ReturnType<typeof useTheme> }) {
   return (
     <View>
-      <Badge tone={tone} icon="location" size="sm" iconSize={12} style={{ alignSelf: 'flex-start', marginBottom: 8 }}>{label}</Badge>
+      <Badge tone={tone} icon="location" size="sm" iconSize={12} style={{ alignSelf: 'center', marginBottom: 8 }}>{label}</Badge>
       <View style={{ backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13 }}>
         <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: theme.text }}>{value}</Text>
       </View>
@@ -72,7 +74,7 @@ export default function HaulingDetailScreen() {
   const { session } = useAuthStore();
   const { getPostById, incrementPostViews } = useRides();
   const { getAgreementsForPost } = useRideAgreements();
-  const { findConversation, getOrCreateConversation } = useMessages();
+  const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
   const theme = useTheme();
@@ -82,9 +84,12 @@ export default function HaulingDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [messaged, setMessaged] = useState(false);
   const [messaging, setMessaging] = useState(false);
-  const [agreementExists, setAgreementExists] = useState(false);
+  const [myAgreement, setMyAgreement] = useState<RideAgreement | null>(null);
+  const [goingToConversation, setGoingToConversation] = useState(false);
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [mapZoomOpen, setMapZoomOpen] = useState(false);
 
   useEffect(() => {
     if (id) loadPost();
@@ -103,8 +108,8 @@ export default function HaulingDetailScreen() {
         ];
         if (session?.user) {
           tasks.push(
-            getAgreementsForPost(data.id).then((agreements) => setAgreementExists(
-              agreements.some((a) => a.rider_id === session.user.id || a.driver_id === session.user.id)
+            getAgreementsForPost(data.id).then((agreements) => setMyAgreement(
+              agreements.find((a) => a.rider_id === session.user.id || a.driver_id === session.user.id) ?? null
             )),
             findConversation(data.id).then((conv) => setMessaged(!!conv)),
           );
@@ -118,7 +123,7 @@ export default function HaulingDetailScreen() {
     }
   }
 
-  async function handleMessage() {
+  async function handleMessage(offerAmount?: number) {
     if (!session?.user || !post) return;
     if (post.user_id === session.user.id) {
       Alert.alert(t.rideDetail.ownAdMsg, t.rideDetail.ownAdAlert);
@@ -127,7 +132,15 @@ export default function HaulingDetailScreen() {
     setMessaging(true);
     try {
       const conv = await getOrCreateConversation(post.id, post.user_id);
+      if (!messaged) {
+        if (offerAmount != null) {
+          await sendMessage(conv.id, `${t.rideDetail.offerAutoMsgPrefix} $${offerAmount} ${t.rideDetail.offerAutoMsgSuffix}`);
+        } else if (post.price_mode === 'firm') {
+          await sendMessage(conv.id, t.rideDetail.interestedAutoMsg);
+        }
+      }
       setMessaged(true);
+      setOfferOpen(false);
       router.push({ pathname: '/messages/[id]', params: { id: conv.id } });
     } catch {
       Alert.alert(t.rideDetail.errorTitle, t.messages.sendError);
@@ -139,6 +152,23 @@ export default function HaulingDetailScreen() {
   function handleShare() {
     if (!post) return;
     Share.share({ message: `${post.origin_city} — ${t.rideDetail.shareMessage}` });
+  }
+
+  // Owner-side "Message" — unlike handleMessage above, they never message
+  // themselves; they need the confirmed agreement's counterpart to find
+  // which of possibly several conversations on this post is the active one.
+  async function handleGoToConversation() {
+    if (!post || !myAgreement) return;
+    const counterpartId = myAgreement.driver_id === session?.user?.id ? myAgreement.rider_id : myAgreement.driver_id;
+    setGoingToConversation(true);
+    try {
+      const conv = await findConversationWithParty(post.id, counterpartId);
+      if (conv) router.push({ pathname: '/messages/[id]', params: { id: conv.id } });
+    } catch {
+      Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
+    } finally {
+      setGoingToConversation(false);
+    }
   }
 
   if (loading) {
@@ -164,15 +194,19 @@ export default function HaulingDetailScreen() {
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar style="light" />
 
-      <ScrollView style={{ flex: 1 }} removeClippedSubviews={false} contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView style={{ flex: 1 }} removeClippedSubviews={false} contentContainerStyle={{ paddingBottom: 24 }}>
         {/* Route map is the hero — same priority as ride/package's detail
             screens — not the cargo photos, which have their own gallery
             section below instead of silently replacing the map. */}
         <View style={{ height: 240, backgroundColor: theme.surfaceAlt, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, overflow: 'hidden', ...shadows.lg }}>
           {post.route_map_url ? (
-            <Image source={{ uri: post.route_map_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setMapZoomOpen(true)} style={{ width: '100%', height: '100%' }}>
+              <Image source={{ uri: post.route_map_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </TouchableOpacity>
           ) : photos.length > 0 ? (
-            <Image source={{ uri: photos[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setMapZoomOpen(true)} style={{ width: '100%', height: '100%' }}>
+              <Image source={{ uri: photos[0] }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </TouchableOpacity>
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="truck" size={32} color={theme.textFaint} />
@@ -287,7 +321,11 @@ export default function HaulingDetailScreen() {
 
           {details.hazardous && (
             <Field label="Hazardous materials">
-              <Badge tone="warning" icon="warning">Yes</Badge>
+              {/* Badge has no alignSelf of its own, so as a lone child in
+                  Field's plain column View it was stretching to the full
+                  screen width (RN's default alignItems:'stretch') instead of
+                  staying a compact pill. */}
+              <Badge tone="warning" icon="warning" style={{ alignSelf: 'flex-start' }}>Yes</Badge>
             </Field>
           )}
 
@@ -308,69 +346,80 @@ export default function HaulingDetailScreen() {
           </Card>
 
           <View style={{
-            flexDirection: 'row', gap: 10,
             backgroundColor: theme.warning + '1A',
             borderWidth: 1, borderColor: theme.warning + '4D',
             borderRadius: 14, padding: 16,
           }}>
-            <Icon name="warning" size={18} color={theme.warning} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.warning, fontSize: 13, fontFamily: fonts.bodyBold, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <Icon name="warning" size={18} color={theme.warning} />
+              <Text style={{ color: theme.warning, fontSize: 18, fontFamily: fonts.bodyBold, includeFontPadding: false, textAlignVertical: 'center' }}>
                 {t.rideDetail.warningTitle}
               </Text>
-              <Text style={{ color: theme.textSecondary, fontSize: 12.5, fontFamily: fonts.bodyRegular, lineHeight: 19 }}>
-                {t.rideDetail.warningText}
-              </Text>
             </View>
+            <Text style={{ color: theme.textSecondary, fontSize: 12.5, fontFamily: fonts.bodyRegular, lineHeight: 19, marginLeft: 28 }}>
+              {t.rideDetail.warningText}
+            </Text>
           </View>
 
-          {isOwner && (
-            <View style={{ gap: 10 }}>
-              {canEdit ? (
-                <Button variant="primary" size="lg" fullWidth onPress={() => router.push({ pathname: '/hauling/edit/[id]', params: { id: post.id } })}>
-                  {t.rideDetail.editPost}
-                </Button>
-              ) : (
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  backgroundColor: theme.surfaceAlt, borderRadius: 14,
-                  paddingHorizontal: 16, paddingVertical: 12,
-                }}>
-                  <Icon name="lock" size={14} color={theme.muted} />
-                  <Text style={{ color: theme.muted, fontSize: 12.5, fontFamily: fonts.bodyMedium }}>
-                    {t.rideDetail.editLockedInline}
-                  </Text>
-                </View>
-              )}
-              {agreementExists && (
-                <View style={{
-                  backgroundColor: theme.driverText + '1A', borderRadius: 14,
-                  paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center',
-                }}>
-                  <Text style={{ color: theme.driverText, fontFamily: fonts.bodyBold, fontSize: 13.5 }}>
-                    {t.agreement.active}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
         </View>
       </ScrollView>
 
-      {!isOwner && (
+      {isOwner ? (
         <View style={{
           flexDirection: 'row', alignItems: 'center', gap: 14,
           backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.cardBorder,
           paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14,
           ...shadows.lg,
         }}>
-          {agreementExists ? (
-            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.driverText }}>{t.agreement.active}</Text>
-          ) : null}
+          {myAgreement && (
+            <View style={{ flex: 1 }}>
+              <Button variant="primary" size="lg" fullWidth disabled={goingToConversation} onPress={handleGoToConversation}>
+                {t.rideDetail.sendMessage}
+              </Button>
+            </View>
+          )}
 
           <View style={{ flex: 1 }}>
-            <Button variant="primary" size="lg" fullWidth disabled={messaging} onPress={handleMessage}>
-              {messaging ? t.rideDetail.processing : t.rideDetail.sendMessage}
+            {canEdit ? (
+              <Button variant="primary" size="lg" fullWidth onPress={() => router.push({ pathname: '/hauling/edit/[id]', params: { id: post.id } })}>
+                {t.rideDetail.editPost}
+              </Button>
+            ) : (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                backgroundColor: theme.surfaceAlt, borderRadius: 14,
+                paddingHorizontal: 16, paddingVertical: 12,
+              }}>
+                <Icon name="lock" size={14} color={theme.muted} />
+                <Text style={{ color: theme.muted, fontSize: 12.5, fontFamily: fonts.bodyMedium }}>
+                  {t.rideDetail.editLockedInline}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      ) : (
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 14,
+          backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.cardBorder,
+          paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14,
+          ...shadows.lg,
+        }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={messaging}
+              onPress={() => (messaged || post.price_mode === 'firm' ? handleMessage() : setOfferOpen(true))}
+            >
+              {messaging
+                ? t.rideDetail.processing
+                : messaged
+                ? t.rideDetail.sendMessage
+                : post.price_mode === 'firm'
+                ? t.rideDetail.interested
+                : t.rideDetail.sendOffer}
             </Button>
           </View>
         </View>
@@ -388,6 +437,18 @@ export default function HaulingDetailScreen() {
           </View>
         </RNPressable>
       </Modal>
+
+      <OfferSheet
+        visible={offerOpen}
+        askingPrice={post.suggested_donation}
+        onClose={() => setOfferOpen(false)}
+        onSubmit={(amount) => handleMessage(amount)}
+      />
+      <ZoomableImageModal
+        visible={mapZoomOpen}
+        uri={post.route_map_url ?? photos[0] ?? null}
+        onClose={() => setMapZoomOpen(false)}
+      />
     </View>
   );
 }

@@ -51,6 +51,9 @@ import {
   Palette, Tag, UserPen, Scale, CircleQuestionMark,
   // membership
   Heart, CreditCard,
+  // completion badges
+  Wind, AlarmClockCheck, SmilePlus, Music4, Candy, Gem, MapPlus,
+  SunMoon, PackageCheck, Bubbles, MessagesSquare,
 } from 'lucide-react-native';
 
 // @lucide/lab icons aren't individual components like the main set above —
@@ -266,6 +269,30 @@ export const icons = {
 
   // ── Luggage type icons (ride detail) ────────────────────────────────
   baggage_claim: BaggageClaim,
+
+  // ── Completion badges (job-completion feedback flow) — matches
+  //    ui_kits/ridemate-app/JobCompletionReview.jsx's two badge sets ───────
+  // driver badges (rider → driver)
+  punctual: AlarmClockCheck,
+  clean_car: Car,
+  friendly: SmilePlus,
+  good_music: Music4,
+  fresh_air: Wind,
+  shares_snacks: Candy,
+  pet_friendly: PawPrint,
+  vip_service: Gem,
+  good_navigation: MapPlus,
+  flexible_hours: SunMoon,
+  city_expert: Compass,
+  careful_cargo: PackageCheck,
+  fast_delivery: Zap,
+  great_chat: MessageCircle,
+  // passenger badges (driver → rider) — on_time reuses AlarmClockCheck
+  // (same icon as driver's "punctual", different label/context)
+  on_time: AlarmClockCheck,
+  respectful: Handshake,
+  tidy: Bubbles,
+  communicative: MessagesSquare,
 
   // ── @lucide/lab (icon nodes, not standalone components — see the
   //    createElement wrapper above) ────────────────────────────────────

@@ -109,7 +109,7 @@ export function RideHistoryModal({ visible, userId, onClose }: Props) {
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: theme.text, fontFamily: theme.fontDisplay, fontSize: 14 }}>
-                        {post?.origin_city ?? '?'} → {post?.destination_city ?? '?'}
+                        {post?.origin_city ?? '?'}{post?.destination_city && post.destination_city !== post.origin_city ? ` → ${post.destination_city}` : ''}
                       </Text>
                       {date && (
                         <Text style={{ color: theme.muted, fontSize: 12, marginTop: 2 }}>

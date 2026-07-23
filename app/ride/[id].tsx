@@ -12,14 +12,15 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Field } from '@/components/ui/Field';
 import { CardBox } from '@/components/ui/CardBox';
 import { RuleChip } from '@/components/ui/RuleChip';
+import { OfferSheet } from '@/components/ride/OfferSheet';
+import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
-import { useFavorites } from '@/hooks/useFavorites';
 import { useMessages } from '@/hooks/useMessages';
 import { useBadges } from '@/hooks/useBadges';
-import { RidePost, RidePostDetailsRide } from '@/types';
+import { RidePost, RidePostDetailsRide, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -76,7 +77,7 @@ function SummaryChip({ label, value, theme }: { label: string; value: string; th
 function AddressRow({ label, value, tone, theme }: { label: string; value: string; tone: 'driver' | 'passenger'; theme: ReturnType<typeof useTheme> }) {
   return (
     <View>
-      <Badge tone={tone} icon="location" size="sm" iconSize={12} style={{ alignSelf: 'flex-start', marginBottom: 8 }}>{label}</Badge>
+      <Badge tone={tone} icon="location" size="sm" iconSize={12} style={{ alignSelf: 'center', marginBottom: 8 }}>{label}</Badge>
       <View style={{ backgroundColor: theme.surface, borderWidth: 1.5, borderColor: theme.border, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 13 }}>
         <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: theme.text }}>{value}</Text>
       </View>
@@ -106,8 +107,7 @@ export default function RideDetailScreen() {
   const { session } = useAuthStore();
   const { getPostById, incrementPostViews } = useRides();
   const { getAgreementsForPost } = useRideAgreements();
-  const { isFavorited, saveFavorite, removeFavorite } = useFavorites();
-  const { findConversation, getOrCreateConversation } = useMessages();
+  const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
   const theme = useTheme();
@@ -117,10 +117,11 @@ export default function RideDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [messaged, setMessaged] = useState(false);
   const [messaging, setMessaging] = useState(false);
-  const [favorited, setFavorited] = useState(false);
-  const [favLoading, setFavLoading] = useState(false);
-  const [agreementExists, setAgreementExists] = useState(false);
+  const [myAgreement, setMyAgreement] = useState<RideAgreement | null>(null);
+  const [goingToConversation, setGoingToConversation] = useState(false);
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
+  const [offerOpen, setOfferOpen] = useState(false);
+  const [mapZoomOpen, setMapZoomOpen] = useState(false);
 
   useEffect(() => {
     if (id) loadPost();
@@ -139,9 +140,8 @@ export default function RideDetailScreen() {
         ];
         if (session?.user) {
           tasks.push(
-            isFavorited(data.user_id).then(setFavorited),
-            getAgreementsForPost(data.id).then((agreements) => setAgreementExists(
-              agreements.some((a) => a.rider_id === session.user.id || a.driver_id === session.user.id)
+            getAgreementsForPost(data.id).then((agreements) => setMyAgreement(
+              agreements.find((a) => a.rider_id === session.user.id || a.driver_id === session.user.id) ?? null
             )),
             findConversation(data.id).then((conv) => setMessaged(!!conv)),
           );
@@ -155,7 +155,7 @@ export default function RideDetailScreen() {
     }
   }
 
-  async function handleMessage() {
+  async function handleMessage(offerAmount?: number) {
     if (!session?.user || !post) return;
     if (post.user_id === session.user.id) {
       Alert.alert(t.rideDetail.ownAdMsg, t.rideDetail.ownAdAlert);
@@ -164,7 +164,15 @@ export default function RideDetailScreen() {
     setMessaging(true);
     try {
       const conv = await getOrCreateConversation(post.id, post.user_id);
+      if (!messaged) {
+        if (offerAmount != null) {
+          await sendMessage(conv.id, `${t.rideDetail.offerAutoMsgPrefix} $${offerAmount} ${t.rideDetail.offerAutoMsgSuffix}`);
+        } else if (post.price_mode === 'firm') {
+          await sendMessage(conv.id, t.rideDetail.interestedAutoMsg);
+        }
+      }
       setMessaged(true);
+      setOfferOpen(false);
       router.push({ pathname: '/messages/[id]', params: { id: conv.id } });
     } catch {
       Alert.alert(t.rideDetail.errorTitle, t.messages.sendError);
@@ -173,38 +181,26 @@ export default function RideDetailScreen() {
     }
   }
 
-  async function handleToggleFavorite() {
-    if (!post || !session?.user) return;
-    setFavLoading(true);
-    try {
-      if (favorited) {
-        Alert.alert(t.favorites.removeConfirmTitle, t.favorites.removeConfirmMsg, [
-          { text: t.favorites.cancel, style: 'cancel' },
-          {
-            text: t.favorites.confirm,
-            style: 'destructive',
-            onPress: async () => {
-              await removeFavorite(post.user_id);
-              setFavorited(false);
-            },
-          },
-        ]);
-      } else {
-        await saveFavorite(post.user_id, post.origin_city);
-        setFavorited(true);
-      }
-    } catch (e: any) {
-      if (e.message === 'LIMIT_REACHED') {
-        Alert.alert(t.favorites.limitTitle, t.favorites.limitMsg);
-      }
-    } finally {
-      setFavLoading(false);
-    }
-  }
-
   function handleShare() {
     if (!post) return;
     Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}` });
+  }
+
+  // Owner-side "Message" — unlike handleMessage above, they never message
+  // themselves; they need the confirmed agreement's counterpart to find
+  // which of possibly several conversations on this post is the active one.
+  async function handleGoToConversation() {
+    if (!post || !myAgreement) return;
+    const counterpartId = myAgreement.driver_id === session?.user?.id ? myAgreement.rider_id : myAgreement.driver_id;
+    setGoingToConversation(true);
+    try {
+      const conv = await findConversationWithParty(post.id, counterpartId);
+      if (conv) router.push({ pathname: '/messages/[id]', params: { id: conv.id } });
+    } catch {
+      Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
+    } finally {
+      setGoingToConversation(false);
+    }
   }
 
   if (loading) {
@@ -221,7 +217,6 @@ export default function RideDetailScreen() {
   const date = new Date(post.scheduled_at);
   const isOwner = post.user_id === session?.user?.id;
   const canEdit = isOwner && (date.getTime() - Date.now() > TWO_HOURS_MS);
-  const canSaveFavorite = !isOwner && isOffer;
   const accent = isOffer ? theme.driverText : theme.primary;
 
   const details = (post.details ?? {}) as RidePostDetailsRide;
@@ -247,12 +242,14 @@ export default function RideDetailScreen() {
       {/* removeClippedSubviews={false} — see app/post/ride.tsx's identical
           comment: Android's off-screen ScrollView clipping can leave touch
           handlers stale below the fold until a native scroll forces relayout. */}
-      <ScrollView style={{ flex: 1 }} removeClippedSubviews={false} contentContainerStyle={{ paddingBottom: 48 }}>
+      <ScrollView style={{ flex: 1 }} removeClippedSubviews={false} contentContainerStyle={{ paddingBottom: 24 }}>
         {/* Map header — the route map itself is the header, not a gradient
             hero, with back/share buttons floating on top of it. */}
         <View style={{ height: 240, backgroundColor: theme.surfaceAlt, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, overflow: 'hidden', ...shadows.lg }}>
           {post.route_map_url ? (
-            <Image source={{ uri: post.route_map_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setMapZoomOpen(true)} style={{ width: '100%', height: '100%' }}>
+              <Image source={{ uri: post.route_map_url }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            </TouchableOpacity>
           ) : (
             <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="location" size={32} color={theme.textFaint} />
@@ -289,6 +286,9 @@ export default function RideDetailScreen() {
           {/* Route */}
           <View style={{ gap: 12 }}>
             <AddressRow theme={theme} tone="driver" label={t.rideDetail.origin} value={post.origin_address || post.origin_city} />
+            {(details.stops ?? []).map((stop, i) => (
+              <AddressRow key={i} theme={theme} tone="driver" label={`${t.post.stopPlaceholder} ${i + 1}`} value={stop} />
+            ))}
             <AddressRow theme={theme} tone="passenger" label={t.rideDetail.destination} value={post.destination_address || post.destination_city} />
           </View>
 
@@ -303,7 +303,7 @@ export default function RideDetailScreen() {
           {/* Seats/Adults + Children */}
           <View style={{ flexDirection: 'row', gap: 12 }}>
             {isOffer && post.seats_available != null ? (
-              <StatTile theme={theme} icon="seat_recline" label={t.rideDetail.seats} value={String(post.seats_available)} />
+              <StatTile theme={theme} icon="passenger" label={t.rideDetail.seats} value={String(post.seats_available)} />
             ) : (
               <StatTile theme={theme} icon="passenger" label={t.rideDetail.seats} value={String(details.adults ?? 1)} />
             )}
@@ -311,15 +311,6 @@ export default function RideDetailScreen() {
               <StatTile theme={theme} icon="baby_seat" label={t.post.children} value={String(details.children)} />
             )}
           </View>
-
-          {/* Description */}
-          {post.description && (
-            <Field label={t.rideDetail.notes}>
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
-                {post.description}
-              </Text>
-            </Field>
-          )}
 
           {/* Event details */}
           {!!details.eventName && (
@@ -438,6 +429,15 @@ export default function RideDetailScreen() {
             </Field>
           )}
 
+          {/* Description */}
+          {post.description && (
+            <Field label={t.rideDetail.notes}>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
+                {post.description}
+              </Text>
+            </Field>
+          )}
+
           {/* Poster */}
           <Card padding={14} elevation="sm" interactive onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -457,90 +457,102 @@ export default function RideDetailScreen() {
 
           {/* Warning */}
           <View style={{
-            flexDirection: 'row', gap: 10,
             backgroundColor: theme.warning + '1A',
             borderWidth: 1, borderColor: theme.warning + '4D',
             borderRadius: 14, padding: 16,
           }}>
-            <Icon name="warning" size={18} color={theme.warning} />
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: theme.warning, fontSize: 13, fontFamily: fonts.bodyBold, marginBottom: 4 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+              <Icon name="warning" size={18} color={theme.warning} />
+              {/* includeFontPadding:false strips Android's default extra glyph
+                  padding, which was making this text look vertically offset
+                  from the icon even though alignItems:'center' is correct —
+                  a well-known RN-on-Android text/icon alignment gotcha. */}
+              <Text style={{ color: theme.warning, fontSize: 18, fontFamily: fonts.bodyBold, includeFontPadding: false, textAlignVertical: 'center' }}>
                 {t.rideDetail.warningTitle}
               </Text>
-              <Text style={{ color: theme.textSecondary, fontSize: 12.5, fontFamily: fonts.bodyRegular, lineHeight: 19 }}>
-                {t.rideDetail.warningText}
-              </Text>
             </View>
+            <Text style={{ color: theme.textSecondary, fontSize: 12.5, fontFamily: fonts.bodyRegular, lineHeight: 19, marginLeft: 28 }}>
+              {t.rideDetail.warningText}
+            </Text>
           </View>
-
-          {/* Owner notice + edit button */}
-          {isOwner && (
-            <View style={{ gap: 10 }}>
-              {canEdit ? (
-                <Button variant="primary" size="lg" fullWidth onPress={() => router.push(`/ride/edit/${post.id}`)}>
-                  {t.rideDetail.editPost}
-                </Button>
-              ) : (
-                <View style={{
-                  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  backgroundColor: theme.surfaceAlt, borderRadius: 14,
-                  paddingHorizontal: 16, paddingVertical: 12,
-                }}>
-                  <Icon name="lock" size={14} color={theme.muted} />
-                  <Text style={{ color: theme.muted, fontSize: 12.5, fontFamily: fonts.bodyMedium }}>
-                    {t.rideDetail.editLockedInline}
-                  </Text>
-                </View>
-              )}
-              {agreementExists && (
-                <View style={{
-                  backgroundColor: theme.driverText + '1A', borderRadius: 14,
-                  paddingHorizontal: 16, paddingVertical: 12, alignItems: 'center',
-                }}>
-                  <Text style={{ color: theme.driverText, fontFamily: fonts.bodyBold, fontSize: 13.5 }}>
-                    {t.agreement.active}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
         </View>
       </ScrollView>
 
-      {/* Sticky footer — real contact/favorite/confirm actions, styled as
-          the design system's fixed bottom bar. */}
-      {!isOwner && (
+      {/* Sticky footer — matches the !isOwner CTA bar below so an owner
+          viewing their own post gets the same fixed "Edit post" action
+          instead of it scrolling away with the content. */}
+      {isOwner ? (
         <View style={{
           flexDirection: 'row', alignItems: 'center', gap: 14,
           backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.cardBorder,
           paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14,
           ...shadows.lg,
         }}>
-          {agreementExists ? (
-            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.driverText }}>{t.agreement.active}</Text>
-          ) : canSaveFavorite ? (
-            // "Interested" doubles as the design's INTERESTED action — mapped
-            // onto our real favorite/save-driver flow. Stays visible but
-            // disabled until you've messaged: saving someone you haven't
-            // engaged with yet reads too close to the "rate a driver you
-            // never rode with" pattern flagged in [[project-legal-tnc-compliance]].
-            <Button
-              variant="ghost"
-              textColor={favorited ? theme.primary : theme.textSecondary}
-              disabled={favLoading || !messaged}
-              onPress={handleToggleFavorite}
-            >
-              {favorited ? t.rideDetail.interestedSaved : t.rideDetail.interested}
-            </Button>
-          ) : null}
+          {myAgreement && (
+            <View style={{ flex: 1 }}>
+              <Button variant="primary" size="lg" fullWidth disabled={goingToConversation} onPress={handleGoToConversation}>
+                {t.rideDetail.sendMessage}
+              </Button>
+            </View>
+          )}
 
           <View style={{ flex: 1 }}>
-            <Button variant="primary" size="lg" fullWidth disabled={messaging} onPress={handleMessage}>
-              {messaging ? t.rideDetail.processing : t.rideDetail.sendMessage}
+            {canEdit ? (
+              <Button variant="primary" size="lg" fullWidth onPress={() => router.push(`/ride/edit/${post.id}`)}>
+                {t.rideDetail.editPost}
+              </Button>
+            ) : (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                backgroundColor: theme.surfaceAlt, borderRadius: 14,
+                paddingHorizontal: 16, paddingVertical: 12,
+              }}>
+                <Icon name="lock" size={14} color={theme.muted} />
+                <Text style={{ color: theme.muted, fontSize: 12.5, fontFamily: fonts.bodyMedium }}>
+                  {t.rideDetail.editLockedInline}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+      ) : (
+        <View style={{
+          flexDirection: 'row', alignItems: 'center', gap: 14,
+          backgroundColor: theme.surface, borderTopWidth: 1, borderTopColor: theme.cardBorder,
+          paddingHorizontal: 20, paddingTop: 14, paddingBottom: insets.bottom + 14,
+          ...shadows.lg,
+        }}>
+          <View style={{ flex: 1 }}>
+            <Button
+              variant="primary"
+              size="lg"
+              fullWidth
+              disabled={messaging}
+              onPress={() => (messaged || post.price_mode === 'firm' ? handleMessage() : setOfferOpen(true))}
+            >
+              {messaging
+                ? t.rideDetail.processing
+                : messaged
+                ? t.rideDetail.sendMessage
+                : post.price_mode === 'firm'
+                ? t.rideDetail.interested
+                : t.rideDetail.sendOffer}
             </Button>
           </View>
         </View>
       )}
+
+      <OfferSheet
+        visible={offerOpen}
+        askingPrice={post.suggested_donation}
+        onClose={() => setOfferOpen(false)}
+        onSubmit={(amount) => handleMessage(amount)}
+      />
+      <ZoomableImageModal
+        visible={mapZoomOpen}
+        uri={post.route_map_url}
+        onClose={() => setMapZoomOpen(false)}
+      />
     </View>
   );
 }

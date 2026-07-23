@@ -53,6 +53,11 @@ export default function UserProfileScreen() {
   const [tripCount, setTripCount] = useState<number | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  // Same wrap-avoidance trick as the tabs Profile screen's own header — see
+  // that file's comment: once the city+"Member since" line wraps to 2 lines
+  // via the "\n" separator, re-measuring from a fresh single-line attempt on
+  // every profile change stops it from staying wrapped forever.
+  const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -64,6 +69,10 @@ export default function UserProfileScreen() {
     }
     load();
   }, [id, session?.user?.id]);
+
+  useEffect(() => {
+    setMemberSinceWrapped(false);
+  }, [profile?.home_city, profile?.created_at]);
 
   async function load() {
     setLoading(true);
@@ -133,8 +142,13 @@ export default function UserProfileScreen() {
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 22, letterSpacing: letterSpacingFor(22, tracking.tight), color: theme.cream, marginTop: 10 }}>
             {profile.full_name}
           </Text>
-          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12, textTransform: 'uppercase', letterSpacing: letterSpacingFor(12, tracking.wide), color: theme.gold300, marginTop: 2 }}>
-            {t.profile.memberSince} {new Date(profile.created_at).toLocaleDateString(t.locale, { month: 'long', year: 'numeric' })}
+          <Text
+            style={{ fontFamily: fonts.bodySemibold, fontSize: 12, textTransform: 'uppercase', letterSpacing: letterSpacingFor(12, tracking.wide), color: theme.gold300, marginTop: 2, textAlign: 'center' }}
+            onTextLayout={(e) => setMemberSinceWrapped(e.nativeEvent.lines.length > 1)}
+          >
+            {profile.home_city ? `${profile.home_city}${memberSinceWrapped ? '\n' : ' • '}` : ''}
+            {t.profile.memberSince}{' '}
+            {new Date(profile.created_at).toLocaleDateString(t.locale, { month: 'long', year: 'numeric' })}
           </Text>
 
           <View style={{

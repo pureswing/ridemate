@@ -25,10 +25,16 @@ export type SubscriptionPlan = 'donor';
 export type MembershipTier = 'free' | SubscriptionPlan;
 export type AgreementStatus = 'pending' | 'active' | 'completed' | 'cancelled' | 'no_show';
 
-// Driver badges (given by passenger to driver)
-export type DriverBadgeType = 'clean_car' | 'punctual' | 'friendly' | 'good_vibes' | 'smooth_ride';
-// Passenger badges (given by driver to passenger)
-export type PassengerBadgeType = 'on_time' | 'communicative' | 'respectful' | 'tidy' | 'great_company';
+// Driver badges (given by rider to driver) — matches
+// ui_kits/ridemate-app/JobCompletionReview.jsx's JC_BADGES_ABOUT_DRIVER.
+export type DriverBadgeType =
+  | 'punctual' | 'clean_car' | 'friendly' | 'good_music' | 'fresh_air'
+  | 'shares_snacks' | 'pet_friendly' | 'vip_service' | 'good_navigation'
+  | 'flexible_hours' | 'city_expert' | 'careful_cargo' | 'fast_delivery' | 'great_chat';
+// Passenger badges (given by driver to rider) — matches
+// JC_BADGES_ABOUT_RIDER. 'great_chat' is intentionally shared with
+// DriverBadgeType above — same icon and label on both sides.
+export type PassengerBadgeType = 'on_time' | 'respectful' | 'tidy' | 'communicative' | 'great_chat';
 export type BadgeType = DriverBadgeType | PassengerBadgeType;
 
 export type StrikeLevel = 0 | 1 | 2 | 3;
@@ -250,6 +256,13 @@ export interface UserFavorite {
   driver?: Pick<Profile, 'full_name' | 'avatar_url'>;
 }
 
+export interface BlockedUser {
+  id: string;
+  blocker_id: string;
+  blocked_id: string;
+  created_at: string;
+}
+
 export interface RideAgreement {
   id: string;
   post_id: string;
@@ -260,7 +273,7 @@ export interface RideAgreement {
   status: AgreementStatus;
   created_at: string;
   updated_at: string;
-  post?: Pick<RidePost, 'origin_city' | 'destination_city' | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation'>;
+  post?: Pick<RidePost, 'origin_city' | 'destination_city' | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation' | 'duration_seconds'>;
   driver?: Pick<Profile, 'full_name' | 'avatar_url'>;
   rider?: Pick<Profile, 'full_name' | 'avatar_url'>;
 }

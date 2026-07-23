@@ -29,7 +29,7 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
     const lines = [
       `=== ${t.tripSummary.title} ===`,
       `${t.tripSummary.origin}: ${r.origin}`,
-      `${t.tripSummary.destination}: ${r.destination}`,
+      r.destination !== r.origin ? `${t.tripSummary.destination}: ${r.destination}` : '',
       `${t.tripSummary.date}: ${dateStr}`,
       `${t.tripSummary.time}: ${timeStr}`,
       r.distanceText ? `${t.tripSummary.distance}: ${r.distanceText}` : '',
@@ -64,7 +64,12 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
             borderRadius: 16, padding: 20, marginBottom: 20,
           }}>
             <RecordRow label={t.tripSummary.origin} value={r.origin} theme={theme} />
-            <RecordRow label={t.tripSummary.destination} value={r.destination} theme={theme} />
+            {/* Same city on both ends = no real dropoff (e.g. hauling posted
+                with disposal:'driver') — a "Destination: Winter Haven" row
+                under an identical "Origin: Winter Haven" row is just noise. */}
+            {r.destination !== r.origin && (
+              <RecordRow label={t.tripSummary.destination} value={r.destination} theme={theme} />
+            )}
             <RecordRow label={t.tripSummary.date} value={dateStr} theme={theme} />
             <RecordRow label={t.tripSummary.time} value={timeStr} theme={theme} />
             {r.distanceText && (

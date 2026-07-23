@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { applyAuthDeepLink } from '@/lib/authDeepLink';
 import { useLanguageStore } from '@/store/languageStore';
 import { useTranslation } from '@/hooks/useTranslation';
+import { CompletionGate } from '@/components/community/CompletionGate';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -99,6 +100,7 @@ export default function RootLayout() {
           <Stack.Screen name="post/package" options={{ headerShown: false }} />
           <Stack.Screen name="post/hauling" options={{ headerShown: false }} />
         </Stack>
+        <CompletionGate />
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

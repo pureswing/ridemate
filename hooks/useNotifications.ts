@@ -44,5 +44,10 @@ export function useNotifications() {
     }
   }, []);
 
-  return { getNotifications, getUnreadCount, markAllRead, loading };
+  const deleteNotification = useCallback(async (id: string): Promise<void> => {
+    const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (error) throw error;
+  }, []);
+
+  return { getNotifications, getUnreadCount, markAllRead, deleteNotification, loading };
 }

@@ -323,7 +323,7 @@ function RideRow({ item, theme, t }: { item: CalendarItem; theme: ReturnType<typ
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
-          {item.originCity} → {item.destinationCity}
+          {item.originCity}{item.destinationCity !== item.originCity ? ` → ${item.destinationCity}` : ''}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
           <Badge tone={item.status === 'cancelled' ? 'neutral' : item.status === 'completed' ? 'success' : 'warning'} size="sm">{config.label}</Badge>

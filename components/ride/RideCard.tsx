@@ -119,7 +119,15 @@ export function RideCard({ post, style }: Props) {
           )}
         </View>
 
-        <RouteLine origin={post.origin_city} destination={post.destination_city} style={{ marginBottom: 14 }} />
+        <RouteLine
+          origin={post.origin_city}
+          // Same city on both ends means no real dropoff (e.g. hauling posted
+          // with disposal:'driver' — destination_city just reuses origin_city
+          // since that DB column is NOT NULL) — show pickup only, not two
+          // identical-looking rows with different dot colors.
+          destination={post.destination_city === post.origin_city ? undefined : post.destination_city}
+          style={{ marginBottom: 14 }}
+        />
 
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 16 }}>
           <Meta icon="event" text={date.toLocaleDateString(t.locale, { weekday: 'short', month: 'short', day: 'numeric' })} />

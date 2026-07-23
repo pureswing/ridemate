@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
-import { View, FlatList, ActivityIndicator } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, FlatList, ActivityIndicator, Dimensions } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -18,6 +19,8 @@ import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
 import { shortDateTime } from '@/utils/dateFormat';
 
+const screenWidth = Dimensions.get('window').width;
+
 const TYPE_ICON: Record<NotificationType, IconName> = {
   message: 'chat',
   agreement_created: 'handshake',
@@ -27,10 +30,11 @@ const TYPE_ICON: Record<NotificationType, IconName> = {
 
 export default function NotificationsScreen() {
   const { session } = useAuthStore();
-  const { getNotifications, markAllRead } = useNotifications();
+  const { getNotifications, markAllRead, deleteNotification } = useNotifications();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   const [items, setItems] = useState<AppNotification[]>([]);
   // Snapshot of which ids were unread AT LOAD TIME — markAllRead fires right
@@ -52,6 +56,18 @@ export default function NotificationsScreen() {
       }
     })();
   }, [session?.user?.id]);
+
+  async function handleDelete(id: string) {
+    swipeableRefs.current.get(id)?.close();
+    swipeableRefs.current.delete(id);
+    setItems((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await deleteNotification(id);
+    } catch {
+      // Deletion failed silently server-side; the item stays gone locally
+      // until the next screen visit re-fetches — acceptable for a low-stakes action.
+    }
+  }
 
   function handlePress(n: AppNotification) {
     if (n.type === 'message' && n.data.conversation_id) {
@@ -109,38 +125,55 @@ export default function NotificationsScreen() {
           renderItem={({ item }) => {
             const wasUnread = unreadIds.has(item.id);
             return (
-              <TouchableOpacity
-                onPress={() => handlePress(item)}
-                style={{
-                  flexDirection: 'row', alignItems: 'flex-start', gap: 12,
-                  backgroundColor: theme.surface, borderRadius: radii.lg,
-                  borderWidth: 1, borderColor: wasUnread ? theme.borderGold : theme.cardBorder,
-                  padding: 14, ...shadows.xs,
+              <Swipeable
+                ref={(ref) => {
+                  if (ref) swipeableRefs.current.set(item.id, ref);
+                  else swipeableRefs.current.delete(item.id);
                 }}
-              >
-                <View style={{
-                  width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: wasUnread ? theme.primary + '18' : theme.surfaceAlt,
-                }}>
-                  <Icon name={TYPE_ICON[item.type]} size={18} color={wasUnread ? theme.primary : theme.muted} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={{ fontFamily: wasUnread ? fonts.bodyBold : fonts.bodySemibold, fontSize: 14, color: theme.text }}>
-                    {item.title}
-                  </Text>
-                  {item.body && (
-                    <Text numberOfLines={2} style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted, marginTop: 2 }}>
-                      {item.body}
-                    </Text>
-                  )}
-                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 4 }}>
-                    {shortDateTime(item.created_at, t.locale)}
-                  </Text>
-                </View>
-                {wasUnread && (
-                  <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.primary, marginTop: 4 }} />
+                leftThreshold={screenWidth * 0.55}
+                onSwipeableOpen={(direction) => direction === 'left' && handleDelete(item.id)}
+                renderLeftActions={() => (
+                  <View style={{
+                    flex: 1, marginRight: 10, borderRadius: radii.lg,
+                    backgroundColor: theme.danger, alignItems: 'flex-start', justifyContent: 'center', paddingLeft: 20,
+                  }}>
+                    <Icon name="delete" size={22} color="#fff" />
+                  </View>
                 )}
-              </TouchableOpacity>
+              >
+                <TouchableOpacity
+                  onPress={() => handlePress(item)}
+                  style={{
+                    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
+                    backgroundColor: theme.surface, borderRadius: radii.lg,
+                    borderWidth: 1, borderColor: wasUnread ? theme.borderGold : theme.cardBorder,
+                    padding: 14, ...shadows.xs,
+                  }}
+                >
+                  <View style={{
+                    width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: wasUnread ? theme.primary + '18' : theme.surfaceAlt,
+                  }}>
+                    <Icon name={TYPE_ICON[item.type]} size={18} color={wasUnread ? theme.primary : theme.muted} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={{ fontFamily: wasUnread ? fonts.bodyBold : fonts.bodySemibold, fontSize: 14, color: theme.text }}>
+                      {item.title}
+                    </Text>
+                    {item.body && (
+                      <Text numberOfLines={2} style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted, marginTop: 2 }}>
+                        {item.body}
+                      </Text>
+                    )}
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 4 }}>
+                      {shortDateTime(item.created_at, t.locale)}
+                    </Text>
+                  </View>
+                  {wasUnread && (
+                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.primary, marginTop: 4 }} />
+                  )}
+                </TouchableOpacity>
+              </Swipeable>
             );
           }}
         />

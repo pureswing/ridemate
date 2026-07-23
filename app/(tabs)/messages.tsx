@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { View, FlatList, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
@@ -9,6 +10,7 @@ import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
+import { renderBodyWithBoldPrice } from '@/components/ui/HighlightedPrice';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { useMessages } from '@/hooks/useMessages';
@@ -90,8 +92,15 @@ function ConversationRow({ conversation, myId, agreement, insured }: { conversat
           {post ? (
             <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12.5, flexShrink: 1 }}>
               <Text style={{ color: theme.gold500, fontFamily: fonts.bodyExtraBold }}>{post.origin_city}</Text>
-              <Text style={{ color: theme.textFaint }}> → </Text>
-              <Text style={{ color: theme.gold500, fontFamily: fonts.bodyExtraBold }}>{post.destination_city}</Text>
+              {/* Same city on both ends = no real dropoff (e.g. hauling posted
+                  with disposal:'driver' — destination_city just reuses
+                  origin_city since that DB column is NOT NULL). */}
+              {post.destination_city !== post.origin_city && (
+                <>
+                  <Text style={{ color: theme.textFaint }}> → </Text>
+                  <Text style={{ color: theme.gold500, fontFamily: fonts.bodyExtraBold }}>{post.destination_city}</Text>
+                </>
+              )}
             </Text>
           ) : (
             <Text numberOfLines={1} style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12.5, color: theme.text }}>{otherParty?.full_name ?? '—'}</Text>
@@ -110,7 +119,7 @@ function ConversationRow({ conversation, myId, agreement, insured }: { conversat
           fontFamily: unread > 0 ? fonts.bodySemibold : fonts.bodyRegular, fontSize: 13,
           color: unread > 0 ? theme.text : theme.muted,
         }}>
-          {lastMessage?.body ?? t.messages.noMessagesYet}
+          {lastMessage?.body ? renderBodyWithBoldPrice(lastMessage.body) : t.messages.noMessagesYet}
         </Text>
       </View>
     </TouchableOpacity>
@@ -135,10 +144,12 @@ export default function MessagesScreen() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterBucket>('active');
 
-  useEffect(() => {
-    if (!session?.user) return;
-    fetchConversations();
-  }, [session]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!session?.user) return;
+      fetchConversations();
+    }, [session])
+  );
 
   async function fetchConversations() {
     setLoading(true);
