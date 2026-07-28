@@ -273,9 +273,13 @@ export interface RideAgreement {
   status: AgreementStatus;
   created_at: string;
   updated_at: string;
-  post?: Pick<RidePost, 'origin_city' | 'destination_city' | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation' | 'duration_seconds'>;
-  driver?: Pick<Profile, 'full_name' | 'avatar_url'>;
-  rider?: Pick<Profile, 'full_name' | 'avatar_url'>;
+  post?: Pick<RidePost,
+    | 'origin_city' | 'destination_city' | 'origin_address' | 'destination_address'
+    | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation' | 'duration_seconds'
+    | 'distance_text' | 'duration_text' | 'details'
+  >;
+  driver?: Pick<Profile, 'full_name' | 'avatar_url' | 'username'>;
+  rider?: Pick<Profile, 'full_name' | 'avatar_url' | 'username'>;
 }
 
 export interface RideBadge {
@@ -395,12 +399,42 @@ export interface AppNotification {
 
 export interface TripRecord {
   agreementId: string;
+  // Drives which of the kind-specific fields below make sense to show —
+  // see components/ride/TripSummaryModal.tsx.
+  kind: RidePostKind;
   origin: string;
   destination: string;
+  // Exact street addresses, when the post had them (origin/destination_address
+  // on RidePost) — the city-level origin/destination above is always present,
+  // these aren't.
+  originAddress?: string;
+  destinationAddress?: string;
+  stops?: string[];
   scheduledAt: string;
   suggestedDonation?: number;
   otherPartyName: string;
   myRole: 'driver' | 'rider';
   distanceText?: string;
   durationText?: string;
+  // Community badges the CURRENT viewer received for this trip (not given).
+  badges?: BadgeType[];
+  vehicle?: {
+    make: string;
+    model: string;
+    year: number;
+    color: string;
+    insured: boolean;
+    vehicleType?: string;
+  };
+  // 'ride' only — actual riders on this trip (details.adults + .children),
+  // not the vehicle's seat capacity.
+  passengerCount?: number;
+  // 'ride' only — "[Yes (3)]" style per the request; undefined bagCount with
+  // luggagePresent true just renders "Yes" with no count.
+  luggagePresent?: boolean;
+  luggageCount?: number;
+  // 'package' only
+  packageQty?: number;
+  // 'hauling' only
+  loadSize?: string;
 }

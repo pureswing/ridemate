@@ -9,6 +9,12 @@ import { fonts, radii, shadows } from '@/constants/themes';
 
 interface Props {
   badge: BadgeType;
+  // Times this badge was awarded — shown as a line below the description,
+  // matching components/ride/CommunityBadge.jsx's CommunityBadgeDetail
+  // "N awards from the community". Omitted in BadgeSelector's expand-to-view
+  // context (no count to show while giving a badge, only while viewing one
+  // already received — see BadgeInfoSheet).
+  count?: number;
 }
 
 // The description/category card for whichever badge is currently expanded
@@ -16,7 +22,7 @@ interface Props {
 // one per badge), matching components/ride/CommunityBadge.jsx's
 // CommunityBadgeDetail: opening a badge only ever grows the space below
 // the grid, the medallions above it never reflow.
-export function BadgeDetail({ badge }: Props) {
+export function BadgeDetail({ badge, count }: Props) {
   const theme = useTheme();
   const t = useTranslation();
   const { color, category } = BADGE_ICONS[badge];
@@ -43,6 +49,11 @@ export function BadgeDetail({ badge }: Props) {
         <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted, lineHeight: 18 }}>
           {t.badges.desc[badge]}
         </Text>
+        {count != null && (
+          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color, marginTop: 8 }}>
+            {count} {t.badges.awardsFromCommunity}
+          </Text>
+        )}
       </View>
     </View>
   );

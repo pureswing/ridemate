@@ -44,10 +44,19 @@ export function useNotifications() {
     }
   }, []);
 
+  const markRead = useCallback(async (id: string): Promise<void> => {
+    const { error } = await supabase
+      .from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('read_at', null);
+    if (error) throw error;
+  }, []);
+
   const deleteNotification = useCallback(async (id: string): Promise<void> => {
     const { error } = await supabase.from('notifications').delete().eq('id', id);
     if (error) throw error;
   }, []);
 
-  return { getNotifications, getUnreadCount, markAllRead, deleteNotification, loading };
+  return { getNotifications, getUnreadCount, markAllRead, markRead, deleteNotification, loading };
 }

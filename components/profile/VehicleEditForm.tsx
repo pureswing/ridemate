@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, ScrollView, Modal, Pressable as RNPressable, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, ScrollView, Pressable as RNPressable, Alert, ActivityIndicator, Image } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { Icon } from '@/components/ui/Icon';
@@ -10,6 +10,7 @@ import { StepRow } from '@/components/ui/StepRow';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { PlainToggleRow } from '@/components/ui/PlainToggleRow';
 import { Button } from '@/components/ui/Button';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -453,14 +454,15 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
         </Field>
       </View>
 
-      {/* Color */}
-      <Field label={t.profile.vehicleColor}>
-        <Input icon="palette" value={color} onChangeText={setColor} placeholder="Pearl White" />
-      </Field>
-
-      <Field label={t.profile.vehiclePlate} hint={t.profile.vehiclePlateHint}>
-        <Input icon="tag" value={plate} onChangeText={(v) => setPlate(v.toUpperCase())} placeholder="MIA-4471" autoCapitalize="characters" />
-      </Field>
+      {/* Color + Plate */}
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <Field label={t.profile.vehicleColor} style={{ flex: 1 }}>
+          <Input icon="palette" value={color} onChangeText={setColor} placeholder="Pearl White" />
+        </Field>
+        <Field label={t.profile.vehiclePlate} hint={t.profile.vehiclePlateHint} style={{ flex: 1 }}>
+          <Input icon="tag" value={plate} onChangeText={(v) => setPlate(v.toUpperCase())} placeholder="MIA-4471" autoCapitalize="characters" />
+        </Field>
+      </View>
 
       {/* Seats */}
       <Field label="Passenger seats">
@@ -640,16 +642,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
           inside a plain RN Modal left the whole screen's touches dead after
           the modal closed once (see app/messages/[id].tsx's ConfirmSheet
           comment for the full story). Plain Pressable sidesteps it. */}
-      <Modal visible={showDeleteConfirm} transparent animationType="slide" onRequestClose={() => setShowDeleteConfirm(false)}>
-        <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setShowDeleteConfirm(false)}>
-          <RNPressable onPress={() => {}}>
-            <View style={{
-              position: 'relative',
-              backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-              padding: 24, paddingBottom: insets.bottom + 24,
-            }}>
-              <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-              <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 20 }} />
+      <BottomSheet visible={showDeleteConfirm} onClose={() => setShowDeleteConfirm(false)} dismissable={!deleting} style={{ paddingHorizontal: 24, paddingBottom: 24 }}>
               <View style={{
                 width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: theme.danger,
                 backgroundColor: theme.danger + '14', alignItems: 'center', justifyContent: 'center',
@@ -681,24 +674,12 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
                   <Text style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: theme.text }}>{t.profile.deleteVehicleCancel}</Text>
                 </RNPressable>
               </View>
-            </View>
-          </RNPressable>
-        </RNPressable>
-      </Modal>
+      </BottomSheet>
 
       {/* Amenity/rule detail sheet — choices + note for whichever chip was
-          just selected. Plain RN Pressable + filler view, same pattern as
-          the delete-confirm modal above. */}
-      <Modal visible={detailAmenity !== null} transparent animationType="slide" onRequestClose={() => setDetailAmenity(null)}>
-        <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setDetailAmenity(null)}>
-          <RNPressable onPress={() => {}}>
-            <View style={{
-              position: 'relative',
-              backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-              padding: 20, paddingBottom: insets.bottom + 20,
-            }}>
-              <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-              <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 18 }} />
+          just selected. Plain RN Pressable, same pattern as the
+          delete-confirm modal above. */}
+      <BottomSheet visible={detailAmenity !== null} onClose={() => setDetailAmenity(null)} style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
               {detailAmenity && (() => {
                 const key = detailAmenity;
                 const label = AMENITY_LABELS[key] ?? '';
@@ -749,10 +730,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
                   </>
                 );
               })()}
-            </View>
-          </RNPressable>
-        </RNPressable>
-      </Modal>
+      </BottomSheet>
     </View>
   );
 }

@@ -7,6 +7,7 @@ import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
+import { Chip } from '@/components/ui/Chip';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { useAuthStore } from '@/store/authStore';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -17,29 +18,34 @@ import { AppNotification, NotificationType } from '@/types';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
-import { shortDateTime } from '@/utils/dateFormat';
+import { formatRelativeTime } from '@/utils/dateFormat';
 
 const screenWidth = Dimensions.get('window').width;
 
-const TYPE_ICON: Record<NotificationType, IconName> = {
-  message: 'chat',
-  agreement_created: 'handshake',
-  agreement_completed: 'check_circle',
-  badge_received: 'star',
+// Matches ui_kits/ridemate-app/NotificationCenter.jsx's NC_TYPE_META — only
+// the 4 notification types this app's DB actually produces (026_notifications.sql);
+// the design's route-alert/offer/reminder/system types belong to features
+// that don't exist here yet (route-alert is the explicitly-deferred Route
+// Intelligence panel — see project memory).
+const TYPE_META: Record<NotificationType, { icon: IconName; color: string; bg: string }> = {
+  message: { icon: 'chat', color: '#ED4A2B', bg: '#FFF1ED' },
+  agreement_created: { icon: 'check', color: '#2BA84A', bg: '#2BA84A1A' },
+  agreement_completed: { icon: 'check_circle', color: '#0A7E77', bg: '#E6FAF8' },
+  badge_received: { icon: 'sparkles', color: '#D9B871', bg: '#D9B8711F' },
 };
+
+type Filter = 'all' | 'unread';
 
 export default function NotificationsScreen() {
   const { session } = useAuthStore();
-  const { getNotifications, markAllRead, deleteNotification } = useNotifications();
+  const { getNotifications, markAllRead, markRead, deleteNotification } = useNotifications();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
 
   const [items, setItems] = useState<AppNotification[]>([]);
-  // Snapshot of which ids were unread AT LOAD TIME — markAllRead fires right
-  // after, but this screen still shows which ones were new during this view.
-  const [unreadIds, setUnreadIds] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -47,15 +53,23 @@ export default function NotificationsScreen() {
     (async () => {
       setLoading(true);
       try {
-        const list = await getNotifications(session.user.id);
-        setItems(list);
-        setUnreadIds(new Set(list.filter((n) => !n.read_at).map((n) => n.id)));
-        await markAllRead(session.user.id);
+        setItems(await getNotifications(session.user.id));
       } finally {
         setLoading(false);
       }
     })();
   }, [session?.user?.id]);
+
+  const unreadCount = items.filter((n) => !n.read_at).length;
+  const visible = filter === 'unread' ? items.filter((n) => !n.read_at) : items;
+
+  async function handleMarkAllRead() {
+    if (!session?.user || unreadCount === 0) return;
+    setItems((prev) => prev.map((n) => (n.read_at ? n : { ...n, read_at: new Date().toISOString() })));
+    try {
+      await markAllRead(session.user.id);
+    } catch {}
+  }
 
   async function handleDelete(id: string) {
     swipeableRefs.current.get(id)?.close();
@@ -70,6 +84,10 @@ export default function NotificationsScreen() {
   }
 
   function handlePress(n: AppNotification) {
+    if (!n.read_at) {
+      setItems((prev) => prev.map((x) => (x.id === n.id ? { ...x, read_at: new Date().toISOString() } : x)));
+      markRead(n.id).catch(() => {});
+    }
     if (n.type === 'message' && n.data.conversation_id) {
       router.push({ pathname: '/messages/[id]', params: { id: n.data.conversation_id } });
     } else if (n.type === 'agreement_created' || n.type === 'agreement_completed') {
@@ -86,14 +104,36 @@ export default function NotificationsScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 18, paddingHorizontal: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 14, paddingHorizontal: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <IconButton icon="arrow_back" variant="glass" label={t.post.goBack} onPress={() => router.back()} />
-          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
-            {t.notificationsScreen.title}
-          </Text>
-          <View style={{ width: 44 }} />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
+              {t.notificationsScreen.title}
+            </Text>
+            {unreadCount > 0 && (
+              <View style={{ minWidth: 18, height: 18, borderRadius: 9, backgroundColor: theme.driverText, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 }}>
+                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 10, lineHeight: 12, color: '#fff', includeFontPadding: false, textAlignVertical: 'center' }}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
+          {unreadCount > 0 ? (
+            <TouchableOpacity onPress={handleMarkAllRead} style={{ paddingVertical: 4 }}>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: theme.gold300 }}>{t.notificationsScreen.markAllRead}</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 44 }} />
+          )}
+        </View>
+
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginTop: 14 }}>
+          <Chip size="sm" selected={filter === 'all'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => setFilter('all')}>
+            {t.notificationsScreen.filterAll}
+          </Chip>
+          <Chip size="sm" selected={filter === 'unread'} color={theme.gradientJade} shadow={shadows.xs} count={unreadCount > 0 ? unreadCount : undefined} onPress={() => setFilter('unread')}>
+            {t.notificationsScreen.filterUnread}
+          </Chip>
         </View>
       </LinearGradient>
 
@@ -101,7 +141,7 @@ export default function NotificationsScreen() {
         <ActivityIndicator style={{ marginTop: 40 }} size="large" color={theme.primary} />
       ) : (
         <FlatList
-          data={items}
+          data={visible}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 20, flexGrow: 1 }}
           ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
@@ -115,15 +155,18 @@ export default function NotificationsScreen() {
                 <Icon name="notification" size={36} color={theme.primary} />
               </View>
               <Text style={{ color: theme.text, fontFamily: fonts.displayBold, fontSize: 18, marginBottom: 8 }}>
-                {t.notificationsScreen.empty}
+                {filter === 'unread' ? t.notificationsScreen.noUnread : t.notificationsScreen.empty}
               </Text>
-              <Text style={{ color: theme.muted, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 }}>
-                {t.notificationsScreen.emptySubtitle}
-              </Text>
+              {filter === 'all' && (
+                <Text style={{ color: theme.muted, textAlign: 'center', paddingHorizontal: 32, lineHeight: 20 }}>
+                  {t.notificationsScreen.emptySubtitle}
+                </Text>
+              )}
             </View>
           }
           renderItem={({ item }) => {
-            const wasUnread = unreadIds.has(item.id);
+            const unread = !item.read_at;
+            const meta = TYPE_META[item.type];
             return (
               <Swipeable
                 ref={(ref) => {
@@ -146,32 +189,38 @@ export default function NotificationsScreen() {
                   style={{
                     flexDirection: 'row', alignItems: 'flex-start', gap: 12,
                     backgroundColor: theme.surface, borderRadius: radii.lg,
-                    borderWidth: 1, borderColor: wasUnread ? theme.borderGold : theme.cardBorder,
-                    padding: 14, ...shadows.xs,
+                    borderWidth: 1, borderColor: theme.cardBorder,
+                    borderLeftWidth: unread ? 3 : 1, borderLeftColor: unread ? meta.color : theme.cardBorder,
+                    padding: 14, ...(unread ? shadows.xs : {}),
                   }}
                 >
                   <View style={{
-                    width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
-                    backgroundColor: wasUnread ? theme.primary + '18' : theme.surfaceAlt,
+                    width: 42, height: 42, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
+                    backgroundColor: meta.bg,
                   }}>
-                    <Icon name={TYPE_ICON[item.type]} size={18} color={wasUnread ? theme.primary : theme.muted} />
+                    <Icon name={meta.icon} size={20} color={meta.color} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={{ fontFamily: wasUnread ? fonts.bodyBold : fonts.bodySemibold, fontSize: 14, color: theme.text }}>
-                      {item.title}
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 }}>
+                      <Text numberOfLines={1} style={{ flex: 1, fontFamily: unread ? fonts.bodyBold : fonts.bodySemibold, fontSize: 13.5, color: theme.text }}>
+                        {item.title}
+                      </Text>
+                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, flexShrink: 0 }}>
+                        {formatRelativeTime(item.created_at, t.locale, {
+                          justNow: t.notificationsScreen.justNow,
+                          minAgo: t.notificationsScreen.minAgo,
+                          hAgo: t.notificationsScreen.hAgo,
+                          yesterday: t.notificationsScreen.yesterday,
+                          dAgo: t.notificationsScreen.dAgo,
+                        })}
+                      </Text>
+                    </View>
                     {item.body && (
-                      <Text numberOfLines={2} style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted, marginTop: 2 }}>
+                      <Text numberOfLines={1} style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted, marginTop: 3 }}>
                         {item.body}
                       </Text>
                     )}
-                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 4 }}>
-                      {shortDateTime(item.created_at, t.locale)}
-                    </Text>
                   </View>
-                  {wasUnread && (
-                    <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: theme.primary, marginTop: 4 }} />
-                  )}
                 </TouchableOpacity>
               </Swipeable>
             );

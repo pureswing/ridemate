@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Alert, ActivityIndicator, Modal, Image } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -979,19 +979,13 @@ export default function EditRideScreen() {
       </View>
 
       {/* oversized item sheet */}
-      <Modal visible={pickingOversized !== null} transparent animationType="slide" onRequestClose={() => setPickingOversized(null)}>
-        <GestureHandlerRootView style={{ flex: 1 }}>
-          <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setPickingOversized(null)}>
-            <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-              <OversizedSheet
-                value={pickingOversized !== null ? (oversizedInfo[pickingOversized] ?? { types: [], other: '' }) : { types: [], other: '' }}
-                onSave={(v) => { if (pickingOversized !== null) setOversizedInfo((prev) => ({ ...prev, [pickingOversized]: v })); setPickingOversized(null); }}
-                theme={theme} t={t} accent={accent}
-              />
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </GestureHandlerRootView>
-      </Modal>
+      <BottomSheet visible={pickingOversized !== null} onClose={() => setPickingOversized(null)} style={{ paddingHorizontal: 20, paddingBottom: 28 }}>
+        <OversizedSheet
+          value={pickingOversized !== null ? (oversizedInfo[pickingOversized] ?? { types: [], other: '' }) : { types: [], other: '' }}
+          onSave={(v) => { if (pickingOversized !== null) setOversizedInfo((prev) => ({ ...prev, [pickingOversized]: v })); setPickingOversized(null); }}
+          theme={theme} t={t} accent={accent}
+        />
+      </BottomSheet>
 
       <ConfirmSheet
         visible={showDiscardConfirm}

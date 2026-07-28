@@ -22,7 +22,7 @@ interface Props {
   accent: string;
 }
 
-// Bottom-sheet content (render inside a Modal/PickerSheet by the caller) for
+// Bottom-sheet content (render inside a BottomSheet by the caller) for
 // picking what kind of oversized luggage item a bag is, plus a free-text
 // "something else" field.
 export function OversizedSheet({ value, onSave, theme, t, accent }: Props) {
@@ -32,8 +32,7 @@ export function OversizedSheet({ value, onSave, theme, t, accent }: Props) {
     setTypes((prev) => (prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]));
   }
   return (
-    <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 28 }}>
-      <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 18 }} />
+    <>
       <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint, marginBottom: 14 }}>
         {t.post.oversizedTitle}
       </Text>
@@ -61,6 +60,6 @@ export function OversizedSheet({ value, onSave, theme, t, accent }: Props) {
       <Button variant="primary" size="lg" fullWidth style={{ marginTop: 18 }} onPress={() => onSave({ types, other: other.trim() })}>
         {t.post.save}
       </Button>
-    </View>
+    </>
   );
 }

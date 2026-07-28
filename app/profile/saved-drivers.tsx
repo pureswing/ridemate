@@ -8,6 +8,7 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useFavorites } from '@/hooks/useFavorites';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
@@ -163,12 +164,7 @@ export default function SavedDriversScreen() {
       )}
 
       {/* City picker */}
-      <Modal visible={showCityPicker} transparent animationType="slide" onRequestClose={() => setShowCityPicker(false)}>
-        <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setShowCityPicker(false)}>
-          <RNPressable onPress={() => {}}>
-            <View style={{ position: 'relative', backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: 22, paddingBottom: insets.bottom + 22 }}>
-              <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-              <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 18 }} />
+      <BottomSheet visible={showCityPicker} onClose={() => setShowCityPicker(false)} style={{ paddingHorizontal: 22, paddingBottom: 22 }}>
               <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginBottom: 14 }}>
                 {t.savedDriversScreen.filterByCity}
               </Text>
@@ -196,18 +192,10 @@ export default function SavedDriversScreen() {
                   </RNPressable>
                 );
               })}
-            </View>
-          </RNPressable>
-        </RNPressable>
-      </Modal>
+      </BottomSheet>
 
       {/* Driver actions */}
-      <Modal visible={!!activeDriver} transparent animationType="slide" onRequestClose={() => setActiveDriver(null)}>
-        <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={() => setActiveDriver(null)}>
-          <RNPressable onPress={() => {}}>
-            <View style={{ position: 'relative', backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl, padding: 22, paddingBottom: insets.bottom + 22 }}>
-              <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-              <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 18 }} />
+      <BottomSheet visible={!!activeDriver} onClose={() => setActiveDriver(null)} style={{ paddingHorizontal: 22, paddingBottom: 22 }}>
               <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text, marginBottom: 12 }}>
                 {activeDriver?.driver?.full_name}
               </Text>
@@ -225,10 +213,7 @@ export default function SavedDriversScreen() {
                 <Icon name="report" size={17} color={theme.danger} />
                 <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 15, color: theme.danger }}>{t.savedDriversScreen.removeDriver}</Text>
               </RNPressable>
-            </View>
-          </RNPressable>
-        </RNPressable>
-      </Modal>
+      </BottomSheet>
 
       {/* Remove confirmation */}
       <Modal visible={!!removeTarget} transparent animationType="fade" onRequestClose={() => setRemoveTarget(null)}>

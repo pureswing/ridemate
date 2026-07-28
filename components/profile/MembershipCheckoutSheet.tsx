@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Modal, View, ScrollView, Pressable as RNPressable } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, ScrollView } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { KeyboardWrapper } from '@/components/auth/KeyboardWrapper';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { fonts, radii } from '@/constants/themes';
+import { fonts } from '@/constants/themes';
 
 interface Props {
   visible: boolean;
@@ -34,7 +34,6 @@ interface Props {
 export function MembershipCheckoutSheet({ visible, amount, mode, onClose, onConfirm }: Props) {
   const theme = useTheme();
   const t = useTranslation();
-  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'form' | 'success'>('form');
   const [name, setName] = useState('');
   const [cardNumber, setCardNumber] = useState('');
@@ -67,20 +66,8 @@ export function MembershipCheckoutSheet({ visible, amount, mode, onClose, onConf
   const submitLabel = `${t.membership.confirmPrefix} $${amount}${t.membership.perMonth}`;
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={onClose}>
-        <RNPressable onPress={() => {}}>
-          <KeyboardWrapper style={{ maxHeight: '88%' }}>
-            <View
-              style={{
-                backgroundColor: theme.surface,
-                borderTopLeftRadius: radii.xl,
-                borderTopRightRadius: radii.xl,
-                paddingBottom: insets.bottom + 20,
-              }}
-            >
-              <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginTop: 12, marginBottom: 8 }} />
-
+    <BottomSheet visible={visible} onClose={onClose} style={{ paddingBottom: 20 }}>
+      <KeyboardWrapper style={{ maxHeight: '88%' }}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 8 }}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
                   <Text style={{ fontFamily: fonts.displayBold, fontSize: 19, color: theme.text }}>{title}</Text>
@@ -154,10 +141,7 @@ export function MembershipCheckoutSheet({ visible, amount, mode, onClose, onConf
                   </>
                 )}
               </ScrollView>
-            </View>
-          </KeyboardWrapper>
-        </RNPressable>
-      </RNPressable>
-    </Modal>
+      </KeyboardWrapper>
+    </BottomSheet>
   );
 }

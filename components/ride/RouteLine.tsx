@@ -14,6 +14,10 @@ interface Props {
   originColor?: string;
   destColor?: string;
   style?: StyleProp<ViewStyle>;
+  // Design source overrides its "--text-lg" CSS var to 14px when embedding
+  // this inside a compact list row (e.g. the calendar/this-week job cards) —
+  // this is that same override, defaulting to the RideCard hero size.
+  fontSize?: number;
 }
 
 // Pulsing origin/destination dot — loops indefinitely, no interaction needed.
@@ -42,7 +46,7 @@ function PulseDot({ color }: { color: string }) {
 // The source design auto-drifts long routes back and forth and pulses the
 // dots — a hover-less native equivalent using RN's Animated API (no touch
 // needed, unlike a plain ScrollView) so it matches the original motion.
-export function RouteLine({ origin, destination, originColor, destColor, style }: Props) {
+export function RouteLine({ origin, destination, originColor, destColor, style, fontSize = 17 }: Props) {
   const theme = useTheme();
   const oColor = originColor ?? theme.secondary;
   const dColor = destColor ?? theme.primary;
@@ -68,7 +72,7 @@ export function RouteLine({ origin, destination, originColor, destColor, style }
     return () => loop.stop();
   }, [destination, overflow, translateX]);
 
-  const textStyle = { fontFamily: fonts.displayBold, fontSize: 17, color: theme.text, letterSpacing: -0.1, flexShrink: 0 } as const;
+  const textStyle = { fontFamily: fonts.displayBold, fontSize, color: theme.text, letterSpacing: -0.1, flexShrink: 0 };
 
   if (!destination) {
     return (

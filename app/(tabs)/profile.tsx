@@ -16,13 +16,14 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
 import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
-import { RideHistoryModal } from '@/components/profile/RideHistoryModal';
 import { VehicleDetailModal } from '@/components/profile/VehicleDetailModal';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { BadgeCount, StrikeLevel, VehicleProfile, VehicleKind } from '@/types';
 import { IconName } from '@/constants/icons';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
+import { BadgeGlyph } from '@/components/community/BadgeGlyph';
+import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
 import { TIER_ICON } from '@/constants/membershipPlans';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
@@ -115,6 +116,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
 
   const [badges, setBadges] = useState<BadgeCount[]>([]);
+  const [selectedBadge, setSelectedBadge] = useState<BadgeCount | null>(null);
   const [strikeLevel, setStrikeLevel] = useState<StrikeLevel>(0);
   const [communityLoading, setCommunityLoading] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleProfile[]>([]);
@@ -126,7 +128,6 @@ export default function ProfileScreen() {
 
   const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
 
-  const [showHistory, setShowHistory] = useState(false);
   const [viewingVehicle, setViewingVehicle] = useState<VehicleProfile | null>(null);
 
   const userId = session?.user?.id ?? '';
@@ -233,10 +234,6 @@ export default function ProfileScreen() {
     ]);
   }
 
-  function comingSoon() {
-    Alert.alert(t.profile.comingSoonTitle, t.profile.comingSoonMsg);
-  }
-
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
       <StatusBar style="light" />
@@ -299,18 +296,20 @@ export default function ProfileScreen() {
               verified={verified}
             />
           </View>
-          {/* Styled to match Avatar's own built-in "verified" badge exactly
-              (same border formula, same overlap-the-ring placement) instead
-              of a separate floating glass button — reads as one element
-              with the avatar instead of two unrelated pieces stacked up. */}
+          {/* Same "glass" look as the header's settings/nav IconButtons
+              (theme.surface background, theme.text icon, shadows.xs) —
+              kept as a custom circle rather than the IconButton component
+              itself since its fixed sm/md/lg sizes don't fit this corner
+              overlap placement. */}
           <View style={{
             position: 'absolute', top: -2, right: -2,
             width: 26, height: 26, borderRadius: 13,
-            backgroundColor: theme.primary,
+            backgroundColor: theme.surface,
             alignItems: 'center', justifyContent: 'center',
             borderWidth: 1, borderColor: 'rgba(0,0,0,0.4)',
+            ...shadows.xs,
           }}>
-            <Icon name="user_pen" size={13} color="#FFFFFF" strokeWidth={2.2} />
+            <Icon name="user_pen" size={13} color={theme.text} strokeWidth={2.2} />
           </View>
         </TouchableOpacity>
 
@@ -431,7 +430,7 @@ export default function ProfileScreen() {
           category={t.profile.rideHistoryCategory}
           title={tripCount === null ? '—' : `${tripCount} ${t.profile.tripsCompletedSuffix}`}
           subtitle={`${t.profile.memberSince} ${profile?.created_at ? new Date(profile.created_at).toLocaleDateString(t.locale, { month: 'short', year: 'numeric' }) : '—'}`}
-          onPress={() => setShowHistory(true)}
+          onPress={() => router.push('/profile/ride-history')}
         />
         <SettingRow
           icon="passenger"
@@ -483,15 +482,8 @@ export default function ProfileScreen() {
               {badges.filter((b) => b.count > 0).map((b) => {
                 const cfg = BADGE_ICONS[b.badge_type];
                 return (
-                  <TouchableOpacity key={b.badge_type} activeOpacity={0.7} onPress={comingSoon}>
-                    <View style={{
-                      width: 48, height: 48, borderRadius: 14,
-                      backgroundColor: cfg.color + '18',
-                      borderWidth: 1.5, borderColor: cfg.color + '45',
-                      alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      <Icon name={cfg.icon} size={22} color={cfg.color} />
-                    </View>
+                  <TouchableOpacity key={b.badge_type} activeOpacity={0.7} onPress={() => setSelectedBadge(b)}>
+                    <BadgeGlyph badge={b.badge_type} size={48} color={cfg.color} />
                   </TouchableOpacity>
                 );
               })}
@@ -525,7 +517,7 @@ export default function ProfileScreen() {
       </View>
 
       {/* ── Modals ── */}
-      <RideHistoryModal visible={showHistory} userId={userId} onClose={() => setShowHistory(false)} />
+      <BadgeInfoSheet badge={selectedBadge?.badge_type ?? null} count={selectedBadge?.count} onClose={() => setSelectedBadge(null)} />
       {viewingVehicle && (
         <VehicleDetailModal
           visible

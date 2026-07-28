@@ -108,7 +108,7 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="calendar"
+        name="thisweek"
         options={{
           title: t.tabs.calendar,
           tabBarIcon: ({ color, size }) => (
@@ -116,6 +116,11 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Full month calendar.tsx stays in the directory (kept for reference,
+          not deleted) but is explicitly hidden from the tab bar via
+          href:null — without this, expo-router auto-discovers it as an
+          extra, unstyled tab since it's a file in this same route group. */}
+      <Tabs.Screen name="calendar" options={{ href: null }} />
       <Tabs.Screen
         name="profile"
         options={{

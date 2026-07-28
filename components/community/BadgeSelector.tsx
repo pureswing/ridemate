@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { View, TouchableOpacity, Modal, Alert, ActivityIndicator, TextInput, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { Switch } from '@/components/ui/Switch';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { BadgeGlyph } from './BadgeGlyph';
 import { BadgeDetail } from './BadgeDetail';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -67,7 +67,6 @@ export function BadgeSelector({
 }: Props) {
   const t = useTranslation();
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { giveBadges, loading } = useBadges();
   const { saveFavorite } = useFavorites();
   const { blockUser } = useBlockedUsers();
@@ -141,15 +140,16 @@ export function BadgeSelector({
     : '';
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={() => {}}>
-      <View style={{ flex: 1, backgroundColor: 'rgba(10,8,6,0.62)', justifyContent: 'flex-end' }}>
-        <View style={{
-          maxHeight: '88%', backgroundColor: theme.background,
-          borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-          ...shadows.lg,
-        }}>
+    <BottomSheet
+      visible={visible}
+      onClose={() => {}}
+      dismissable={false}
+      showHandle={false}
+      backgroundColor={theme.background}
+      style={{ maxHeight: '88%', ...shadows.lg }}
+    >
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingTop: 22, paddingBottom: insets.bottom + 20 }}
+          contentContainerStyle={{ padding: 20, paddingTop: 22, paddingBottom: 20 }}
           showsVerticalScrollIndicator={false}
         >
           {/* header */}
@@ -285,8 +285,6 @@ export function BadgeSelector({
             </Text>
           )}
         </ScrollView>
-        </View>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }

@@ -19,7 +19,7 @@ import { IconName } from '@/constants/icons';
 
 type UiStatus = 'upcoming' | 'completed' | 'cancelled';
 
-interface CalendarItem {
+interface WeekItem {
   id: string;
   postId: string;
   kind: 'ride' | 'package' | 'hauling';
@@ -39,27 +39,34 @@ function toUiStatus(s: AgreementStatus): UiStatus {
   return 'upcoming';
 }
 
-const KIND_ROUTE: Record<CalendarItem['kind'], '/ride/[id]' | '/package/[id]' | '/hauling/[id]'> = {
+const KIND_ROUTE: Record<WeekItem['kind'], '/ride/[id]' | '/package/[id]' | '/hauling/[id]'> = {
   ride: '/ride/[id]',
   package: '/package/[id]',
   hauling: '/hauling/[id]',
 };
 
-export default function CalendarScreen() {
+function startOfWeek(d: Date): Date {
+  const s = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  s.setDate(s.getDate() - s.getDay());
+  return s;
+}
+
+// This-week screen — same visual format as the (currently unused, kept for
+// reference) full calendar.tsx, but locked to the current Sun-Sat week: no
+// prev/next navigation, just this week's 7 days plus a "Week N, Mon D–Mon D"
+// line under the month/year heading.
+export default function ThisWeekScreen() {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const { session } = useAuthStore();
   const { getMyAgreements } = useRideAgreements();
 
-  const [items, setItems] = useState<CalendarItem[]>([]);
+  const [items, setItems] = useState<WeekItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const today = new Date();
-  const [viewYear, setViewYear] = useState(today.getFullYear());
-  const [viewMonth, setViewMonth] = useState(today.getMonth());
   // Always a specific day, never "show everything" — defaults to today.
   // Tapping a day switches to it; there's no toggle-back-to-null anymore.
-  const [selected, setSelected] = useState(today.getDate());
+  const [selected, setSelected] = useState(new Date().getDate());
 
   // Reminders panel — UI only for now, no real push/local notification
   // scheduling wired up yet (the app has no notifications infra at all).
@@ -74,7 +81,7 @@ export default function CalendarScreen() {
     try {
       const agreements = await getMyAgreements();
       const uid = session.user.id;
-      const mapped: CalendarItem[] = agreements
+      const mapped: WeekItem[] = agreements
         .filter((a) => a.post)
         .map((a: RideAgreement) => {
           const isDriver = a.driver_id === uid;
@@ -82,7 +89,7 @@ export default function CalendarScreen() {
           return {
             id: a.id,
             postId: a.post_id,
-            kind: (a.post!.kind ?? 'ride') as CalendarItem['kind'],
+            kind: (a.post!.kind ?? 'ride') as WeekItem['kind'],
             isDriver,
             otherName: other?.full_name ?? '—',
             otherAvatar: other?.avatar_url,
@@ -101,29 +108,23 @@ export default function CalendarScreen() {
 
   useEffect(() => { load(); }, [load]);
 
-  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
-  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
-  const cells = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const today = new Date();
+  const weekStart = startOfWeek(today);
+  const weekDays = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const weekEnd = weekDays[6];
+  const weekNumber = Math.ceil((weekStart.getDate() + new Date(weekStart.getFullYear(), weekStart.getMonth(), 1).getDay()) / 7);
+  const weekRangeLabel = `${t.calendar.weekPrefix} ${weekNumber}, ${weekStart.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}–${weekEnd.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}`;
 
-  const itemsInMonth = items.filter(
-    (it) => it.scheduledAt.getFullYear() === viewYear && it.scheduledAt.getMonth() === viewMonth
-  );
-  const itemsByDay: Record<number, CalendarItem[]> = {};
-  itemsInMonth.forEach((it) => {
+  const itemsInWeek = items.filter((it) => it.scheduledAt >= weekStart && it.scheduledAt <= new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59));
+  const itemsByDay: Record<number, WeekItem[]> = {};
+  itemsInWeek.forEach((it) => {
     const d = it.scheduledAt.getDate();
     (itemsByDay[d] ??= []).push(it);
   });
-
-  const todayD = today.getMonth() === viewMonth && today.getFullYear() === viewYear ? today.getDate() : null;
-
-  function prevMonth() {
-    if (viewMonth === 0) { setViewYear((y) => y - 1); setViewMonth(11); } else setViewMonth((m) => m - 1);
-    setSelected(1);
-  }
-  function nextMonth() {
-    if (viewMonth === 11) { setViewYear((y) => y + 1); setViewMonth(0); } else setViewMonth((m) => m + 1);
-    setSelected(1);
-  }
 
   const listItems = itemsByDay[selected] ?? [];
 
@@ -148,23 +149,20 @@ export default function CalendarScreen() {
       >
         <View style={{ alignItems: 'center' }}>
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
-            {t.calendar.mySchedule}
+            {t.calendar.thisWeekEyebrow}
           </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 14 }}>
-          <TouchableOpacity onPress={prevMonth} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', ...shadows.sm }}>
-            <Icon name="chevron_left" size={18} color={theme.text} />
-          </TouchableOpacity>
+        <View style={{ alignItems: 'center', paddingTop: 14 }}>
           <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 22, letterSpacing: letterSpacingFor(22, tracking.tight), color: theme.cream }}>
-            {t.calendar.monthNames[viewMonth]} {viewYear}
+            {t.calendar.monthNames[weekStart.getMonth()]} {weekStart.getFullYear()}
           </Text>
-          <TouchableOpacity onPress={nextMonth} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center', ...shadows.sm }}>
-            <Icon name="chevron_right" size={18} color={theme.text} />
-          </TouchableOpacity>
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.gold300, marginTop: 2 }}>
+            {weekRangeLabel}
+          </Text>
         </View>
 
-        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingTop: 10 }}>
+        <View style={{ flexDirection: 'row', paddingHorizontal: 12, paddingTop: 12 }}>
           {t.calendar.dayNames.map((d) => (
             <Text key={d} style={{ flex: 1, textAlign: 'center', fontFamily: fonts.bodyExtraBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10, tracking.wide), color: 'rgba(255,248,240,0.6)', paddingVertical: 4 }}>
               {d}
@@ -172,13 +170,11 @@ export default function CalendarScreen() {
           ))}
         </View>
 
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 12 }}>
-          {Array.from({ length: firstDay }).map((_, i) => (
-            <View key={`e${i}`} style={{ width: `${100 / 7}%` }} />
-          ))}
-          {cells.map((day) => {
+        <View style={{ flexDirection: 'row', paddingHorizontal: 12 }}>
+          {weekDays.map((d) => {
+            const day = d.getDate();
             const dayItems = itemsByDay[day] ?? [];
-            const isToday = day === todayD;
+            const isToday = d.toDateString() === today.toDateString();
             const isSel = day === selected;
             const hasCompleted = dayItems.some((it) => it.status === 'completed');
             const hasCancelled = dayItems.some((it) => it.status === 'cancelled');
@@ -220,7 +216,7 @@ export default function CalendarScreen() {
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
         <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint, padding: 16, paddingBottom: 8 }}>
-          {t.calendar.monthNames[viewMonth]} {selected}
+          {t.calendar.monthNames[weekStart.getMonth()]} {selected}
         </Text>
 
         {loading ? (
@@ -231,7 +227,7 @@ export default function CalendarScreen() {
           </Text>
         ) : (
           <View style={{ paddingHorizontal: 16, gap: 8 }}>
-            {listItems.map((it) => <RideRow key={it.id} item={it} theme={theme} t={t} />)}
+            {listItems.map((it) => <WeekRow key={it.id} item={it} theme={theme} t={t} />)}
           </View>
         )}
 
@@ -297,8 +293,8 @@ export default function CalendarScreen() {
   );
 }
 
-function RideRow({ item, theme, t }: { item: CalendarItem; theme: ReturnType<typeof useTheme>; t: ReturnType<typeof useTranslation> }) {
-  const kindConfig: Record<CalendarItem['kind'], { accent: string; icon: IconName; label: string }> = {
+function WeekRow({ item, theme, t }: { item: WeekItem; theme: ReturnType<typeof useTheme>; t: ReturnType<typeof useTranslation> }) {
+  const kindConfig: Record<WeekItem['kind'], { accent: string; icon: IconName; label: string }> = {
     ride: { accent: item.isDriver ? theme.driverText : theme.passengerText, icon: item.isDriver ? 'car' : 'passenger', label: item.isDriver ? t.feed.chipPooling : t.feed.chipRide },
     package: { accent: theme.courierText, icon: 'package', label: t.post.chooserPackageTitle },
     hauling: { accent: theme.haulingText, icon: 'truck', label: t.post.chooserHaulingTitle },

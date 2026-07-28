@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { View, Modal, Pressable, StyleProp, ViewStyle } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { View, Pressable, StyleProp, ViewStyle } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { RouteLine } from './RouteLine';
 import { RidePost, RidePostDetailsPackage, RidePostDetailsHauling, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
@@ -47,7 +46,6 @@ function Meta({ icon, text }: { icon: IconName; text: string }) {
 export function RideCard({ post, style }: Props) {
   const theme = useTheme();
   const t = useTranslation();
-  const insets = useSafeAreaInsets();
   const isOffer = post.type === 'offer';
   const date = new Date(post.scheduled_at);
   const verified = post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false;
@@ -187,86 +185,53 @@ export function RideCard({ post, style }: Props) {
       </View>
 
       {hasAccess && (
-        <Modal visible={accessOpen} transparent animationType="slide" onRequestClose={() => setAccessOpen(false)}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setAccessOpen(false)}>
-              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-                <View style={{
-                  position: 'relative',
-                  backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-                  padding: 20, paddingBottom: insets.bottom + 20, maxHeight: '72%',
-                }}>
-                  {/* Fills any gap below the safe-area padding on devices where
-                      useSafeAreaInsets() under-reports inside a Modal's own
-                      native root (gesture-nav Android in particular) — solid
-                      color bleeding past the screen edge costs nothing, an
-                      unpainted strip of backdrop showing through does. */}
-                  <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-                  <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 16 }} />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '24', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name="accessible" size={18} color={theme.gold500} />
-                    </View>
-                    <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text }}>{t.feed.accessibilityRequirements}</Text>
-                  </View>
-                  <View style={{ gap: 10 }}>
-                    {accessOptions.map((opt) => (
-                      <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
-                        <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name={opt.icon} size={17} color={theme.text} />
-                        </View>
-                        <View style={{ flex: 1, minWidth: 0 }}>
-                          <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>{opt.label}</Text>
-                          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 2, lineHeight: 17 }}>{opt.desc}</Text>
-                        </View>
-                      </View>
-                    ))}
-                  </View>
+        <BottomSheet visible={accessOpen} onClose={() => setAccessOpen(false)} style={{ paddingHorizontal: 20, paddingBottom: 20, maxHeight: '72%' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '24', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="accessible" size={18} color={theme.gold500} />
+            </View>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text }}>{t.feed.accessibilityRequirements}</Text>
+          </View>
+          <View style={{ gap: 10 }}>
+            {accessOptions.map((opt) => (
+              <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
+                <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+                  <Icon name={opt.icon} size={17} color={theme.text} />
                 </View>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </GestureHandlerRootView>
-        </Modal>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>{opt.label}</Text>
+                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 2, lineHeight: 17 }}>{opt.desc}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        </BottomSheet>
       )}
 
       {post.airport && (
-        <Modal visible={airportOpen} transparent animationType="slide" onRequestClose={() => setAirportOpen(false)}>
-          <GestureHandlerRootView style={{ flex: 1 }}>
-            <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={() => setAirportOpen(false)}>
-              <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-                <View style={{
-                  position: 'relative',
-                  backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-                  padding: 20, paddingBottom: insets.bottom + 20,
-                }}>
-                  <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-                  <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 16 }} />
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '24', alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={17} color={theme.gold500} />
-                    </View>
-                    <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text }}>
-                      {isFromAirport ? t.feed.airportPickup : t.feed.airportDropoff}
-                    </Text>
-                  </View>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
-                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={17} color={theme.text} />
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
-                        {isFromAirport ? t.feed.pickingUpFromAirport : t.feed.droppingAtAirport}
-                      </Text>
-                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 2, lineHeight: 17 }}>
-                        {post.flight_number ? `${t.feed.flightLabel} ${post.flight_number} — ${t.feed.arrivalTracked}` : t.feed.airportLegNote}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </GestureHandlerRootView>
-        </Modal>
+        <BottomSheet visible={airportOpen} onClose={() => setAirportOpen(false)} style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '24', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={17} color={theme.gold500} />
+            </View>
+            <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text }}>
+              {isFromAirport ? t.feed.airportPickup : t.feed.airportDropoff}
+            </Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
+            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={17} color={theme.text} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
+                {isFromAirport ? t.feed.pickingUpFromAirport : t.feed.droppingAtAirport}
+              </Text>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 2, lineHeight: 17 }}>
+                {post.flight_number ? `${t.feed.flightLabel} ${post.flight_number} — ${t.feed.arrivalTracked}` : t.feed.airportLegNote}
+              </Text>
+            </View>
+          </View>
+        </BottomSheet>
       )}
     </View>
   );

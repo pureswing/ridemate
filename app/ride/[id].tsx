@@ -523,21 +523,39 @@ export default function RideDetailScreen() {
           ...shadows.lg,
         }}>
           <View style={{ flex: 1 }}>
-            <Button
-              variant="primary"
-              size="lg"
-              fullWidth
-              disabled={messaging}
-              onPress={() => (messaged || post.price_mode === 'firm' ? handleMessage() : setOfferOpen(true))}
-            >
-              {messaging
-                ? t.rideDetail.processing
-                : messaged
-                ? t.rideDetail.sendMessage
-                : post.price_mode === 'firm'
-                ? t.rideDetail.interested
-                : t.rideDetail.sendOffer}
-            </Button>
+            {/* A terminal agreement (completed/cancelled/no_show) never
+                re-offers to send an offer/message again — even if the
+                conversation itself was since deleted (allowed for closed
+                jobs), the job is archived to Ride History, not reopened
+                from here. */}
+            {myAgreement && myAgreement.status !== 'pending' && myAgreement.status !== 'active' ? (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                backgroundColor: theme.surfaceAlt, borderRadius: 14,
+                paddingHorizontal: 16, paddingVertical: 12,
+              }}>
+                <Icon name="lock" size={14} color={theme.muted} />
+                <Text style={{ color: theme.muted, fontSize: 12.5, fontFamily: fonts.bodyMedium }}>
+                  {myAgreement.status === 'completed' ? t.agreement.statusCompleted : t.calendar.cancelled}
+                </Text>
+              </View>
+            ) : (
+              <Button
+                variant="primary"
+                size="lg"
+                fullWidth
+                disabled={messaging}
+                onPress={() => (messaged || post.price_mode === 'firm' ? handleMessage() : setOfferOpen(true))}
+              >
+                {messaging
+                  ? t.rideDetail.processing
+                  : messaged
+                  ? t.rideDetail.sendMessage
+                  : post.price_mode === 'firm'
+                  ? t.rideDetail.interested
+                  : t.rideDetail.sendOffer}
+              </Button>
+            )}
           </View>
         </View>
       )}

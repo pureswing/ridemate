@@ -17,7 +17,7 @@ import {
   TriangleAlert, Info, Flag, Shield, Award,
   Settings, History, Camera, LogOut, Key, FileText,
   ArrowLeft, ArrowRight, ChevronRight, ChevronLeft, ChevronDown, ChevronUp,
-  Share2, Copy, ListFilter, Search, MoreVertical, Bell, BadgeCheck,
+  Share2, Copy, ListFilter, Search, MoreVertical, Bell, BadgeCheck, Download,
   Eye, EyeOff, AtSign, UserPlus, LogIn,
   // vehicle amenities
   Zap, Flame, Baby, Bluetooth, Wifi,
@@ -41,7 +41,7 @@ import {
   Luggage, BaggageClaim, Thermometer, CarFront, BusFront, Ticket, PlaneLanding, PlaneTakeoff, LockOpen,
   Bookmark,
   // post-package form
-  Sparkles, Ban, ArrowUpDown,
+  Sparkles, Ban, ArrowUpDown, BanknoteArrowUp, BanknoteArrowDown,
   // post-hauling form
   Hammer, Layers, WashingMachine, Sofa, BrickWall,
   // accessibility / granular ride preferences
@@ -151,6 +151,7 @@ export const icons = {
   dots_vertical: MoreVertical,
   notification: Bell,
   verified: BadgeCheck,
+  download: Download,
   eye: Eye,
   eye_off: EyeOff,
   at_sign: AtSign,
@@ -229,6 +230,8 @@ export const icons = {
 
   // ── Post Package form ─────────────────────────────────────────────────
   sparkles: Sparkles,
+  banknote_arrow_up: BanknoteArrowUp,
+  banknote_arrow_down: BanknoteArrowDown,
   ban: Ban,
   arrow_up_down: ArrowUpDown,
 

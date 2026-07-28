@@ -124,6 +124,26 @@ export function formatEta(scheduledAtIso: string, durationSeconds: number | unde
   return arrival.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }
 
+// "Just now" / "5m ago" / "2h ago" / "Yesterday" / "3d ago" style relative
+// timestamp for the notifications list — falls back to a short date once
+// it's more than a week old, since "23d ago" stops being a useful unit.
+export function formatRelativeTime(
+  isoString: string,
+  locale: string,
+  labels: { justNow: string; minAgo: string; hAgo: string; yesterday: string; dAgo: string }
+): string {
+  const diffMs = Date.now() - new Date(isoString).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return labels.justNow;
+  if (minutes < 60) return `${minutes}${labels.minAgo}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}${labels.hAgo}`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return labels.yesterday;
+  if (days < 7) return `${days}${labels.dAgo}`;
+  return new Date(isoString).toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+}
+
 // Compact "1h 10m" duration, computed from raw seconds — not a reformat of
 // Google's own duration_text ("1 hour 10 mins"), since parsing that string
 // back apart is more fragile than just deriving it from the number already

@@ -3,6 +3,7 @@ import { Pressable } from 'react-native-gesture-handler';
 
 interface Props {
   onPress?: () => void;
+  onLongPress?: () => void;
   onLayout?: (e: LayoutChangeEvent) => void;
   disabled?: boolean;
   activeOpacity?: number;
@@ -21,11 +22,12 @@ interface Props {
 // quirks — Pressable is the actively-maintained recommendation, with the
 // activeOpacity dimming reimplemented manually here since Pressable doesn't
 // do it automatically like TouchableOpacity does.
-export function TouchableOpacity({ style, activeOpacity = 0.7, disabled, onPress, onLayout, children }: Props) {
+export function TouchableOpacity({ style, activeOpacity = 0.7, disabled, onPress, onLongPress, onLayout, children }: Props) {
   return (
     <Pressable
       disabled={disabled}
       onPress={onPress}
+      onLongPress={onLongPress}
       onLayout={onLayout}
       style={({ pressed }: { pressed: boolean }) => [
         style,

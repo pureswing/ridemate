@@ -129,6 +129,7 @@ function AgreementPanel({
     const post = agreement.post as any;
     setTripRecord({
       agreementId: agreement.id,
+      kind: post?.kind ?? 'ride',
       origin: post?.origin_city ?? '—',
       destination: post?.destination_city ?? '—',
       scheduledAt: post?.scheduled_at ?? '',

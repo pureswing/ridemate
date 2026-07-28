@@ -1,8 +1,10 @@
 import { View, Modal, TouchableOpacity, Share, ScrollView } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
+import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { TripRecord } from '@/types';
+import { BADGE_ICONS } from '@/constants/badgeIcons';
 
 interface Props {
   visible: boolean;
@@ -24,12 +26,25 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
   });
   const timeStr = dateObj.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' });
   const roleLabel = r.myRole === 'driver' ? t.tripSummary.driver : t.tripSummary.rider;
+  // What "the quantity" line means shifts with the kind — passengers for a
+  // ride, packages for a delivery, load size for hauling.
+  const quantityLabel = r.kind === 'package' ? t.tripSummary.packages
+    : r.kind === 'hauling' ? t.tripSummary.load
+    : t.tripSummary.passengers;
+  const quantityValue = r.kind === 'package' ? (r.packageQty != null ? String(r.packageQty) : undefined)
+    : r.kind === 'hauling' ? r.loadSize
+    : (r.passengerCount != null ? String(r.passengerCount) : undefined);
+  const luggageValue = r.luggagePresent == null ? undefined
+    : r.luggagePresent
+      ? (r.luggageCount != null ? `${t.tripSummary.yes} (${r.luggageCount})` : t.tripSummary.yes)
+      : t.tripSummary.no;
 
   async function handleShare() {
     const lines = [
       `=== ${t.tripSummary.title} ===`,
-      `${t.tripSummary.origin}: ${r.origin}`,
-      r.destination !== r.origin ? `${t.tripSummary.destination}: ${r.destination}` : '',
+      r.originAddress ? `${t.tripSummary.pickupAddress}: ${r.originAddress}` : '',
+      r.destinationAddress ? `${t.tripSummary.dropoffAddress}: ${r.destinationAddress}` : '',
+      r.stops && r.stops.length > 0 ? `${t.tripSummary.stops}: ${r.stops.join(' · ')}` : '',
       `${t.tripSummary.date}: ${dateStr}`,
       `${t.tripSummary.time}: ${timeStr}`,
       r.distanceText ? `${t.tripSummary.distance}: ${r.distanceText}` : '',
@@ -37,6 +52,10 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
       r.suggestedDonation ? `${t.tripSummary.contribution}: $${r.suggestedDonation} USD` : '',
       `${t.tripSummary.myRole}: ${roleLabel}`,
       `${t.tripSummary.otherParty}: ${r.otherPartyName}`,
+      quantityValue ? `${quantityLabel}: ${quantityValue}` : '',
+      luggageValue ? `${t.tripSummary.luggage}: ${luggageValue}` : '',
+      r.vehicle ? `${t.tripSummary.vehicle}: ${r.vehicle.year} ${r.vehicle.make} ${r.vehicle.model} (${r.vehicle.color}) — ${r.vehicle.insured ? t.tripSummary.insured : t.tripSummary.notInsured}` : '',
+      r.badges && r.badges.length > 0 ? `${t.tripSummary.badgesEarned}: ${r.badges.map((b) => t.badges[b]).join(', ')}` : '',
       '',
       t.tripSummary.disclaimer,
     ].filter(Boolean).join('\n');
@@ -63,12 +82,14 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
             backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border,
             borderRadius: 16, padding: 20, marginBottom: 20,
           }}>
-            <RecordRow label={t.tripSummary.origin} value={r.origin} theme={theme} />
-            {/* Same city on both ends = no real dropoff (e.g. hauling posted
-                with disposal:'driver') — a "Destination: Winter Haven" row
-                under an identical "Origin: Winter Haven" row is just noise. */}
-            {r.destination !== r.origin && (
-              <RecordRow label={t.tripSummary.destination} value={r.destination} theme={theme} />
+            {r.originAddress && (
+              <RecordRow label={t.tripSummary.pickupAddress} value={r.originAddress} theme={theme} />
+            )}
+            {r.destinationAddress && r.destination !== r.origin && (
+              <RecordRow label={t.tripSummary.dropoffAddress} value={r.destinationAddress} theme={theme} />
+            )}
+            {r.stops && r.stops.length > 0 && (
+              <RecordRow label={t.tripSummary.stops} value={r.stops.join(' · ')} theme={theme} />
             )}
             <RecordRow label={t.tripSummary.date} value={dateStr} theme={theme} />
             <RecordRow label={t.tripSummary.time} value={timeStr} theme={theme} />
@@ -82,8 +103,41 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
               <RecordRow label={t.tripSummary.contribution} value={`$${r.suggestedDonation} USD`} theme={theme} />
             ) : null}
             <RecordRow label={t.tripSummary.myRole} value={roleLabel} theme={theme} />
-            <RecordRow label={t.tripSummary.otherParty} value={record.otherPartyName} theme={theme} last />
+            <RecordRow label={t.tripSummary.otherParty} value={r.otherPartyName} theme={theme} />
+            {quantityValue && (
+              <RecordRow label={quantityLabel} value={quantityValue} theme={theme} />
+            )}
+            {luggageValue && (
+              <RecordRow label={t.tripSummary.luggage} value={luggageValue} theme={theme} last={!r.vehicle} />
+            )}
+            {r.vehicle && (
+              <RecordRow
+                label={t.tripSummary.vehicle}
+                value={`${r.vehicle.year} ${r.vehicle.make} ${r.vehicle.model} · ${r.vehicle.color} · ${r.vehicle.insured ? t.tripSummary.insured : t.tripSummary.notInsured}`}
+                theme={theme}
+                last
+              />
+            )}
           </View>
+
+          {/* Badges earned */}
+          {r.badges && r.badges.length > 0 && (
+            <View style={{ marginBottom: 20 }}>
+              <Text style={{ fontFamily: theme.fontDisplay, fontSize: 15, color: theme.text, marginBottom: 10 }}>
+                {t.tripSummary.badgesEarned}
+              </Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {r.badges.map((b) => (
+                  <View key={b} style={{ alignItems: 'center', width: 60 }}>
+                    <BadgeGlyph badge={b} size={44} color={BADGE_ICONS[b].color} />
+                    <Text numberOfLines={2} style={{ fontSize: 10, textAlign: 'center', color: theme.muted, marginTop: 3, lineHeight: 12 }}>
+                      {t.badges[b]}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+          )}
 
           {/* Disclaimer */}
           <View style={{

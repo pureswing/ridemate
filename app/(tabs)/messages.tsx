@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
-import { View, FlatList, ActivityIndicator } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { View, FlatList, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import { Swipeable } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -21,6 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Conversation, Message, RideAgreement } from '@/types';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
+
+const screenWidth = Dimensions.get('window').width;
 
 type Tone = 'neutral' | 'driver' | 'passenger' | 'courier' | 'hauling' | 'success' | 'warning' | 'accent' | 'inverse';
 
@@ -128,11 +131,12 @@ function ConversationRow({ conversation, myId, agreement, insured }: { conversat
 
 export default function MessagesScreen() {
   const { session } = useAuthStore();
-  const { getConversations } = useMessages();
+  const { getConversations, deleteConversation } = useMessages();
   const { getAgreementsForPost } = useRideAgreements();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const swipeableRefs = useRef<Map<string, Swipeable>>(new Map());
   const [conversations, setConversations] = useState<Conversation[]>([]);
   // Keyed by conversation.id — fetched once here (not per-row) so the
   // filter chips can bucket every conversation without each row doing its
@@ -192,6 +196,29 @@ export default function MessagesScreen() {
     }
   }
 
+  // A confirmed-but-not-closed-out agreement's only management UI (mark
+  // complete / cancel job / report no-show) lives inside the conversation
+  // screen — deleting the thread out from under it would strand that job
+  // with no way to ever cancel it (CompletionGate still auto-prompts for
+  // completion from ride_agreements directly, so that half is covered, but
+  // cancellation isn't). Block the swipe in that case instead of deleting.
+  function handleDelete(id: string) {
+    const agreement = agreements[id];
+    if (agreement && (agreement.status === 'pending' || agreement.status === 'active')) {
+      swipeableRefs.current.get(id)?.close();
+      Alert.alert(t.messages.deleteBlockedTitle, t.messages.deleteBlockedMsg);
+      return;
+    }
+    swipeableRefs.current.get(id)?.close();
+    swipeableRefs.current.delete(id);
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    deleteConversation(id).catch(() => {
+      // Deletion failed silently server-side; the item stays gone locally
+      // until the next screen visit re-fetches — matches notifications'
+      // swipe-to-delete precedent.
+    });
+  }
+
   const filtered = conversations.filter((c) => bucketOf(agreements[c.id] ?? null) === filter);
 
   const filters: { key: FilterBucket; label: string }[] = [
@@ -240,12 +267,26 @@ export default function MessagesScreen() {
           renderItem={({ item }) => {
             const otherPartyId = item.post_owner_id === session!.user.id ? item.requester_id : item.post_owner_id;
             return (
-              <ConversationRow
-                conversation={item}
-                myId={session!.user.id}
-                agreement={agreements[item.id] ?? null}
-                insured={insuredUsers[otherPartyId] ?? false}
-              />
+              <Swipeable
+                ref={(ref) => {
+                  if (ref) swipeableRefs.current.set(item.id, ref);
+                  else swipeableRefs.current.delete(item.id);
+                }}
+                leftThreshold={screenWidth * 0.55}
+                onSwipeableOpen={(direction) => direction === 'left' && handleDelete(item.id)}
+                renderLeftActions={() => (
+                  <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', paddingLeft: 20 }}>
+                    <Icon name="delete" size={22} color={theme.danger} />
+                  </View>
+                )}
+              >
+                <ConversationRow
+                  conversation={item}
+                  myId={session!.user.id}
+                  agreement={agreements[item.id] ?? null}
+                  insured={insuredUsers[otherPartyId] ?? false}
+                />
+              </Swipeable>
             );
           }}
           ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: theme.cardBorder, marginLeft: 64 }} />}

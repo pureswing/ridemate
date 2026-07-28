@@ -1,14 +1,12 @@
-import { Modal, View } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { TouchableOpacity } from './TouchableOpacity';
+import { View, Pressable } from 'react-native';
 import { ThemedText as Text } from './ThemedText';
 import { Icon } from './Icon';
+import { BottomSheet } from './BottomSheet';
 import { IconName } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, radii } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface Props {
   visible: boolean;
@@ -30,24 +28,9 @@ interface Props {
 export function PublishPicker({ visible, onClose, onPublic, onPrivate, hasSaved, accent, icon }: Props) {
   const theme = useTheme();
   const t = useTranslation();
-  const insets = useSafeAreaInsets();
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-      <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} onPress={() => {}}>
-          <View style={{
-            position: 'relative',
-            backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-            padding: 20, paddingBottom: insets.bottom + 20,
-          }}>
-            {/* Fills any gap below the safe-area padding on devices where
-                useSafeAreaInsets() under-reports inside a Modal's own native
-                root (gesture-nav Android in particular). */}
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-            <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 20 }} />
-
+    <BottomSheet visible={visible} onClose={onClose} style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
             <Text style={{ fontFamily: fonts.displayBold, fontSize: 21, letterSpacing: letterSpacingFor(21, tracking.tight), color: theme.text, marginBottom: 4 }}>
               {t.postVisibility.title}
             </Text>
@@ -56,7 +39,7 @@ export function PublishPicker({ visible, onClose, onPublic, onPrivate, hasSaved,
             </Text>
 
             <View style={{ gap: 12 }}>
-              <TouchableOpacity
+              <Pressable
                 disabled={!hasSaved}
                 onPress={hasSaved ? onPrivate : undefined}
                 style={{
@@ -85,9 +68,9 @@ export function PublishPicker({ visible, onClose, onPublic, onPrivate, hasSaved,
                   </Text>
                 </View>
                 <Icon name="chevron_right" size={18} color={hasSaved ? accent : theme.textFaint} />
-              </TouchableOpacity>
+              </Pressable>
 
-              <TouchableOpacity
+              <Pressable
                 onPress={onPublic}
                 style={{
                   flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16, borderRadius: radii.lg,
@@ -106,19 +89,15 @@ export function PublishPicker({ visible, onClose, onPublic, onPrivate, hasSaved,
                   </Text>
                 </View>
                 <Icon name="chevron_right" size={18} color={accent} />
-              </TouchableOpacity>
+              </Pressable>
             </View>
 
-            <TouchableOpacity
+            <Pressable
               onPress={onClose}
               style={{ marginTop: 14, height: 44, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' }}
             >
               <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: theme.muted }}>{t.postVisibility.cancel}</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-      </GestureHandlerRootView>
-    </Modal>
+            </Pressable>
+    </BottomSheet>
   );
 }

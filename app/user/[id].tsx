@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Modal, Pressable as RNPressable, ActivityIndicator, Alert } from 'react-native';
+import { View, ScrollView, Pressable as RNPressable, ActivityIndicator, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -7,6 +7,7 @@ import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Card } from '@/components/ui/Card';
+import { BottomSheet } from '@/components/ui/BottomSheet';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -22,6 +23,8 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Profile, VehicleProfile, BadgeCount, RidePost } from '@/types';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
+import { BadgeGlyph } from '@/components/community/BadgeGlyph';
+import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 
@@ -49,6 +52,7 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [vehicles, setVehicles] = useState<VehicleProfile[]>([]);
   const [badges, setBadges] = useState<BadgeCount[]>([]);
+  const [selectedBadge, setSelectedBadge] = useState<BadgeCount | null>(null);
   const [posts, setPosts] = useState<RidePost[]>([]);
   const [tripCount, setTripCount] = useState<number | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
@@ -213,13 +217,9 @@ export default function UserProfileScreen() {
               {activeBadges.map((b) => {
                 const cfg = BADGE_ICONS[b.badge_type];
                 return (
-                  <View key={b.badge_type} style={{
-                    width: 48, height: 48, borderRadius: 14,
-                    backgroundColor: cfg.color + '18', borderWidth: 1.5, borderColor: cfg.color + '45',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    <Icon name={cfg.icon} size={22} color={cfg.color} />
-                  </View>
+                  <RNPressable key={b.badge_type} onPress={() => setSelectedBadge(b)}>
+                    <BadgeGlyph badge={b.badge_type} size={48} color={cfg.color} />
+                  </RNPressable>
                 );
               })}
             </View>
@@ -305,6 +305,7 @@ export default function UserProfileScreen() {
           }
         }}
       />
+      <BadgeInfoSheet badge={selectedBadge?.badge_type ?? null} count={selectedBadge?.count} onClose={() => setSelectedBadge(null)} />
     </View>
   );
 }
@@ -323,7 +324,6 @@ function ReportSheet({
   onCancel: () => void;
   onSubmit: (reasons: string[], note: string) => Promise<boolean | undefined>;
 }) {
-  const insets = useSafeAreaInsets();
   const [step, setStep] = useState<'form' | 'thanks'>('form');
   const [reasons, setReasons] = useState<Set<string>>(new Set());
   const [note, setNote] = useState('');
@@ -354,17 +354,7 @@ function ReportSheet({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <RNPressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'flex-end' }} onPress={handleClose}>
-        <RNPressable onPress={() => {}}>
-          <View style={{
-            position: 'relative',
-            backgroundColor: theme.surface, borderTopLeftRadius: radii.xl, borderTopRightRadius: radii.xl,
-            padding: 22, paddingBottom: insets.bottom + 22,
-          }}>
-            <View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: theme.surface }} />
-            <View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginBottom: 20 }} />
-
+    <BottomSheet visible={visible} onClose={handleClose} style={{ paddingHorizontal: 22, paddingBottom: 22 }}>
             {step === 'thanks' ? (
               <View style={{ alignItems: 'center', gap: 14 }}>
                 <View style={{
@@ -448,9 +438,6 @@ function ReportSheet({
                 </View>
               </>
             )}
-          </View>
-        </RNPressable>
-      </RNPressable>
-    </Modal>
+    </BottomSheet>
   );
 }
