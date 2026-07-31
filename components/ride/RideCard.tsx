@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { RouteLine } from './RouteLine';
+import { FlightInfoCard } from './FlightInfoCard';
 import { RidePost, RidePostDetailsPackage, RidePostDetailsHauling, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -218,19 +219,23 @@ export function RideCard({ post, style }: Props) {
               {isFromAirport ? t.feed.airportPickup : t.feed.airportDropoff}
             </Text>
           </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
-            <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={17} color={theme.text} />
+          {(post.details as RidePostDetailsRide)?.flightInfo ? (
+            <FlightInfoCard info={(post.details as RidePostDetailsRide).flightInfo!} />
+          ) : (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
+              <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={17} color={theme.text} />
+              </View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
+                  {isFromAirport ? t.feed.pickingUpFromAirport : t.feed.droppingAtAirport}
+                </Text>
+                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 2, lineHeight: 17 }}>
+                  {post.flight_number ? `${t.feed.flightLabel} ${post.flight_number} — ${t.feed.arrivalTracked}` : t.feed.airportLegNote}
+                </Text>
+              </View>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
-                {isFromAirport ? t.feed.pickingUpFromAirport : t.feed.droppingAtAirport}
-              </Text>
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginTop: 2, lineHeight: 17 }}>
-                {post.flight_number ? `${t.feed.flightLabel} ${post.flight_number} — ${t.feed.arrivalTracked}` : t.feed.airportLegNote}
-              </Text>
-            </View>
-          </View>
+          )}
         </BottomSheet>
       )}
     </View>

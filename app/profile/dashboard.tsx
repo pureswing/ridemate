@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { View, ScrollView, Pressable } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { View, ScrollView, Pressable, Animated, LayoutChangeEvent } from 'react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -7,7 +7,6 @@ import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
-import { SwipeCards } from '@/components/ui/SwipeCards';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { useTheme } from '@/hooks/useTheme';
@@ -64,7 +63,6 @@ const BADGES: { type: BadgeType; count: number }[] = [
   { type: 'friendly', count: 15 },
   { type: 'great_chat', count: 6 },
 ];
-const BADGES_TOTAL = BADGES.reduce((s, b) => s + b.count, 0);
 
 const RANK_TIERS = ['New', 'Active', 'Trusted', 'Elite'];
 const CURRENT_TIER = 2; // index into RANK_TIERS — "Trusted"
@@ -90,9 +88,6 @@ const EARNINGS = [
 ];
 const EARNINGS_TOTAL = EARNINGS.reduce((s, e) => s + e.amount, 0);
 const TOTAL_SPENT = 212;
-
-const AVG_PRICE = 47;
-const CANCEL_RATE = 8;
 
 const MILES_DRIVEN = { total: 1520, rides: 960, courier: 360, hauling: 200 };
 
@@ -128,6 +123,13 @@ const FUN_FACTS: { icon: IconName; label: string; stat: string; route: string; d
   { icon: 'money', label: 'Your best paid trip', stat: '$85', route: 'Winter Haven → Orlando', date: 'Jul 2' },
   { icon: 'schedule', label: 'Your longest ride', stat: '95 min', route: 'Winter Haven → Jacksonville', date: 'May 22' },
 ];
+
+type SectionKey = 'overview' | 'community' | 'activity' | 'finance' | 'funfacts';
+const SECTION_ICONS: Record<SectionKey, IconName> = {
+  overview: 'summary', community: 'users_round', activity: 'activity', finance: 'coins', funfacts: 'lightbulb',
+};
+const SECTIONS: SectionKey[] = ['overview', 'community', 'activity', 'finance', 'funfacts'];
+const PAID_SECTIONS: SectionKey[] = ['activity', 'finance', 'funfacts'];
 
 // Small circular "i" button — tapping it opens DashboardScreen's info sheet
 // with an explanation of that card's metric. Matches the design's per-card
@@ -172,6 +174,50 @@ function SectionCard({ title, subtitle, children, theme, accent, onInfo }: { tit
 
 function SectionHeading({ children, theme }: { children: React.ReactNode; theme: ReturnType<typeof useTheme> }) {
   return <Text style={{ fontFamily: fonts.displayBold, fontSize: 16.5, color: theme.text, marginBottom: 10 }}>{children}</Text>;
+}
+
+// Animated icon-segmented pill — a sliding highlight tracks whichever
+// section is active, matching the app's other segmented-control patterns
+// but icon-only (no labels) to stay compact across 5 sections.
+function SectionPill({ active, onChange, theme }: { active: SectionKey; onChange: (k: SectionKey) => void; theme: ReturnType<typeof useTheme> }) {
+  const [width, setWidth] = useState(0);
+  const indicator = useRef(new Animated.Value(0)).current;
+  const idx = SECTIONS.indexOf(active);
+
+  useEffect(() => {
+    Animated.spring(indicator, { toValue: idx, useNativeDriver: true, friction: 9, tension: 80 }).start();
+  }, [idx, indicator]);
+
+  function onLayout(e: LayoutChangeEvent) {
+    setWidth(e.nativeEvent.layout.width);
+  }
+
+  // width is the container's own border box (padding included); the 5
+  // flex:1 icon buttons actually split (width - padding*2) between them, so
+  // the indicator has to use that same inner width or it drifts away from
+  // the real button centers — most visibly at the first/last segments.
+  const innerWidth = Math.max(width - 8, 0);
+  const segW = innerWidth / SECTIONS.length;
+  const translateX = indicator.interpolate({
+    inputRange: SECTIONS.map((_, i) => i),
+    outputRange: SECTIONS.map((_, i) => i * segW),
+  });
+
+  return (
+    <View onLayout={onLayout} style={{ flexDirection: 'row', backgroundColor: theme.surfaceAlt, borderRadius: radii.pill, padding: 4 }}>
+      {width > 0 && (
+        <Animated.View style={{
+          position: 'absolute', top: 4, bottom: 4, left: 4, width: segW,
+          borderRadius: radii.pill, backgroundColor: theme.surface, transform: [{ translateX }], ...shadows.sm,
+        }} />
+      )}
+      {SECTIONS.map((key) => (
+        <Pressable key={key} onPress={() => onChange(key)} style={{ flex: 1, height: 44, alignItems: 'center', justifyContent: 'center' }}>
+          <Icon name={SECTION_ICONS[key]} size={20} color={active === key ? theme.gold500 : theme.textFaint} />
+        </Pressable>
+      ))}
+    </View>
+  );
 }
 
 // Where the user's average cancellation notice sits on a risky→fair
@@ -248,12 +294,32 @@ function KpiCard({ icon, label, value, accent, sub, theme, onInfo }: {
   );
 }
 
+function LockedSection({ theme, t }: { theme: ReturnType<typeof useTheme>; t: ReturnType<typeof useTranslation> }) {
+  return (
+    <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+      <View style={{
+        width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: theme.gold400, ...shadows.gold,
+      }}>
+        <Icon name="lock" size={26} color={theme.textOnPrimary} />
+      </View>
+      <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginTop: 14, textAlign: 'center' }}>
+        {t.dashboard.lockedTitle}
+      </Text>
+      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted, marginTop: 6, textAlign: 'center', maxWidth: 260 }}>
+        {t.dashboard.lockedSub}
+      </Text>
+    </View>
+  );
+}
+
 export default function DashboardScreen() {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const { isDonor } = useSubscription();
   const [infoText, setInfoText] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<SectionKey>('overview');
 
   const maxRpm = Math.max(IRS_RATE, ...RPM_DATA.map((r) => r.value));
 
@@ -271,6 +337,16 @@ export default function DashboardScreen() {
   const cancelVsCommunity = CANCELLATION.byUserCount > 0 && CANCELLATION.communityAvgNotice > 0
     ? (CANCELLATION.byUserAvgNotice >= CANCELLATION.communityAvgNotice ? t.dashboard.cancelVsCommunityAbove : t.dashboard.cancelVsCommunityBelow)
     : null;
+
+  const sectionTitle: Record<SectionKey, string> = {
+    overview: t.dashboard.overviewTitle,
+    community: t.dashboard.communityTitle,
+    activity: t.dashboard.activityTitle,
+    finance: t.dashboard.financeTitle,
+    funfacts: t.dashboard.funFactsTitle,
+  };
+
+  const locked = PAID_SECTIONS.includes(activeSection) && !isDonor;
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -295,7 +371,7 @@ export default function DashboardScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 22, paddingBottom: insets.bottom + 40 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: insets.bottom + 40 }}>
         <View style={{ flexDirection: 'row', gap: 10, backgroundColor: theme.gold400 + '18', borderWidth: 1, borderColor: theme.borderGold, borderRadius: radii.md, padding: 12 }}>
           <View style={{ marginTop: 1 }}>
             <Icon name="info" size={16} color={theme.gold500} />
@@ -305,458 +381,365 @@ export default function DashboardScreen() {
           </Text>
         </View>
 
-        {/* KPI list */}
-        <View style={{ gap: 12 }}>
-          <KpiCard theme={theme} icon="car" label={t.dashboard.kpiTripsLabel} value={String(TRIPS_AS_DRIVER.total)} accent={theme.driverText}
-            onInfo={() => setInfoText(t.dashboard.infoTrips)}
-            sub={[
-              { icon: 'car', label: t.dashboard.kindRides, value: String(TRIPS_AS_DRIVER.rides), color: theme.driverText },
-              { icon: 'package', label: t.dashboard.kindCourier, value: String(TRIPS_AS_DRIVER.courier), color: theme.courierText },
-              { icon: 'truck', label: t.dashboard.kindHauling, value: String(TRIPS_AS_DRIVER.hauling), color: theme.haulingText },
-            ]} />
-          <KpiCard theme={theme} icon="schedule" label={t.dashboard.kpiTimeLabel} value={TIME_ON_ROAD.total} accent={theme.gold500}
-            onInfo={() => setInfoText(t.dashboard.infoTime)}
-            sub={[
-              { icon: 'car', label: t.dashboard.kindRides, value: TIME_ON_ROAD.rides, color: theme.driverText },
-              { icon: 'package', label: t.dashboard.kindCourier, value: TIME_ON_ROAD.courier, color: theme.courierText },
-              { icon: 'truck', label: t.dashboard.kindHauling, value: TIME_ON_ROAD.hauling, color: theme.haulingText },
-            ]} />
-          <KpiCard theme={theme} icon="banknote_arrow_up" label={t.dashboard.kpiEarnedLabel} value={`$${EARNINGS_TOTAL}`} accent={theme.gold500}
-            onInfo={() => setInfoText(t.dashboard.infoEarned)}
-            sub={EARNINGS.map((e) => ({ icon: (e.label === 'Rides' ? 'car' : e.label === 'Courier' ? 'package' : 'truck') as IconName, label: e.label === 'Rides' ? t.dashboard.kindRides : e.label === 'Courier' ? t.dashboard.kindCourier : t.dashboard.kindHauling, value: `$${e.amount}`, color: e.color }))} />
-          <KpiCard theme={theme} icon="banknote_arrow_down" label={t.dashboard.kpiSpentLabel} value={`$${TOTAL_SPENT}`} accent={theme.muted}
-            onInfo={() => setInfoText(t.dashboard.infoSpent)} />
-        </View>
+        <SectionPill active={activeSection} onChange={setActiveSection} theme={theme} />
 
-        {/* Summary strip */}
-        <View style={{ flexDirection: 'row', backgroundColor: theme.surface, borderRadius: radii.lg, borderWidth: 1, borderColor: theme.cardBorder, overflow: 'hidden', ...shadows.sm }}>
-          {[
-            { icon: 'arrow_up_down' as IconName, value: `$${AVG_PRICE}`, label: t.dashboard.summaryAvgPrice },
-            { icon: 'badge' as IconName, value: String(BADGES_TOTAL), label: t.dashboard.summaryBadges },
-            { icon: 'ban' as IconName, value: `${CANCEL_RATE}%`, label: t.dashboard.summaryCancelRate },
-          ].map((item, i) => (
-            <View key={item.label} style={{ flex: 1, alignItems: 'center', paddingVertical: 14, gap: 5, borderRightWidth: i < 2 ? 1 : 0, borderRightColor: theme.cardBorder }}>
-              <Icon name={item.icon} size={16} color={theme.gold500} />
-              <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 18, color: theme.text }}>{item.value}</Text>
-              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 9.5, textTransform: 'uppercase', letterSpacing: letterSpacingFor(9.5, tracking.wide), color: theme.textFaint, textAlign: 'center' }}>{item.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {/* Comunidad — swipe: badges / rank / feedback / cancellations */}
         <View>
-          <SectionHeading theme={theme}>{t.dashboard.communityTitle}</SectionHeading>
-          <SwipeCards items={[
-            {
-              key: 'badges', node: (
-                <SectionCard theme={theme} title={t.dashboard.badgesTitle} onInfo={() => setInfoText(t.dashboard.infoBadges)}>
-                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
-                    {BADGES.map((b) => (
-                      <View key={b.type} style={{ alignItems: 'center', gap: 5, width: 56 }}>
-                        <BadgeGlyph badge={b.type} size={48} color={BADGE_ICONS[b.type].color} />
-                        <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.text }}>{b.count}×</Text>
-                      </View>
-                    ))}
-                  </View>
-                </SectionCard>
-              ),
-            },
-            {
-              key: 'rank', node: (
-                <SectionCard theme={theme} title={t.dashboard.rankTitle} subtitle={t.dashboard.rankSub} onInfo={() => setInfoText(t.dashboard.infoRank)}>
-                  <View style={{ flexDirection: 'row', gap: 6 }}>
-                    {RANK_TIERS.map((tier, i) => (
-                      <View key={tier} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
-                        <View style={{ width: '100%', height: 6, borderRadius: 3, backgroundColor: i <= CURRENT_TIER ? theme.gold500 : theme.surfaceAlt }} />
-                        <Text style={{ fontFamily: i === CURRENT_TIER ? fonts.bodyExtraBold : fonts.bodyMedium, fontSize: 10.5, color: i === CURRENT_TIER ? theme.gold500 : theme.textFaint }}>{tier}</Text>
-                      </View>
-                    ))}
-                  </View>
-                </SectionCard>
-              ),
-            },
-            {
-              key: 'feedback', node: (
-                <SectionCard theme={theme} title={t.dashboard.feedbackTitle} onInfo={() => setInfoText(t.dashboard.infoFeedback)}>
-                  <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 22, color: theme.text, marginBottom: 10 }}>{FEEDBACK_TOTAL} <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.textFaint }}>{t.dashboard.feedbackTotalSuffix}</Text></Text>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                    <Icon name="brain" size={15} color={theme.gold400} />
-                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{t.dashboard.feedbackAiLabel}</Text>
-                  </View>
-                  {!isDonor ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.surfaceAlt, borderRadius: radii.md, padding: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.gold400 }}>
-                        <Icon name="lock" size={16} color={theme.textOnPrimary} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>{t.dashboard.feedbackLockedTitle}</Text>
-                        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>{t.dashboard.feedbackLockedSub}</Text>
-                      </View>
+          <SectionHeading theme={theme}>{sectionTitle[activeSection]}</SectionHeading>
+
+          {locked ? (
+            <LockedSection theme={theme} t={t} />
+          ) : activeSection === 'overview' ? (
+            <View style={{ gap: 12 }}>
+              <KpiCard theme={theme} icon="car" label={t.dashboard.kpiTripsLabel} value={String(TRIPS_AS_DRIVER.total)} accent={theme.driverText}
+                onInfo={() => setInfoText(t.dashboard.infoTrips)}
+                sub={[
+                  { icon: 'car', label: t.dashboard.kindRides, value: String(TRIPS_AS_DRIVER.rides), color: theme.driverText },
+                  { icon: 'package', label: t.dashboard.kindCourier, value: String(TRIPS_AS_DRIVER.courier), color: theme.courierText },
+                  { icon: 'truck', label: t.dashboard.kindHauling, value: String(TRIPS_AS_DRIVER.hauling), color: theme.haulingText },
+                ]} />
+              <KpiCard theme={theme} icon="schedule" label={t.dashboard.kpiTimeLabel} value={TIME_ON_ROAD.total} accent={theme.gold500}
+                onInfo={() => setInfoText(t.dashboard.infoTime)}
+                sub={[
+                  { icon: 'car', label: t.dashboard.kindRides, value: TIME_ON_ROAD.rides, color: theme.driverText },
+                  { icon: 'package', label: t.dashboard.kindCourier, value: TIME_ON_ROAD.courier, color: theme.courierText },
+                  { icon: 'truck', label: t.dashboard.kindHauling, value: TIME_ON_ROAD.hauling, color: theme.haulingText },
+                ]} />
+              <KpiCard theme={theme} icon="banknote_arrow_up" label={t.dashboard.kpiEarnedLabel} value={`$${EARNINGS_TOTAL}`} accent={theme.gold500}
+                onInfo={() => setInfoText(t.dashboard.infoEarned)}
+                sub={EARNINGS.map((e) => ({ icon: (e.label === 'Rides' ? 'car' : e.label === 'Courier' ? 'package' : 'truck') as IconName, label: e.label === 'Rides' ? t.dashboard.kindRides : e.label === 'Courier' ? t.dashboard.kindCourier : t.dashboard.kindHauling, value: `$${e.amount}`, color: e.color }))} />
+              <KpiCard theme={theme} icon="banknote_arrow_down" label={t.dashboard.kpiSpentLabel} value={`$${TOTAL_SPENT}`} accent={theme.muted}
+                onInfo={() => setInfoText(t.dashboard.infoSpent)} />
+            </View>
+          ) : activeSection === 'community' ? (
+            <View style={{ gap: 12 }}>
+              <SectionCard theme={theme} title={t.dashboard.badgesTitle} onInfo={() => setInfoText(t.dashboard.infoBadges)}>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
+                  {BADGES.map((b) => (
+                    <View key={b.type} style={{ alignItems: 'center', gap: 5, width: 56 }}>
+                      <BadgeGlyph badge={b.type} size={48} color={BADGE_ICONS[b.type].color} />
+                      <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.text }}>{b.count}×</Text>
                     </View>
-                  ) : (
-                    <View style={{ backgroundColor: theme.surfaceAlt, borderRadius: radii.md, padding: 12, borderLeftWidth: 3, borderLeftColor: theme.gold400 }}>
-                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, fontStyle: 'italic', color: theme.text, lineHeight: 18, marginBottom: 9 }}>
-                        "{t.dashboard.feedbackAiSummary}"
+                  ))}
+                </View>
+              </SectionCard>
+
+              <SectionCard theme={theme} title={t.dashboard.rankTitle} subtitle={t.dashboard.rankSub} onInfo={() => setInfoText(t.dashboard.infoRank)}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {RANK_TIERS.map((tier, i) => (
+                    <View key={tier} style={{ flex: 1, alignItems: 'center', gap: 6 }}>
+                      <View style={{ width: '100%', height: 6, borderRadius: 3, backgroundColor: i <= CURRENT_TIER ? theme.gold500 : theme.surfaceAlt }} />
+                      <Text style={{ fontFamily: i === CURRENT_TIER ? fonts.bodyExtraBold : fonts.bodyMedium, fontSize: 10.5, color: i === CURRENT_TIER ? theme.gold500 : theme.textFaint }}>{tier}</Text>
+                    </View>
+                  ))}
+                </View>
+              </SectionCard>
+
+              <SectionCard theme={theme} title={t.dashboard.feedbackTitle} onInfo={() => setInfoText(t.dashboard.infoFeedback)}>
+                <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 22, color: theme.text, marginBottom: 10 }}>{FEEDBACK_TOTAL} <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.textFaint }}>{t.dashboard.feedbackTotalSuffix}</Text></Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <Icon name="brain" size={15} color={theme.gold400} />
+                  <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{t.dashboard.feedbackAiLabel}</Text>
+                </View>
+                {!isDonor ? (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: theme.surfaceAlt, borderRadius: radii.md, padding: 12 }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.gold400 }}>
+                      <Icon name="lock" size={16} color={theme.textOnPrimary} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>{t.dashboard.feedbackLockedTitle}</Text>
+                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>{t.dashboard.feedbackLockedSub}</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={{ backgroundColor: theme.surfaceAlt, borderRadius: radii.md, padding: 12, borderLeftWidth: 3, borderLeftColor: theme.gold400 }}>
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, fontStyle: 'italic', color: theme.text, lineHeight: 18, marginBottom: 9 }}>
+                      "{t.dashboard.feedbackAiSummary}"
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+                      {FEEDBACK_STRENGTHS.map((s) => (
+                        <View key={s} style={{ backgroundColor: theme.driverText + '18', paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill }}>
+                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.driverText }}>{s}</Text>
+                        </View>
+                      ))}
+                      {FEEDBACK_WATCHOUTS.map((w) => (
+                        <View key={w} style={{ backgroundColor: theme.gold400 + '20', paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill }}>
+                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.gold500 }}>{w}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+              </SectionCard>
+
+              <SectionCard theme={theme} title={t.dashboard.cancelTitle} onInfo={() => setInfoText(t.dashboard.infoCancel)}>
+                <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 17, color: cancelToneColor, marginBottom: 12 }}>{cancelHeadline}</Text>
+                <View style={{ gap: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radii.md, backgroundColor: theme.surfaceAlt }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: cancelToneColor + '1F', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name="close" size={15} color={cancelToneColor} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{t.dashboard.cancelByYou}</Text>
+                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
+                        {CANCELLATION.byUserCount} {CANCELLATION.byUserCount === 1 ? t.dashboard.cancelJob : t.dashboard.cancelJobs}
+                        {CANCELLATION.byUserCount > 0 ? ` · ${t.dashboard.cancelAvgPrefix} ${CANCELLATION.byUserAvgNotice.toFixed(1)}h ${t.dashboard.cancelNoticeSuffix}` : ''}
                       </Text>
-                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                        {FEEDBACK_STRENGTHS.map((s) => (
-                          <View key={s} style={{ backgroundColor: theme.driverText + '18', paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill }}>
-                            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.driverText }}>{s}</Text>
-                          </View>
-                        ))}
-                        {FEEDBACK_WATCHOUTS.map((w) => (
-                          <View key={w} style={{ backgroundColor: theme.gold400 + '20', paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill }}>
-                            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.gold500 }}>{w}</Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                  )}
-                </SectionCard>
-              ),
-            },
-            {
-              key: 'cancellations', node: (
-                <SectionCard theme={theme} title={t.dashboard.cancelTitle} onInfo={() => setInfoText(t.dashboard.infoCancel)}>
-                  <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 17, color: cancelToneColor, marginBottom: 12 }}>{cancelHeadline}</Text>
-                  <View style={{ gap: 8 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radii.md, backgroundColor: theme.surfaceAlt }}>
-                      <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: cancelToneColor + '1F', alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon name="close" size={15} color={cancelToneColor} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{t.dashboard.cancelByYou}</Text>
-                        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
-                          {CANCELLATION.byUserCount} {CANCELLATION.byUserCount === 1 ? t.dashboard.cancelJob : t.dashboard.cancelJobs}
-                          {CANCELLATION.byUserCount > 0 ? ` · ${t.dashboard.cancelAvgPrefix} ${CANCELLATION.byUserAvgNotice.toFixed(1)}h ${t.dashboard.cancelNoticeSuffix}` : ''}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radii.md, backgroundColor: theme.surfaceAlt }}>
-                      <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon name="person" size={15} color={theme.muted} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{t.dashboard.cancelOnYou}</Text>
-                        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
-                          {CANCELLATION.onUserCount} {CANCELLATION.onUserCount === 1 ? t.dashboard.cancelJob : t.dashboard.cancelJobs}
-                          {CANCELLATION.onUserCount > 0 ? ` · ${t.dashboard.cancelAvgPrefix} ${CANCELLATION.onUserAvgNotice.toFixed(1)}h ${t.dashboard.cancelNoticeFromCreatorsSuffix}` : ''}
-                        </Text>
-                      </View>
                     </View>
                   </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: radii.md, backgroundColor: theme.surfaceAlt }}>
+                    <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name="person" size={15} color={theme.muted} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{t.dashboard.cancelOnYou}</Text>
+                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>
+                        {CANCELLATION.onUserCount} {CANCELLATION.onUserCount === 1 ? t.dashboard.cancelJob : t.dashboard.cancelJobs}
+                        {CANCELLATION.onUserCount > 0 ? ` · ${t.dashboard.cancelAvgPrefix} ${CANCELLATION.onUserAvgNotice.toFixed(1)}h ${t.dashboard.cancelNoticeFromCreatorsSuffix}` : ''}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
 
-                  {CANCELLATION.byUserCount > 0 && CANCELLATION.communityAvgNotice > 0 && (
-                    <NoticeGauge
-                      yourHours={CANCELLATION.byUserAvgNotice}
-                      communityHours={CANCELLATION.communityAvgNotice}
-                      toneColor={cancelToneColor}
-                      caption={cancelVsCommunity}
-                      theme={theme} t={t}
-                    />
-                  )}
+                {CANCELLATION.byUserCount > 0 && CANCELLATION.communityAvgNotice > 0 && (
+                  <NoticeGauge
+                    yourHours={CANCELLATION.byUserAvgNotice}
+                    communityHours={CANCELLATION.communityAvgNotice}
+                    toneColor={cancelToneColor}
+                    caption={cancelVsCommunity}
+                    theme={theme} t={t}
+                  />
+                )}
 
-                  <View style={{ marginTop: 10, padding: 12, borderRadius: radii.md, backgroundColor: theme.surfaceAlt, borderLeftWidth: 3, borderLeftColor: cancelToneColor }}>
-                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, fontStyle: 'italic', color: theme.text, lineHeight: 18 }}>
-                      "{cancelSuggestion}"
+                <View style={{ marginTop: 10, padding: 12, borderRadius: radii.md, backgroundColor: theme.surfaceAlt, borderLeftWidth: 3, borderLeftColor: cancelToneColor }}>
+                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, fontStyle: 'italic', color: theme.text, lineHeight: 18 }}>
+                    "{cancelSuggestion}"
+                  </Text>
+                </View>
+
+                {CANCELLATION.flags > 0 && (
+                  <View style={{ marginTop: 10, padding: 12, borderRadius: radii.md, backgroundColor: cancelToneColor + '14' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Icon name="report" size={15} color={cancelToneColor} />
+                      <Text style={{ flex: 1, fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.text, lineHeight: 17 }}>
+                        <Text style={{ fontFamily: fonts.bodyBold, color: cancelToneColor }}>{CANCELLATION.flags} {t.dashboard.cancelFlagsOf} {CANCELLATION.flagThreshold}</Text> {t.dashboard.cancelFlagsSuffix}
+                      </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 5, marginTop: 9 }}>
+                      {Array.from({ length: CANCELLATION.flagThreshold }).map((_, i) => (
+                        <View key={i} style={{ flex: 1, height: 6, borderRadius: 99, backgroundColor: i < CANCELLATION.flags ? cancelToneColor : theme.surface }} />
+                      ))}
+                    </View>
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 7 }}>
+                      {t.dashboard.cancelFlagsReview.replace('{n}', String(CANCELLATION.flagThreshold))}
                     </Text>
                   </View>
+                )}
+              </SectionCard>
 
-                  {CANCELLATION.flags > 0 && (
-                    <View style={{ marginTop: 10, padding: 12, borderRadius: radii.md, backgroundColor: cancelToneColor + '14' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                        <Icon name="report" size={15} color={cancelToneColor} />
-                        <Text style={{ flex: 1, fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.text, lineHeight: 17 }}>
-                          <Text style={{ fontFamily: fonts.bodyBold, color: cancelToneColor }}>{CANCELLATION.flags} {t.dashboard.cancelFlagsOf} {CANCELLATION.flagThreshold}</Text> {t.dashboard.cancelFlagsSuffix}
-                        </Text>
+              <SectionCard title={t.dashboard.milestonesTitle} theme={theme}>
+                <View style={{ gap: 14 }}>
+                  {MILESTONES.map((m) => (
+                    <View key={m.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon name={m.icon} size={17} color={m.progress >= 1 ? theme.driverText : theme.muted} />
                       </View>
-                      <View style={{ flexDirection: 'row', gap: 5, marginTop: 9 }}>
-                        {Array.from({ length: CANCELLATION.flagThreshold }).map((_, i) => (
-                          <View key={i} style={{ flex: 1, height: 6, borderRadius: 99, backgroundColor: i < CANCELLATION.flags ? cancelToneColor : theme.surface }} />
-                        ))}
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
+                          <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text, flexShrink: 1 }}>{m.label}</Text>
+                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.muted }}>{m.goal}</Text>
+                        </View>
+                        <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
+                          <View style={{ width: `${m.progress * 100}%`, height: '100%', backgroundColor: m.progress >= 1 ? theme.driverText : theme.gold400, borderRadius: 3 }} />
+                        </View>
                       </View>
-                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 7 }}>
-                        {t.dashboard.cancelFlagsReview.replace('{n}', String(CANCELLATION.flagThreshold))}
-                      </Text>
                     </View>
-                  )}
-                </SectionCard>
-              ),
-            },
-          ]} />
-        </View>
+                  ))}
+                </View>
+              </SectionCard>
+            </View>
+          ) : activeSection === 'activity' ? (
+            <View style={{ gap: 12 }}>
+              <KpiCard theme={theme} icon="route" label={t.dashboard.milesTitle} value={`${MILES_DRIVEN.total} mi`} accent={theme.driverText}
+                onInfo={() => setInfoText(t.dashboard.infoMiles)}
+                sub={[
+                  { icon: 'car', label: t.dashboard.kindRides, value: `${MILES_DRIVEN.rides} mi`, color: theme.driverText },
+                  { icon: 'package', label: t.dashboard.kindCourier, value: `${MILES_DRIVEN.courier} mi`, color: theme.courierText },
+                  { icon: 'truck', label: t.dashboard.kindHauling, value: `${MILES_DRIVEN.hauling} mi`, color: theme.haulingText },
+                ]} />
 
-        {/* Logros y recompensas — milestones */}
-        <View>
-          <SectionHeading theme={theme}>{t.dashboard.achievementsTitle}</SectionHeading>
-          <SectionCard title={t.dashboard.milestonesTitle} theme={theme}>
-            <View style={{ gap: 14 }}>
-              {MILESTONES.map((m) => (
-                <View key={m.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                    <Icon name={m.icon} size={17} color={m.progress >= 1 ? theme.driverText : theme.muted} />
+              <SectionCard theme={theme} title={t.dashboard.monthlyTitle}>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 90 }}>
+                  {MONTHLY_ACTIVITY.map((m) => (
+                    <View key={m.m} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 76 }}>
+                        <View style={{ width: 9, height: Math.max((m.driver / MONTHLY_MAX) * 76, 3), backgroundColor: theme.driverText, borderRadius: 3 }} />
+                        <View style={{ width: 9, height: Math.max((m.passenger / MONTHLY_MAX) * 76, 3), backgroundColor: theme.passengerText, borderRadius: 3, opacity: 0.75 }} />
+                      </View>
+                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 10, color: theme.textFaint }}>{m.m}</Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 16, marginTop: 10, justifyContent: 'center' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <View style={{ width: 9, height: 9, borderRadius: 3, backgroundColor: theme.driverText }} />
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.muted }}>{t.dashboard.monthlyAsDriver}</Text>
                   </View>
-                  <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                      <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text, flexShrink: 1 }}>{m.label}</Text>
-                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.muted }}>{m.goal}</Text>
-                    </View>
-                    <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
-                      <View style={{ width: `${m.progress * 100}%`, height: '100%', backgroundColor: m.progress >= 1 ? theme.driverText : theme.gold400, borderRadius: 3 }} />
-                    </View>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                    <View style={{ width: 9, height: 9, borderRadius: 3, backgroundColor: theme.passengerText }} />
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.muted }}>{t.dashboard.monthlyAsRider}</Text>
                   </View>
                 </View>
+              </SectionCard>
+
+              <SectionCard theme={theme} title={t.dashboard.busiestTitle}>
+                <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-end', height: 60 }}>
+                  {DOW_LABELS.map((day, i) => {
+                    const h = DOW_COUNT[i];
+                    const pct = h / DOW_MAX;
+                    const barH = Math.max(10, Math.round(pct * 48));
+                    const bg = pct < 0.4 ? theme.gold400 + '46' : pct < 0.75 ? theme.gold400 + '8C' : theme.gold400;
+                    return (
+                      <View key={day} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: '100%', height: 48, justifyContent: 'flex-end' }}>
+                          <View style={{ width: '100%', height: barH, borderRadius: 8, backgroundColor: bg }} />
+                        </View>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 10, color: theme.textFaint }}>{day}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </SectionCard>
+
+              <SectionCard theme={theme} title={t.dashboard.routesTitle}>
+                <View style={{ gap: 12 }}>
+                  {TOP_ROUTES.map((r) => {
+                    const pct = Math.round((r.count / ROUTES_COMPLETED_TOTAL) * 100);
+                    return (
+                      <View key={`${r.origin}-${r.destination}`}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                          <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{r.origin} → {r.destination}</Text>
+                          <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11.5, color: theme.muted }}>{r.count}x · {pct}%</Text>
+                        </View>
+                        <View style={{ height: 5, borderRadius: 3, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
+                          <View style={{ width: `${pct}%`, height: '100%', backgroundColor: theme.gold400, borderRadius: 3 }} />
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </SectionCard>
+            </View>
+          ) : activeSection === 'finance' ? (
+            <View style={{ gap: 12 }}>
+              <SectionCard theme={theme} title={t.dashboard.earningsTitle} subtitle={t.dashboard.earningsSub}>
+                <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 24, color: theme.text, marginBottom: 12 }}>${EARNINGS_TOTAL}</Text>
+                <View style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 12 }}>
+                  {EARNINGS.map((e) => <View key={e.label} style={{ width: `${(e.amount / EARNINGS_TOTAL) * 100}%`, backgroundColor: e.color }} />)}
+                </View>
+                <View style={{ gap: 8 }}>
+                  {EARNINGS.map((e) => (
+                    <View key={e.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: e.color }} />
+                      <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.text }}>{e.label}</Text>
+                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${e.amount}</Text>
+                    </View>
+                  ))}
+                </View>
+              </SectionCard>
+
+              <SectionCard theme={theme} title={t.dashboard.rpmTitle} subtitle={t.dashboard.rpmSub} onInfo={() => setInfoText(t.dashboard.infoRpm)}>
+                <View style={{ gap: 10 }}>
+                  {RPM_DATA.map((r) => (
+                    <View key={r.label}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text }}>{r.label}</Text>
+                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: r.value >= IRS_RATE ? theme.driverText : theme.danger }}>${r.value.toFixed(2)}/mi</Text>
+                      </View>
+                      <View style={{ height: 8, borderRadius: 4, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
+                        <View style={{ width: `${(r.value / maxRpm) * 100}%`, height: '100%', backgroundColor: r.color, borderRadius: 4 }} />
+                      </View>
+                    </View>
+                  ))}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                    <View style={{ width: 8, height: 2, backgroundColor: theme.textFaint }} />
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint }}>{t.dashboard.rpmBaseline} · ${IRS_RATE}/mi</Text>
+                  </View>
+                </View>
+              </SectionCard>
+
+              {EXPENSES.map((ex) => {
+                const total = ex.fare + (ex.fuel ?? 0) + (ex.wear ?? 0);
+                return (
+                  <SectionCard key={ex.label} theme={theme}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                      <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                        <Icon name={ex.icon} size={16} color={ex.color} />
+                      </View>
+                      <Text style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{ex.label} {t.dashboard.expenseSuffix}</Text>
+                      <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: ex.color }}>${total}</Text>
+                    </View>
+                    <View style={{ gap: 6 }}>
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFare}</Text>
+                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fare}</Text>
+                      </View>
+                      {ex.fuel != null && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFuel}</Text>
+                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fuel}</Text>
+                        </View>
+                      )}
+                      {ex.wear != null && (
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseWear}</Text>
+                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.wear}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </SectionCard>
+                );
+              })}
+
+              <SectionCard theme={theme} title={t.dashboard.bidWinTitle} subtitle={t.dashboard.bidWinSub} onInfo={() => setInfoText(t.dashboard.infoBidWin)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                  <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 6, borderColor: theme.driverText, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: theme.text }}>{BID_WIN_RATE}%</Text>
+                  </View>
+                  <View style={{ flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 40 }}>
+                    {BID_HISTORY.map((won, i) => (
+                      <View key={i} style={{ flex: 1, height: won ? 40 : 18, borderRadius: 3, backgroundColor: won ? theme.driverText : theme.surfaceAlt }} />
+                    ))}
+                  </View>
+                </View>
+              </SectionCard>
+            </View>
+          ) : (
+            <View style={{ gap: 12 }}>
+              {FUN_FACTS.map((f) => (
+                <SectionCard key={f.label} theme={theme}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12 }}>
+                    <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '26', alignItems: 'center', justifyContent: 'center' }}>
+                      <Icon name={f.icon} size={17} color={theme.gold500} />
+                    </View>
+                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{f.label}</Text>
+                  </View>
+                  <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 30, color: theme.text, letterSpacing: -0.5 }}>{f.stat}</Text>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.muted, marginTop: 8 }}>{f.route}</Text>
+                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 2 }}>{f.date}</Text>
+                </SectionCard>
               ))}
             </View>
-          </SectionCard>
+          )}
         </View>
 
-        {/* Paid-only content — blurred/locked preview for free members */}
-        <View>
-          <View style={{ opacity: isDonor ? 1 : 0.35 }} pointerEvents={isDonor ? 'auto' : 'none'}>
-            <View style={{ gap: 22 }}>
-
-              {/* Actividad */}
-              <View>
-                <SectionHeading theme={theme}>{t.dashboard.activityTitle}</SectionHeading>
-                <SwipeCards items={[
-                  {
-                    key: 'miles', node: (
-                      <KpiCard theme={theme} icon="route" label={t.dashboard.milesTitle} value={`${MILES_DRIVEN.total} mi`} accent={theme.driverText}
-                        onInfo={() => setInfoText(t.dashboard.infoMiles)}
-                        sub={[
-                          { icon: 'car', label: t.dashboard.kindRides, value: `${MILES_DRIVEN.rides} mi`, color: theme.driverText },
-                          { icon: 'package', label: t.dashboard.kindCourier, value: `${MILES_DRIVEN.courier} mi`, color: theme.courierText },
-                          { icon: 'truck', label: t.dashboard.kindHauling, value: `${MILES_DRIVEN.hauling} mi`, color: theme.haulingText },
-                        ]} />
-                    ),
-                  },
-                  {
-                    key: 'monthly', node: (
-                      <SectionCard theme={theme} title={t.dashboard.monthlyTitle}>
-                        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, height: 90 }}>
-                          {MONTHLY_ACTIVITY.map((m) => (
-                            <View key={m.m} style={{ flex: 1, alignItems: 'center', gap: 4 }}>
-                              <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 76 }}>
-                                <View style={{ width: 9, height: Math.max((m.driver / MONTHLY_MAX) * 76, 3), backgroundColor: theme.driverText, borderRadius: 3 }} />
-                                <View style={{ width: 9, height: Math.max((m.passenger / MONTHLY_MAX) * 76, 3), backgroundColor: theme.passengerText, borderRadius: 3, opacity: 0.75 }} />
-                              </View>
-                              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 10, color: theme.textFaint }}>{m.m}</Text>
-                            </View>
-                          ))}
-                        </View>
-                        <View style={{ flexDirection: 'row', gap: 16, marginTop: 10, justifyContent: 'center' }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                            <View style={{ width: 9, height: 9, borderRadius: 3, backgroundColor: theme.driverText }} />
-                            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.muted }}>{t.dashboard.monthlyAsDriver}</Text>
-                          </View>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                            <View style={{ width: 9, height: 9, borderRadius: 3, backgroundColor: theme.passengerText }} />
-                            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.muted }}>{t.dashboard.monthlyAsRider}</Text>
-                          </View>
-                        </View>
-                      </SectionCard>
-                    ),
-                  },
-                  {
-                    key: 'busiest', node: (
-                      <SectionCard theme={theme} title={t.dashboard.busiestTitle}>
-                        <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-end', height: 60 }}>
-                          {DOW_LABELS.map((day, i) => {
-                            const h = DOW_COUNT[i];
-                            const pct = h / DOW_MAX;
-                            const barH = Math.max(10, Math.round(pct * 48));
-                            const bg = pct < 0.4 ? theme.gold400 + '46' : pct < 0.75 ? theme.gold400 + '8C' : theme.gold400;
-                            return (
-                              <View key={day} style={{ flex: 1, alignItems: 'center', gap: 5 }}>
-                                <View style={{ width: '100%', height: 48, justifyContent: 'flex-end' }}>
-                                  <View style={{ width: '100%', height: barH, borderRadius: 8, backgroundColor: bg }} />
-                                </View>
-                                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 10, color: theme.textFaint }}>{day}</Text>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      </SectionCard>
-                    ),
-                  },
-                  {
-                    key: 'routes', node: (
-                      <SectionCard theme={theme} title={t.dashboard.routesTitle}>
-                        <View style={{ gap: 12 }}>
-                          {TOP_ROUTES.map((r) => {
-                            const pct = Math.round((r.count / ROUTES_COMPLETED_TOTAL) * 100);
-                            return (
-                              <View key={`${r.origin}-${r.destination}`}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                                  <Text numberOfLines={1} style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>{r.origin} → {r.destination}</Text>
-                                  <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11.5, color: theme.muted }}>{r.count}x · {pct}%</Text>
-                                </View>
-                                <View style={{ height: 5, borderRadius: 3, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
-                                  <View style={{ width: `${pct}%`, height: '100%', backgroundColor: theme.gold400, borderRadius: 3 }} />
-                                </View>
-                              </View>
-                            );
-                          })}
-                        </View>
-                      </SectionCard>
-                    ),
-                  },
-                ]} />
-              </View>
-
-              {/* Finanzas */}
-              <View>
-                <SectionHeading theme={theme}>{t.dashboard.financeTitle}</SectionHeading>
-                <SwipeCards items={[
-                  {
-                    key: 'earnings', node: (
-                      <SectionCard theme={theme} title={t.dashboard.earningsTitle} subtitle={t.dashboard.earningsSub}>
-                        <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 24, color: theme.text, marginBottom: 12 }}>${EARNINGS_TOTAL}</Text>
-                        <View style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 12 }}>
-                          {EARNINGS.map((e) => <View key={e.label} style={{ width: `${(e.amount / EARNINGS_TOTAL) * 100}%`, backgroundColor: e.color }} />)}
-                        </View>
-                        <View style={{ gap: 8 }}>
-                          {EARNINGS.map((e) => (
-                            <View key={e.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: e.color }} />
-                              <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.text }}>{e.label}</Text>
-                              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${e.amount}</Text>
-                            </View>
-                          ))}
-                        </View>
-                      </SectionCard>
-                    ),
-                  },
-                  {
-                    key: 'rpm', node: (
-                      <SectionCard theme={theme} title={t.dashboard.rpmTitle} subtitle={t.dashboard.rpmSub} onInfo={() => setInfoText(t.dashboard.infoRpm)}>
-                        <View style={{ gap: 10 }}>
-                          {RPM_DATA.map((r) => (
-                            <View key={r.label}>
-                              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                                <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text }}>{r.label}</Text>
-                                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: r.value >= IRS_RATE ? theme.driverText : theme.danger }}>${r.value.toFixed(2)}/mi</Text>
-                              </View>
-                              <View style={{ height: 8, borderRadius: 4, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
-                                <View style={{ width: `${(r.value / maxRpm) * 100}%`, height: '100%', backgroundColor: r.color, borderRadius: 4 }} />
-                              </View>
-                            </View>
-                          ))}
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                            <View style={{ width: 8, height: 2, backgroundColor: theme.textFaint }} />
-                            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint }}>{t.dashboard.rpmBaseline} · ${IRS_RATE}/mi</Text>
-                          </View>
-                        </View>
-                      </SectionCard>
-                    ),
-                  },
-                  {
-                    key: 'bidwin', node: (
-                      <SectionCard theme={theme} title={t.dashboard.bidWinTitle} subtitle={t.dashboard.bidWinSub} onInfo={() => setInfoText(t.dashboard.infoBidWin)}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                          <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 6, borderColor: theme.driverText, alignItems: 'center', justifyContent: 'center' }}>
-                            <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: theme.text }}>{BID_WIN_RATE}%</Text>
-                          </View>
-                          <View style={{ flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 40 }}>
-                            {BID_HISTORY.map((won, i) => (
-                              <View key={i} style={{ flex: 1, height: won ? 40 : 18, borderRadius: 3, backgroundColor: won ? theme.driverText : theme.surfaceAlt }} />
-                            ))}
-                          </View>
-                        </View>
-                      </SectionCard>
-                    ),
-                  },
-                  {
-                    key: 'expenses', node: (
-                      <View style={{ gap: 12 }}>
-                        {EXPENSES.map((ex) => {
-                          const total = ex.fare + (ex.fuel ?? 0) + (ex.wear ?? 0);
-                          return (
-                            <SectionCard key={ex.label} theme={theme}>
-                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                                <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                                  <Icon name={ex.icon} size={16} color={ex.color} />
-                                </View>
-                                <Text style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{ex.label} {t.dashboard.expenseSuffix}</Text>
-                                <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: ex.color }}>${total}</Text>
-                              </View>
-                              <View style={{ gap: 6 }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFare}</Text>
-                                  <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fare}</Text>
-                                </View>
-                                {ex.fuel != null && (
-                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFuel}</Text>
-                                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fuel}</Text>
-                                  </View>
-                                )}
-                                {ex.wear != null && (
-                                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseWear}</Text>
-                                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.wear}</Text>
-                                  </View>
-                                )}
-                              </View>
-                            </SectionCard>
-                          );
-                        })}
-                      </View>
-                    ),
-                  },
-                ]} />
-              </View>
-
-              {/* Fun facts */}
-              <View>
-                <SectionHeading theme={theme}>{t.dashboard.funFactsTitle}</SectionHeading>
-                <SwipeCards items={FUN_FACTS.map((f) => ({
-                  key: f.label,
-                  node: (
-                    <SectionCard theme={theme}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 12 }}>
-                        <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '26', alignItems: 'center', justifyContent: 'center' }}>
-                          <Icon name={f.icon} size={17} color={theme.gold500} />
-                        </View>
-                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{f.label}</Text>
-                      </View>
-                      <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 30, color: theme.text, letterSpacing: -0.5 }}>{f.stat}</Text>
-                      <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.muted, marginTop: 8 }}>{f.route}</Text>
-                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 2 }}>{f.date}</Text>
-                    </SectionCard>
-                  ),
-                }))} />
-              </View>
-
-              {/* Legal disclaimer */}
-              <View style={{ flexDirection: 'row', gap: 10, padding: 14, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surfaceAlt }}>
-                <View style={{ marginTop: 2 }}>
-                  <Icon name="info" size={15} color={theme.textFaint} />
-                </View>
-                <Text style={{ flex: 1, fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, lineHeight: 17 }}>
-                  {t.dashboard.legalDisclaimer}
-                </Text>
-              </View>
-            </View>
+        {/* Legal disclaimer — applies to every section, not just the paid ones */}
+        <View style={{ flexDirection: 'row', gap: 10, padding: 14, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surfaceAlt }}>
+          <View style={{ marginTop: 2 }}>
+            <Icon name="info" size={15} color={theme.textFaint} />
           </View>
-
-          {!isDonor && (
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', paddingTop: 60 }}>
-              <View style={{
-                width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center',
-                backgroundColor: theme.gold400, ...shadows.gold,
-              }}>
-                <Icon name="lock" size={26} color={theme.textOnPrimary} />
-              </View>
-              <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginTop: 14, textAlign: 'center' }}>
-                {t.dashboard.lockedTitle}
-              </Text>
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13, color: theme.muted, marginTop: 6, textAlign: 'center', maxWidth: 260 }}>
-                {t.dashboard.lockedSub}
-              </Text>
-            </View>
-          )}
+          <Text style={{ flex: 1, fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, lineHeight: 17 }}>
+            {t.dashboard.legalDisclaimer}
+          </Text>
         </View>
       </ScrollView>
 

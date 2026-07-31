@@ -449,7 +449,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
         <Field label={t.profile.vehicleYear} style={{ flex: 1 }}>
           <Input icon="event" value={year} onChangeText={setYear} placeholder="2022" keyboardType="numeric" maxLength={4} />
         </Field>
-        <Field label="Trim" hint={t.post.optional} style={{ flex: 1 }}>
+        <Field label="Trim"  style={{ flex: 1 }}>
           <Input icon="sparkles" value={trim} onChangeText={setTrim} placeholder="XSE" />
         </Field>
       </View>

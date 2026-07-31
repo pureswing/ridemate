@@ -25,6 +25,7 @@ interface Props {
   onFilterChange: (v: 'all' | PostType) => void;
   onNotificationsPress?: () => void;
   onFiltersPress?: () => void;
+  activeFilterCount?: number;
   layout: Layout;
   onLayoutChange: (v: Layout) => void;
   resultsCount: number;
@@ -45,7 +46,7 @@ function greeting(name: string, t: any): { line1: string; line2: string; accent:
 
 // Feed header — the design system's "midnight" gradient hero resolves to the
 // warm gold gradient in the single Miami Sunset theme (see welcome.tsx note).
-export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, onFiltersPress, layout, onLayoutChange, resultsCount }: Props) {
+export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, onFiltersPress, activeFilterCount = 0, layout, onLayoutChange, resultsCount }: Props) {
   const theme = useTheme();
   const { profile, session } = useAuthStore();
   const { getUnreadCount } = useNotifications();
@@ -141,8 +142,20 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
       </View>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-        {/* Opens the advanced filter drawer — not built yet, so this is inert for now. */}
-        <IconButton icon="sliders" size="sm" variant="glass" shadow={shadows.xs} label={t.header.filters} onPress={onFiltersPress} />
+        <View>
+          <IconButton icon="sliders" size="sm" variant="glass" shadow={shadows.xs} label={t.header.filters} onPress={onFiltersPress} />
+          {activeFilterCount > 0 && (
+            <View style={{
+              position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8,
+              paddingHorizontal: 3, backgroundColor: theme.gold400, borderWidth: 2, borderColor: theme.primary,
+              alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9, lineHeight: 11, color: theme.textOnPrimary ?? '#1a1209' }}>
+                {activeFilterCount}
+              </Text>
+            </View>
+          )}
+        </View>
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, flex: 1 }}>
           <Chip size="sm" selected={filterType === 'all'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterChange('all')}>{t.feed.chipAll}</Chip>
           <Chip size="sm" selected={filterType === 'offer'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterChange('offer')}>{t.feed.chipPooling}</Chip>

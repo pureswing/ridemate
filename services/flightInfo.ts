@@ -6,6 +6,11 @@ export interface FlightInfo {
   flightNumber: string;
   airline: string;
   status: string;
+  // ISO timestamp of when this lookup actually ran — this snapshot is never
+  // re-fetched on view (see FlightInfoCard), so the UI needs this to show
+  // how stale the delay/gate info might be. Optional because posts saved
+  // before this field existed won't have it in their stored snapshot.
+  fetchedAt?: string;
   departure: {
     airport: string;
     iata: string;
@@ -34,7 +39,12 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
   }
 
   const normalized = flightIata.replace(/\s+/g, '').toUpperCase();
-  const targetDate = date ?? new Date().toISOString().split('T')[0];
+  // Deliberately NOT new Date().toISOString() — that converts to UTC, which
+  // rolls over to tomorrow's date while it's still "today" locally (e.g.
+  // evening in Orlando/UTC-4 is already past midnight UTC), silently
+  // querying the wrong day and coming back empty for a flight that's
+  // genuinely scheduled today.
+  const targetDate = date ?? localDateString(new Date());
   const url = `https://aerodatabox.p.rapidapi.com/flights/Number/${normalized}/${targetDate}`;
 
   try {
@@ -95,6 +105,7 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
       flightNumber: normalized,
       airline: f.airline?.name ?? f.airlineCode ?? '',
       status: f.status ?? f.flightStatus ?? 'Scheduled',
+      fetchedAt: new Date().toISOString(),
       departure: {
         airport: dep.airport?.name ?? dep.airportName ?? '',
         iata: dep.airport?.iata ?? dep.iata ?? '',
@@ -118,6 +129,14 @@ export async function lookupFlight(flightIata: string, date?: string): Promise<F
     console.error('[flightInfo] Network or parse error:', e);
     return null;
   }
+}
+
+// "YYYY-MM-DD" in the device's own local timezone (not UTC).
+function localDateString(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 // AeroDataBox's `revisedTime` vs `scheduledTime`, both as UTC strings like

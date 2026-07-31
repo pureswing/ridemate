@@ -1,3 +1,5 @@
+import { FlightInfo } from '@/services/flightInfo';
+
 export type UserRole = 'driver' | 'passenger';
 export type PostType = 'offer' | 'request';
 export type PostStatus = 'active' | 'filled' | 'cancelled' | 'expired';
@@ -99,6 +101,11 @@ export interface RidePostDetailsRide {
   // "add stop" rows collect), routed through via the Directions API as
   // waypoints. See services/routeMap.ts.
   stops?: string[];
+  // Snapshot of the AeroDataBox lookup at the moment the post was
+  // created/edited — never re-fetched on view (that API has a 500/month
+  // free-call cap). Goes stale if the flight's actual schedule changes
+  // afterward; see components/ride/FlightInfoCard.tsx.
+  flightInfo?: FlightInfo;
 }
 
 export interface RidePostDetailsPackage {
@@ -166,8 +173,8 @@ export interface RidePost {
   views_count: number;
   round_trip: boolean;
   airport: boolean;
-  airport_leg?: 'to' | 'from';
-  flight_number?: string;
+  airport_leg?: 'to' | 'from' | null;
+  flight_number?: string | null;
   route_map_url?: string;
   duration_text?: string;
   duration_seconds?: number;

@@ -48,6 +48,7 @@ import {
   Ear, PersonStanding, Weight, Volume2, Hand, MessageSquareText, Glasses,
   // dashboard (mock/visual only)
   TrendingUp, TrendingDown, Minus, Lightbulb, Brain, Target,
+  Summary, UsersRound, Activity, Coins,
   Palette, Tag, UserPen, Scale, CircleQuestionMark,
   // membership
   Heart, CreditCard,
@@ -257,6 +258,10 @@ export const icons = {
   trending_down: TrendingDown,
   trending_flat: Minus,
   lightbulb: Lightbulb,
+  summary: Summary,
+  users_round: UsersRound,
+  activity: Activity,
+  coins: Coins,
   brain: Brain,
   target: Target,
   palette: Palette,

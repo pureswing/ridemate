@@ -24,6 +24,7 @@ import { IconName } from '@/constants/icons';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { TIER_ICON } from '@/constants/membershipPlans';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
@@ -124,6 +125,8 @@ export default function ProfileScreen() {
   const [tripCount, setTripCount] = useState<number | null>(null);
   const [postCount, setPostCount] = useState<number | null>(null);
   const [upcomingCount, setUpcomingCount] = useState<number | null>(null);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [nextRideAt, setNextRideAt] = useState<string | null>(null);
 
   const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
@@ -227,11 +230,18 @@ export default function ProfileScreen() {
     } catch {}
   }
 
-  async function handleSignOut() {
-    Alert.alert(t.profile.signOutTitle, t.profile.signOutConfirm, [
-      { text: t.profile.cancel, style: 'cancel' },
-      { text: t.profile.exit, style: 'destructive', onPress: signOut },
-    ]);
+  function handleSignOut() {
+    setShowSignOutConfirm(true);
+  }
+
+  async function confirmSignOut() {
+    setSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setSigningOut(false);
+      setShowSignOutConfirm(false);
+    }
   }
 
   return (
@@ -532,6 +542,18 @@ export default function ProfileScreen() {
           }}
         />
       )}
+      <ConfirmSheet
+        visible={showSignOutConfirm}
+        tone="danger"
+        icon="logout"
+        title={t.profile.signOutTitle}
+        message={t.profile.signOutConfirm}
+        confirmLabel={t.profile.exit}
+        cancelLabel={t.profile.cancel}
+        busy={signingOut}
+        onConfirm={confirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
     </View>
   );
 }

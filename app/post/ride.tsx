@@ -20,7 +20,7 @@ import { KindCard } from '@/components/ui/KindCard';
 import { StepRow } from '@/components/ui/StepRow';
 import { ToggleRow } from '@/components/ui/ToggleRow';
 import { RowDivider } from '@/components/ui/RowDivider';
-import { DelayBadge } from '@/components/ui/DelayBadge';
+import { FlightInfoCard } from '@/components/ride/FlightInfoCard';
 import { Segmented } from '@/components/ui/Segmented';
 import { DateTimeField } from '@/components/ui/DateTimeField';
 import { OversizedSheet } from '@/components/ui/OversizedSheet';
@@ -116,6 +116,7 @@ export default function PostRideScreen() {
   const [flightNumber, setFlightNumber] = useState('');
   const [flightInfo, setFlightInfo] = useState<FlightInfo | null>(null);
   const [flightLoading, setFlightLoading] = useState(false);
+  const [flightError, setFlightError] = useState<string | null>(null);
   const flightDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // â”€â”€ Schedule â”€â”€
@@ -200,14 +201,27 @@ export default function PostRideScreen() {
   // Auto-lookup flight when number is entered (only when an airport is selected)
   useEffect(() => {
     if (flightDebounce.current) clearTimeout(flightDebounce.current);
-    if (flightNumber.replace(/\s/g, '').length < 3) { setFlightInfo(null); return; }
+    if (flightNumber.replace(/\s/g, '').length < 3) { setFlightInfo(null); setFlightError(null); return; }
     flightDebounce.current = setTimeout(async () => {
       setFlightLoading(true);
-      const info = await lookupFlight(flightNumber);
-      setFlightInfo(info);
-      setFlightLoading(false);
+      setFlightError(null);
+      try {
+        const info = await lookupFlight(flightNumber);
+        setFlightInfo(info);
+        if (!info) setFlightError(t.post.flightLookupNotFound);
+      } catch (e: any) {
+        // lookupFlight already catches network/parse errors internally and
+        // resolves null — landing here means something unexpected (e.g. a
+        // bug in this component's own state), which is exactly the kind of
+        // silent failure that was previously only visible as an opaque
+        // debugger log the user couldn't read anything from.
+        setFlightInfo(null);
+        setFlightError(e?.message || t.post.flightLookupNotFound);
+      } finally {
+        setFlightLoading(false);
+      }
     }, 600);
-  }, [flightNumber]);
+  }, [flightNumber, t.post.flightLookupNotFound]);
 
   function applyFlightTime(useArrival: boolean) {
     if (!flightInfo) return;
@@ -334,6 +348,9 @@ export default function PostRideScreen() {
         ...(driverLanguage !== 'No preference' ? { driverLanguage } : {}),
       }),
       ...(isEvent ? { eventName, vehiclesNeeded } : {}),
+      // Snapshot, not a live pointer — see types/index.ts's comment on why
+      // this isn't re-fetched later.
+      ...(airport && flightInfo ? { flightInfo } : {}),
     };
 
     setLoading(true);
@@ -574,34 +591,11 @@ export default function PostRideScreen() {
               autoCapitalize="characters"
             />
             {flightLoading && <ActivityIndicator size="small" color={theme.primary} />}
+            {!flightLoading && flightError && (
+              <Text style={{ fontSize: 12, color: theme.danger }}>{flightError}</Text>
+            )}
             {flightInfo && (
-              <View style={{ borderRadius: 14, borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surfaceAlt, padding: 14, gap: 8 }}>
-                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.text }}>
-                  {flightInfo.airline} Â· {flightInfo.flightNumber} Â· {flightInfo.status}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity onPress={() => applyFlightTime(false)} style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
-                    <Text style={{ color: theme.muted, fontSize: 11 }}>DEPARTURE</Text>
-                    <Text style={{ color: theme.text, fontFamily: fonts.bodyBold, fontSize: 13 }}>{flightInfo.departure.scheduledTime.split(' ')[1]?.slice(0, 5) ?? 'â€”'}</Text>
-                    <DelayBadge minutes={flightInfo.departure.delayMinutes} theme={theme} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => applyFlightTime(true)} style={{ flex: 1, borderRadius: 10, paddingVertical: 8, alignItems: 'center', backgroundColor: theme.surface, borderWidth: 1, borderColor: theme.border }}>
-                    <Text style={{ color: theme.muted, fontSize: 11 }}>ARRIVAL</Text>
-                    <Text style={{ color: theme.text, fontFamily: fonts.bodyBold, fontSize: 13 }}>{flightInfo.arrival.scheduledTime.split(' ')[1]?.slice(0, 5) ?? 'â€”'}</Text>
-                    <DelayBadge minutes={flightInfo.arrival.delayMinutes} theme={theme} />
-                  </TouchableOpacity>
-                </View>
-                {(flightInfo.departure.terminal || flightInfo.departure.gate || flightInfo.arrival.terminal || flightInfo.arrival.gate) && (
-                  <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <Text style={{ flex: 1, fontSize: 11, color: theme.muted, textAlign: 'center' }}>
-                      {[flightInfo.departure.terminal && `Terminal ${flightInfo.departure.terminal}`, flightInfo.departure.gate && `Gate ${flightInfo.departure.gate}`].filter(Boolean).join(' Â· ') || 'â€”'}
-                    </Text>
-                    <Text style={{ flex: 1, fontSize: 11, color: theme.muted, textAlign: 'center' }}>
-                      {[flightInfo.arrival.terminal && `Terminal ${flightInfo.arrival.terminal}`, flightInfo.arrival.gate && `Gate ${flightInfo.arrival.gate}`].filter(Boolean).join(' Â· ') || 'â€”'}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <FlightInfoCard info={flightInfo} onApplyDeparture={() => applyFlightTime(false)} onApplyArrival={() => applyFlightTime(true)} />
             )}
           </View>
         )}
@@ -611,7 +605,7 @@ export default function PostRideScreen() {
             (debounced Directions + Static Maps call, see the effect above),
             decorative placeholder while it's loading. */}
         {originLat != null && originLng != null && destinationLat != null && destinationLng != null && (
-          <Field label={t.post.routeMap} hint={t.post.optional}>
+          <Field label={t.post.routeMap}>
             {previewMapUrl ? (
               <View style={{ width: '100%', height: 210, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: theme.border }}>
                 <Image source={{ uri: previewMapUrl }} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
@@ -641,7 +635,7 @@ export default function PostRideScreen() {
             {vehicleSeats != null && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 8 }}>
                 <Icon name="seat_recline" size={12} color={theme.muted} />
-                <Text style={{ fontSize: 12, color: theme.muted }}>Pre-filled from your vehicle profile Â· tap to change</Text>
+                <Text style={{ fontSize: 12, color: theme.muted }}>Pre-filled from your vehicle profile · tap to change</Text>
               </View>
             )}
           </Field>
@@ -698,10 +692,15 @@ export default function PostRideScreen() {
         {/* Price */}
         <Field label={isDriver ? t.post.priceLabel : t.post.offerLabel} hint={isDriver ? t.post.priceGasSplit : t.post.priceWhatPay}>
           <View style={{ gap: 10 }}>
-            <Segmented
-              options={[{ value: 'trip' as const, label: t.post.perTrip }, { value: 'hourly' as const, label: t.post.perHour }]}
-              value={rateBasis} onChange={setRateBasis} theme={theme}
-            />
+            {/* Pooling posts (driver offering seats) split a fixed trip cost
+                — an hourly rate doesn't fit that model, so the switch only
+                shows for request posts and the rate stays "per trip". */}
+            {!isDriver && (
+              <Segmented
+                options={[{ value: 'trip' as const, label: t.post.perTrip }, { value: 'hourly' as const, label: t.post.perHour }]}
+                value={rateBasis} onChange={setRateBasis} theme={theme}
+              />
+            )}
             <Segmented
               options={[{ value: 'firm' as const, label: t.post.firmPrice }, { value: 'open' as const, label: t.post.openToOffers }]}
               value={priceMode} onChange={setPriceMode} theme={theme}
@@ -715,7 +714,7 @@ export default function PostRideScreen() {
               placeholder="0"
               rightElement={
                 <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 11.5, color: theme.textFaint }}>
-                  {rateBasis === 'hourly' ? '/ hour' : (priceMode === 'firm' ? t.post.priceFixed : t.post.priceStarting)}
+                  {!isDriver && rateBasis === 'hourly' ? '/ hour' : (priceMode === 'firm' ? t.post.priceFixed : t.post.priceStarting)}
                 </Text>
               }
             />

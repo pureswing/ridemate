@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, ScrollView, Alert, ActivityIndicator, Image, Share, Modal, Pressable as RNPressable } from 'react-native';
+import * as Linking from 'expo-linking';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -12,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { OfferSheet } from '@/components/ride/OfferSheet';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -72,8 +74,8 @@ function AddressRow({ label, value, tone, theme }: { label: string; value: strin
 export default function HaulingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
-  const { getPostById, incrementPostViews } = useRides();
-  const { getAgreementsForPost } = useRideAgreements();
+  const { getPostById, incrementPostViews, cancelPost } = useRides();
+  const { getAgreementsForPost, cancelAgreement } = useRideAgreements();
   const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
@@ -90,6 +92,8 @@ export default function HaulingDetailScreen() {
   const [viewingPhoto, setViewingPhoto] = useState<string | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [mapZoomOpen, setMapZoomOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
 
   useEffect(() => {
     if (id) loadPost();
@@ -151,7 +155,8 @@ export default function HaulingDetailScreen() {
 
   function handleShare() {
     if (!post) return;
-    Share.share({ message: `${post.origin_city} — ${t.rideDetail.shareMessage}` });
+    const url = Linking.createURL(`/hauling/${post.id}`);
+    Share.share({ message: `${post.origin_city} — ${t.rideDetail.shareMessage}\n${url}` });
   }
 
   // Owner-side "Message" — unlike handleMessage above, they never message
@@ -168,6 +173,33 @@ export default function HaulingDetailScreen() {
       Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
     } finally {
       setGoingToConversation(false);
+    }
+  }
+
+  // Cancels every pending/active agreement on this post (same combo as
+  // messages/[id].tsx's handleCancelJob: cancelAgreement + an in-chat system
+  // message) so nobody's left with a dangling active job, then cancels the
+  // post itself last — cancelAgreement's own DB trigger (033) flips the
+  // post back to 'active' as a side effect, so this order matters.
+  async function handleDeletePost() {
+    if (!post) return;
+    setDeletingPost(true);
+    try {
+      const agreements = await getAgreementsForPost(post.id);
+      const affected = agreements.filter((a) => a.status === 'pending' || a.status === 'active');
+      for (const a of affected) {
+        const counterpartId = a.driver_id === session?.user?.id ? a.rider_id : a.driver_id;
+        await cancelAgreement(a.id);
+        const conv = await findConversationWithParty(post.id, counterpartId);
+        if (conv) await sendMessage(conv.id, t.rideDetail.postDeletedSystemMessage, true);
+      }
+      await cancelPost(post.id);
+      setShowDeleteConfirm(false);
+      router.back();
+    } catch (e: any) {
+      Alert.alert(t.rideDetail.errorTitle, e.message);
+    } finally {
+      setDeletingPost(false);
     }
   }
 
@@ -397,6 +429,14 @@ export default function HaulingDetailScreen() {
               </View>
             )}
           </View>
+
+          <IconButton
+            icon="delete"
+            variant="soft"
+            color={theme.danger}
+            label={t.rideDetail.deletePost}
+            onPress={() => setShowDeleteConfirm(true)}
+          />
         </View>
       ) : (
         <View style={{
@@ -466,6 +506,18 @@ export default function HaulingDetailScreen() {
         visible={mapZoomOpen}
         uri={post.route_map_url ?? photos[0] ?? null}
         onClose={() => setMapZoomOpen(false)}
+      />
+      <ConfirmSheet
+        visible={showDeleteConfirm}
+        tone="danger"
+        icon="delete"
+        title={t.rideDetail.deletePostTitle}
+        message={t.rideDetail.deletePostMsg}
+        confirmLabel={t.rideDetail.deletePostConfirm}
+        cancelLabel={t.profile.cancel}
+        busy={deletingPost}
+        onConfirm={handleDeletePost}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </View>
   );

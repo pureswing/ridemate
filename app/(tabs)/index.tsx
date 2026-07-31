@@ -10,6 +10,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { RideCard } from '@/components/ride/RideCard';
 import { HomeHeader } from '@/components/layout/HomeHeader';
+import { FilterDrawer, DEFAULT_FILTER_STATE, FilterState, countActiveFilters } from '@/components/ride/FilterDrawer';
 import { radii } from '@/constants/themes';
 
 function EmptyState() {
@@ -33,6 +34,10 @@ export default function FeedScreen() {
   const { fetchPosts } = useRides();
   const theme = useTheme();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
+  // UI only for now — this drawer isn't wired into the actual feed query yet.
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
+  const activeAdvancedFilterCount = countActiveFilters(advancedFilters);
   // Separate from the store's `loading` (also set by filter-triggered fetches) —
   // this only tracks an explicit user pull, so switching chips doesn't pop the
   // native pull-to-refresh spinner up mid-screen.
@@ -57,6 +62,8 @@ export default function FeedScreen() {
     <HomeHeader
       filterType={filters.type}
       onFilterChange={(v) => setFilters({ type: v })}
+      onFiltersPress={() => setFiltersOpen(true)}
+      activeFilterCount={activeAdvancedFilterCount}
       layout={layout}
       onLayoutChange={setLayout}
       resultsCount={posts.length}
@@ -102,6 +109,12 @@ export default function FeedScreen() {
           style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28 }}
         />
       </View>
+      <FilterDrawer
+        visible={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        value={advancedFilters}
+        onChange={setAdvancedFilters}
+      />
     </View>
   );
 }

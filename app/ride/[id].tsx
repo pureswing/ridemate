@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, ScrollView, Alert, ActivityIndicator, Image, Share } from 'react-native';
+import * as Linking from 'expo-linking';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -13,6 +14,8 @@ import { Field } from '@/components/ui/Field';
 import { CardBox } from '@/components/ui/CardBox';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { OfferSheet } from '@/components/ride/OfferSheet';
+import { FlightInfoCard } from '@/components/ride/FlightInfoCard';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -105,8 +108,8 @@ function DetailRow({ label, value, theme, last = false }: {
 export default function RideDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
-  const { getPostById, incrementPostViews } = useRides();
-  const { getAgreementsForPost } = useRideAgreements();
+  const { getPostById, incrementPostViews, cancelPost } = useRides();
+  const { getAgreementsForPost, cancelAgreement } = useRideAgreements();
   const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
   const t = useTranslation();
@@ -122,6 +125,8 @@ export default function RideDetailScreen() {
   const [posterBadgeCount, setPosterBadgeCount] = useState<number | null>(null);
   const [offerOpen, setOfferOpen] = useState(false);
   const [mapZoomOpen, setMapZoomOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
 
   useEffect(() => {
     if (id) loadPost();
@@ -183,7 +188,13 @@ export default function RideDetailScreen() {
 
   function handleShare() {
     if (!post) return;
-    Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}` });
+    // Custom-scheme deep link (app.json's "ridemate" scheme) — opens straight
+    // to this post if the recipient has the app installed. There's no web
+    // fallback (no hosted site to redirect a browser to), so it does nothing
+    // for someone without RideMate — same limitation as any bare custom-
+    // scheme link, just no longer a dead-end text-only message.
+    const url = Linking.createURL(`/ride/${post.id}`);
+    Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}\n${url}` });
   }
 
   // Owner-side "Message" — unlike handleMessage above, they never message
@@ -200,6 +211,33 @@ export default function RideDetailScreen() {
       Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
     } finally {
       setGoingToConversation(false);
+    }
+  }
+
+  // Cancels every pending/active agreement on this post (same combo as
+  // messages/[id].tsx's handleCancelJob: cancelAgreement + an in-chat system
+  // message) so nobody's left with a dangling active job, then cancels the
+  // post itself last — cancelAgreement's own DB trigger (033) flips the
+  // post back to 'active' as a side effect, so this order matters.
+  async function handleDeletePost() {
+    if (!post) return;
+    setDeletingPost(true);
+    try {
+      const agreements = await getAgreementsForPost(post.id);
+      const affected = agreements.filter((a) => a.status === 'pending' || a.status === 'active');
+      for (const a of affected) {
+        const counterpartId = a.driver_id === session?.user?.id ? a.rider_id : a.driver_id;
+        await cancelAgreement(a.id);
+        const conv = await findConversationWithParty(post.id, counterpartId);
+        if (conv) await sendMessage(conv.id, t.rideDetail.postDeletedSystemMessage, true);
+      }
+      await cancelPost(post.id);
+      setShowDeleteConfirm(false);
+      router.back();
+    } catch (e: any) {
+      Alert.alert(t.rideDetail.errorTitle, e.message);
+    } finally {
+      setDeletingPost(false);
     }
   }
 
@@ -324,15 +362,21 @@ export default function RideDetailScreen() {
             </Field>
           )}
 
-          {/* Airport trip */}
-          {post.airport && (
+          {/* Airport trip — hidden entirely without a flight number, per the
+              user's call: a leg badge with nothing else to show isn't worth
+              the section. Prefers the rich FlightInfoCard from the snapshot
+              taken at post time; falls back to a plain flight-number row for
+              posts created before that snapshot existed. */}
+          {post.airport && !!post.flight_number && (
             <Field label={t.post.airportTrip}>
-              <CardBox style={{ paddingVertical: 2 }}>
-                <DetailRow theme={theme} label={t.post.airportTrip} value={post.airport_leg === 'to' ? t.post.toAirport : t.post.fromAirport} />
-                {!!post.flight_number && (
+              {details.flightInfo ? (
+                <FlightInfoCard info={details.flightInfo} />
+              ) : (
+                <CardBox style={{ paddingVertical: 2 }}>
+                  <DetailRow theme={theme} label={t.post.airportTrip} value={post.airport_leg === 'to' ? t.post.toAirport : t.post.fromAirport} />
                   <DetailRow theme={theme} label={t.rideDetail.flight} value={post.flight_number} last />
-                )}
-              </CardBox>
+                </CardBox>
+              )}
             </Field>
           )}
 
@@ -514,6 +558,14 @@ export default function RideDetailScreen() {
               </View>
             )}
           </View>
+
+          <IconButton
+            icon="delete"
+            variant="soft"
+            color={theme.danger}
+            label={t.rideDetail.deletePost}
+            onPress={() => setShowDeleteConfirm(true)}
+          />
         </View>
       ) : (
         <View style={{
@@ -570,6 +622,18 @@ export default function RideDetailScreen() {
         visible={mapZoomOpen}
         uri={post.route_map_url}
         onClose={() => setMapZoomOpen(false)}
+      />
+      <ConfirmSheet
+        visible={showDeleteConfirm}
+        tone="danger"
+        icon="delete"
+        title={t.rideDetail.deletePostTitle}
+        message={t.rideDetail.deletePostMsg}
+        confirmLabel={t.rideDetail.deletePostConfirm}
+        cancelLabel={t.profile.cancel}
+        busy={deletingPost}
+        onConfirm={handleDeletePost}
+        onCancel={() => setShowDeleteConfirm(false)}
       />
     </View>
   );
