@@ -1,5 +1,4 @@
 import { IconName } from '@/constants/icons';
-import { theme } from '@/constants/themes';
 import { MembershipTier } from '@/types';
 
 // Ported from ui_kits/ridemate-app/MembershipShared.jsx (TIER_META), trimmed
@@ -7,12 +6,7 @@ import { MembershipTier } from '@/types';
 // rather than living here, matching how the app already translates this copy.
 export const TIER_ICON: Record<MembershipTier, IconName> = {
   free: 'person',
-  donor: 'heart',
-};
-
-export const TIER_COLOR: Record<MembershipTier, { text: string; soft: string; border: string }> = {
-  free: { text: theme.muted, soft: theme.surfaceAlt, border: theme.border },
-  donor: { text: theme.donorText, soft: theme.donorSoft, border: theme.donorBorder },
+  donor: 'heart_handshake',
 };
 
 // Quick-pick row on the Membership screen — a custom amount is also always

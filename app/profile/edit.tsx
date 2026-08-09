@@ -76,7 +76,7 @@ export default function EditProfileScreen() {
   const { profile, session } = useAuthStore();
   const { updateProfile, uploadAvatar, upsertLegalName, getLegalName, signIn, updatePassword } = useAuth();
   const { getMyVehicles } = useVehicleProfile();
-  const { isFree } = useSubscription();
+  const { isFree, isDonor } = useSubscription();
   const { getSavedAddresses, saveAddress, deleteAddress } = useSavedAddresses();
   const theme = useTheme();
   const t = useTranslation();
@@ -234,7 +234,7 @@ export default function EditProfileScreen() {
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 12, paddingBottom: 28, alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 12, paddingBottom: 28, alignItems: 'center', borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ width: '100%', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }}>
           <IconButton icon="arrow_back" variant="glass" shadow={shadows.xs} label={t.auth.back} onPress={() => router.back()} />
@@ -257,6 +257,7 @@ export default function EditProfileScreen() {
               icon={!displayAvatar ? 'person' : undefined}
               size={90}
               verified={verified}
+              donor={isDonor}
             />
           </View>
           <View style={{

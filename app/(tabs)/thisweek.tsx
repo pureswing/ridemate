@@ -304,69 +304,74 @@ function WeekRow({ item, theme, t }: { item: WeekItem; theme: ReturnType<typeof 
   const accent = isCancelled ? theme.textFaint : config.accent;
 
   return (
-    <TouchableOpacity
-      onPress={() => router.push({ pathname: KIND_ROUTE[item.kind], params: { id: item.postId } })}
-      style={{
-        position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 13,
-        backgroundColor: theme.surface, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder,
-        paddingVertical: 14, paddingHorizontal: 14, minHeight: 78, overflow: 'hidden',
-        ...shadows.xs,
-      }}
-    >
-      {/* Matches components/ui/Card.tsx's accent-stripe technique: a
-          borderLeftWidth (not a flat rectangle) with the row's own corner
-          radius, so the stripe curves with the card instead of a sharp
-          rectangular corner poking past the rounded outline. */}
+    <View style={{ position: 'relative' }}>
+      <TouchableOpacity
+        onPress={() => router.push({ pathname: KIND_ROUTE[item.kind], params: { id: item.postId } })}
+        style={{
+          flexDirection: 'row', alignItems: 'center', gap: 13,
+          backgroundColor: theme.surface, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder,
+          paddingVertical: 14, paddingHorizontal: 14, minHeight: 78, overflow: 'hidden',
+          ...shadows.xs,
+        }}
+      >
+        <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: isCancelled ? theme.surfaceAlt : accent + '1F' }}>
+          <Icon name={config.icon} size={20} color={accent} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <RouteLine
+            origin={item.originCity}
+            destination={item.destinationCity !== item.originCity ? item.destinationCity : undefined}
+            fontSize={14}
+            style={{ marginBottom: 6 }}
+          />
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <View style={{
+              paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.pill,
+              backgroundColor: accent + '1E', borderWidth: 1, borderColor: accent,
+            }}>
+              <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10, tracking.wide), color: accent }}>
+                {config.label}
+              </Text>
+            </View>
+            <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: theme.muted }}>{item.otherName}</Text>
+          </View>
+          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 3 }}>
+            {item.scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · {item.scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}
+          </Text>
+        </View>
+        <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 13, color: accent, flexShrink: 0 }}>
+          {isCancelled ? '—' : item.donation != null ? `${item.isDriver ? '+' : '-'}$${item.donation}` : '—'}
+        </Text>
+
+        {(item.status === 'completed' || item.status === 'cancelled') && (
+          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{
+              transform: [{ rotate: '-14deg' }],
+              borderWidth: 1.5, borderColor: item.status === 'cancelled' ? theme.danger + '40' : theme.secondary + '40',
+              borderRadius: 6, paddingHorizontal: 10, paddingVertical: 2,
+            }}>
+              <Text style={{
+                fontFamily: fonts.bodyExtraBold, fontSize: 20, letterSpacing: letterSpacingFor(20, tracking.wide), textTransform: 'uppercase',
+                color: item.status === 'cancelled' ? theme.danger + '40' : theme.secondary + '40',
+              }}>
+                {item.status === 'cancelled' ? t.calendar.cancelledStamp : t.calendar.completedStamp}
+              </Text>
+            </View>
+          </View>
+        )}
+      </TouchableOpacity>
+      {/* Sibling of the bordered/clipped card above, not nested inside it —
+          matches components/ui/Card.tsx's accentStripe technique. Nesting it
+          inside the bordered container measures its corner radius against a
+          box already inset by the card's own 1px border, so the curve lands
+          short and leaves a sliver of the card's border color visible at the
+          top-left/bottom-left corners. As a sibling, painted after, it fully
+          covers that edge. */}
       <View style={{
         position: 'absolute', left: 0, top: 0, bottom: 0, width: radii.md + 6,
         backgroundColor: 'transparent', borderLeftWidth: 4, borderLeftColor: accent,
         borderTopLeftRadius: radii.md, borderBottomLeftRadius: radii.md, overflow: 'hidden',
       }} />
-      <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: isCancelled ? theme.surfaceAlt : accent + '1F' }}>
-        <Icon name={config.icon} size={20} color={accent} />
-      </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <RouteLine
-          origin={item.originCity}
-          destination={item.destinationCity !== item.originCity ? item.destinationCity : undefined}
-          fontSize={14}
-          style={{ marginBottom: 6 }}
-        />
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-          <View style={{
-            paddingHorizontal: 6, paddingVertical: 1, borderRadius: radii.pill,
-            backgroundColor: accent + '1E', borderWidth: 1, borderColor: accent,
-          }}>
-            <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10, tracking.wide), color: accent }}>
-              {config.label}
-            </Text>
-          </View>
-          <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: theme.muted }}>{item.otherName}</Text>
-        </View>
-        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 3 }}>
-          {item.scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · {item.scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}
-        </Text>
-      </View>
-      <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 13, color: accent, flexShrink: 0 }}>
-        {isCancelled ? '—' : item.donation != null ? `${item.isDriver ? '+' : '-'}$${item.donation}` : '—'}
-      </Text>
-
-      {(item.status === 'completed' || item.status === 'cancelled') && (
-        <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{
-            transform: [{ rotate: '-14deg' }],
-            borderWidth: 1.5, borderColor: item.status === 'cancelled' ? theme.danger + '40' : theme.secondary + '40',
-            borderRadius: 6, paddingHorizontal: 10, paddingVertical: 2,
-          }}>
-            <Text style={{
-              fontFamily: fonts.bodyExtraBold, fontSize: 20, letterSpacing: letterSpacingFor(20, tracking.wide), textTransform: 'uppercase',
-              color: item.status === 'cancelled' ? theme.danger + '40' : theme.secondary + '40',
-            }}>
-              {item.status === 'cancelled' ? t.calendar.cancelledStamp : t.calendar.completedStamp}
-            </Text>
-          </View>
-        </View>
-      )}
-    </TouchableOpacity>
+    </View>
   );
 }

@@ -6,6 +6,7 @@ import { Icon } from './Icon';
 import { IconName } from '@/constants/icons';
 import { useTheme } from '@/hooks/useTheme';
 import { fonts } from '@/constants/themes';
+import { TIER_ICON } from '@/constants/membershipPlans';
 
 // Deterministic gradient + stock portrait picked from `name`, so the same
 // person always renders the same face — matches the design system's mock data.
@@ -37,6 +38,7 @@ interface Props {
   icon?: IconName;
   size?: number;
   verified?: boolean;
+  donor?: boolean;
   online?: boolean;
   style?: StyleProp<ViewStyle>;
 }
@@ -46,7 +48,7 @@ interface Props {
 // specific photo, `photo={false}` to fall back to initials-on-gradient, or
 // `icon` (with `photo={false}`) for a neutral placeholder icon instead of
 // initials — used for the signed-in user's own avatar before they upload one.
-export function Avatar({ name = '', src, photo = true, icon, size = 48, verified = false, online = false, style }: Props) {
+export function Avatar({ name = '', src, photo = true, icon, size = 48, verified = false, donor = false, online = false, style }: Props) {
   const theme = useTheme();
   const [photoFailed, setPhotoFailed] = useState(false);
   const initials = name.split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -99,6 +101,23 @@ export function Avatar({ name = '', src, photo = true, icon, size = 48, verified
           }}
         >
           <Icon name="shield_check" size={Math.round(badge * 0.67)} color={theme.cream} strokeWidth={2.2} />
+        </View>
+      )}
+      {donor && (
+        // Opposite corner from the verified badge — same dark+gold treatment
+        // as the donor badge on the Membership screen (#1C1410 fill,
+        // theme.borderGold border, theme.gold300 icon tint).
+        <View
+          style={{
+            position: 'absolute', left: -2, bottom: -2,
+            width: badge, height: badge,
+            alignItems: 'center', justifyContent: 'center',
+            backgroundColor: '#1C1410',
+            borderRadius: badge / 2,
+            borderWidth: 1, borderColor: theme.borderGold,
+          }}
+        >
+          <Icon name={TIER_ICON.donor} size={Math.round(badge * 0.6)} color={theme.gold300} strokeWidth={2.2} />
         </View>
       )}
       {online && !verified && (

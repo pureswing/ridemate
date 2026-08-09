@@ -56,40 +56,48 @@ export function HistoryCard({ agreement, myId, onPress, selectionMode, selected,
           {selected && <Icon name="check" size={14} color={theme.textOnPrimary} strokeWidth={3} />}
         </TouchableOpacity>
       )}
-      <TouchableOpacity
-        onPress={selectionMode ? onToggleSelect : onPress}
-        onLongPress={onLongPress}
-        style={{
-          flex: 1,
-          position: 'relative', flexDirection: 'row', alignItems: 'center', gap: 13,
-          backgroundColor: theme.surface, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder,
-          paddingVertical: 14, paddingHorizontal: 14, minHeight: 66, overflow: 'hidden',
-          ...shadows.xs,
-        }}
-      >
+      <View style={{ flex: 1, position: 'relative' }}>
+        <TouchableOpacity
+          onPress={selectionMode ? onToggleSelect : onPress}
+          onLongPress={onLongPress}
+          style={{
+            flexDirection: 'row', alignItems: 'center', gap: 13,
+            backgroundColor: theme.surface, borderRadius: radii.md, borderWidth: 1, borderColor: theme.cardBorder,
+            paddingVertical: 14, paddingHorizontal: 14, minHeight: 66, overflow: 'hidden',
+            ...shadows.xs,
+          }}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: accent + '1F' }}>
+            <Icon name={iconFor[kind]} size={20} color={accent} />
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <RouteLine
+              origin={post?.origin_city ?? '—'}
+              destination={post && post.destination_city !== post.origin_city ? post.destination_city : undefined}
+              fontSize={14}
+              style={{ marginBottom: 4 }}
+            />
+            {scheduledAt && (
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint }}>
+                {scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · {scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            )}
+          </View>
+          {!selectionMode && <Icon name="chevron_right" size={18} color={theme.textFaint} />}
+        </TouchableOpacity>
+        {/* Sibling of the bordered/clipped card above, not nested inside it —
+            matches components/ui/Card.tsx's accentStripe technique. Nesting
+            it inside the bordered container measures its corner radius
+            against a box already inset by the card's own 1px border, so the
+            curve lands short and leaves a sliver of the card's border color
+            visible at the top-left/bottom-left corners. As a sibling in the
+            same coordinate frame, painted after, it fully covers that edge. */}
         <View style={{
           position: 'absolute', left: 0, top: 0, bottom: 0, width: radii.md + 6,
           backgroundColor: 'transparent', borderLeftWidth: 4, borderLeftColor: accent,
           borderTopLeftRadius: radii.md, borderBottomLeftRadius: radii.md, overflow: 'hidden',
         }} />
-        <View style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: accent + '1F' }}>
-          <Icon name={iconFor[kind]} size={20} color={accent} />
-        </View>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <RouteLine
-            origin={post?.origin_city ?? '—'}
-            destination={post && post.destination_city !== post.origin_city ? post.destination_city : undefined}
-            fontSize={14}
-            style={{ marginBottom: 4 }}
-          />
-          {scheduledAt && (
-            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint }}>
-              {scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · {scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          )}
-        </View>
-        {!selectionMode && <Icon name="chevron_right" size={18} color={theme.textFaint} />}
-      </TouchableOpacity>
+      </View>
     </View>
   );
 }

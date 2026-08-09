@@ -10,6 +10,8 @@ import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { RouteLine } from './RouteLine';
 import { FlightInfoCard } from './FlightInfoCard';
+import { PriceAnalysisSheet } from './PriceAnalysisSheet';
+import { ExtrasSheet } from './ExtrasSheet';
 import { RidePost, RidePostDetailsPackage, RidePostDetailsHauling, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -17,6 +19,8 @@ import { fonts, radii, shadows } from '@/constants/themes';
 import { leading } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
 import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
+import { buildPriceAnalysis, PriceAnalysis } from '@/utils/priceAnalysis';
+import { buildExtrasGroups } from '@/utils/postExtras';
 
 interface Props {
   post: RidePost;
@@ -52,11 +56,22 @@ export function RideCard({ post, style }: Props) {
   const verified = post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false;
   const [accessOpen, setAccessOpen] = useState(false);
   const [airportOpen, setAirportOpen] = useState(false);
+  const [extrasOpen, setExtrasOpen] = useState(false);
+  const [priceAnalysis, setPriceAnalysis] = useState<PriceAnalysis | null>(null);
 
   const accessibilityNeeds = post.kind === 'ride' ? (post.details as RidePostDetailsRide)?.accessibilityNeeds ?? [] : [];
   const accessOptions = ACCESSIBILITY_OPTIONS.filter((o) => accessibilityNeeds.includes(o.id));
   const hasAccess = accessOptions.length > 0;
   const isFromAirport = post.airport_leg !== 'to';
+
+  // Everything from the granular ride-preferences pass EXCEPT accessibility
+  // (that already has its own icon/sheet above) — vehicle/comfort/climate/
+  // atmosphere/cleanliness/pet/pickup/language, each only included if the
+  // post actually set it. "No preference" entries are the form's default,
+  // not a real declared preference, so they're filtered out here too.
+  const rideDetails = post.kind === 'ride' ? (post.details as RidePostDetailsRide) : undefined;
+  const extrasGroups = buildExtrasGroups(rideDetails, t);
+  const hasExtras = extrasGroups.length > 0;
 
   // Object-form pathname (not a template literal push) — expo-router's typed
   // routes only carries loose UnknownInputParams for a brand-new dynamic
@@ -94,26 +109,47 @@ export function RideCard({ post, style }: Props) {
             <Pressable
               onPress={() => setAccessOpen(true)}
               style={{
-                width: 28, height: 28, borderRadius: 14,
+                // Matches the Badge to its left exactly: 12px bodyBold text
+                // (lineHeight round(12*1.2)=14) + paddingVertical:5 top/bottom
+                // + borderWidth:1 top/bottom = 26px tall — 28 sat visibly
+                // taller than the badge next to it.
+                width: 26, height: 26, borderRadius: 13,
                 borderWidth: 1, borderColor: theme.borderGold,
                 backgroundColor: theme.gold400 + '24',
                 alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <Icon name="accessible" size={15} color={theme.gold500} />
+              <Icon name="accessible" size={14} color={theme.gold500} />
             </Pressable>
           )}
           {post.airport && (
             <Pressable
               onPress={() => setAirportOpen(true)}
               style={{
-                width: 28, height: 28, borderRadius: 14,
+                // Matches the Badge to its left — see the accessibility
+                // circle above for the exact height math.
+                width: 26, height: 26, borderRadius: 13,
                 borderWidth: 1, borderColor: theme.borderGold,
                 backgroundColor: theme.gold400 + '24',
                 alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={14} color={theme.gold500} />
+              <Icon name={isFromAirport ? 'plane_landing' : 'plane_takeoff'} size={13} color={theme.gold500} />
+            </Pressable>
+          )}
+          {hasExtras && (
+            <Pressable
+              onPress={() => setExtrasOpen(true)}
+              style={{
+                // Matches the Badge to its left — see the accessibility
+                // circle above for the exact height math.
+                width: 26, height: 26, borderRadius: 13,
+                borderWidth: 1, borderColor: theme.borderGold,
+                backgroundColor: theme.gold400 + '24',
+                alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <Icon name="car_front" size={14} color={theme.gold500} />
             </Pressable>
           )}
         </View>
@@ -144,15 +180,17 @@ export function RideCard({ post, style }: Props) {
             onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}
             style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}
           >
-            <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={34} verified={verified} />
+            <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={34} verified={verified} donor={post.profile?.is_donor ?? false} />
             <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: theme.text, flexShrink: 1 }}>
               {post.profile?.full_name}
             </Text>
           </Pressable>
           {post.suggested_donation != null && (
-            <Badge tone="warning" fontSize={14} style={{ paddingHorizontal: 14, paddingVertical: 7 }}>
-              {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
-            </Badge>
+            <Pressable onPress={() => setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, post.distance_text))}>
+              <Badge tone="warning" fontSize={14} style={{ paddingHorizontal: 14, paddingVertical: 7 }}>
+                {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
+              </Badge>
+            </Pressable>
           )}
         </View>
       </Card>
@@ -238,6 +276,10 @@ export function RideCard({ post, style }: Props) {
           )}
         </BottomSheet>
       )}
+
+      {hasExtras && <ExtrasSheet visible={extrasOpen} onClose={() => setExtrasOpen(false)} groups={extrasGroups} />}
+
+      <PriceAnalysisSheet visible={!!priceAnalysis} analysis={priceAnalysis} onClose={() => setPriceAnalysis(null)} />
     </View>
   );
 }

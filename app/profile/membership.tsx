@@ -24,7 +24,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import {
-  TIER_ICON, TIER_COLOR, PLAN_FEATURES,
+  TIER_ICON, PLAN_FEATURES,
   DONOR_AMOUNTS, DONOR_SUGGESTED_AMOUNT, DONOR_AMOUNT_MIN, DONOR_AMOUNT_MAX, DONOR_CONFIRM_THRESHOLD,
 } from '@/constants/membershipPlans';
 
@@ -130,11 +130,11 @@ export default function MembershipScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        // zIndex/elevation so scrolled content sliding up behind this header
-        // (see the ScrollView's negative marginTop below) is actually painted
-        // underneath it, not on top — Android in particular needs the explicit
-        // elevation, sibling order alone isn't enough once both are stacking.
-        style={{ paddingTop: insets.top + 8, paddingBottom: 24, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10, elevation: 10 }}
+        // zIndex so scrolled content sliding up behind this header (see the
+        // ScrollView's negative marginTop below) is actually painted
+        // underneath it, not on top — sibling order alone isn't enough once
+        // both are stacking. Matches every other screen's gradient header.
+        style={{ paddingTop: insets.top + 8, paddingBottom: 24, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
           <IconButton icon="arrow_back" variant="glass" label={t.post.goBack} onPress={() => router.back()} />
@@ -145,16 +145,12 @@ export default function MembershipScreen() {
         </View>
 
         <View style={{ alignItems: 'center', marginTop: 14 }}>
-          <View style={{ width: 60, height: 60, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', ...shadows.gold }}>
-            {tier === 'donor' ? (
-              <View style={{ flex: 1, width: '100%', backgroundColor: theme.donorText, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name={TIER_ICON.donor} size={28} color="#FFFFFF" />
-              </View>
-            ) : (
-              <View style={{ flex: 1, width: '100%', backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name={TIER_ICON.free} size={28} color="#FFFFFF" />
-              </View>
-            )}
+          {/* Same background + border as the "membership" card on the
+              profile tab (app/(tabs)/profile.tsx: backgroundColor="#1C1410",
+              borderColor={theme.borderGold}) — icon color matches that
+              card's "MEMBERSHIP" label (categoryLabelStyle + theme.gold300). */}
+          <View style={{ width: 60, height: 60, borderRadius: 18, backgroundColor: '#1C1410', borderWidth: 1, borderColor: theme.borderGold, alignItems: 'center', justifyContent: 'center', ...shadows.gold }}>
+            <Icon name={TIER_ICON[tier]} size={28} color={tier === 'donor' ? theme.gold300 : '#FFFFFF'} />
           </View>
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 21, letterSpacing: letterSpacingFor(21, tracking.tight), color: theme.cream, marginTop: 10, textAlign: 'center' }}>
             {isFree ? t.membership.headlineFree : `${t.membership.headlinePaidPrefix} ${firstName}!`}
@@ -168,12 +164,12 @@ export default function MembershipScreen() {
           paddingTop below, but scrolling now has room to slide it up behind
           the header's shadow instead of stopping dead at the header's edge. */}
       <View style={{ flex: 1, marginTop: -20 }}>
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, gap: 20, paddingBottom: 40 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 40, gap: 20, paddingBottom: insets.bottom + 40 }}>
         {!isFree && (
           <Card padding={16} radius={18} elevation="lg">
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: TIER_COLOR.donor.soft, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name={TIER_ICON.donor} size={19} color={TIER_COLOR.donor.text} />
+              <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: '#1C1410', borderWidth: 1, borderColor: theme.borderGold, alignItems: 'center', justifyContent: 'center' }}>
+                <Icon name={TIER_ICON.donor} size={19} color={theme.gold300} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 10.5, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10.5, tracking.wide), color: theme.textFaint }}>
@@ -283,16 +279,7 @@ export default function MembershipScreen() {
               </TouchableOpacity>
             )}
           </View>
-        ) : (
-          <Card padding={16} radius={18} elevation="lg" backgroundColor={TIER_COLOR.donor.soft} borderColor={TIER_COLOR.donor.border}>
-            <View style={{ flexDirection: 'row', gap: 10 }}>
-              <Icon name={TIER_ICON.donor} size={18} color={TIER_COLOR.donor.text} />
-              <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.textSecondary, lineHeight: 19 }}>
-                {t.membership.badgeExplainerDonor}
-              </Text>
-            </View>
-          </Card>
-        )}
+        ) : null}
         </ScrollView>
       </View>
 

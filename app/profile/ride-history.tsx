@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { View, FlatList, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, FlatList, ActivityIndicator, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/Input';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { HistoryCard } from '@/components/ride/HistoryCard';
 import { TripSummaryModal } from '@/components/ride/TripSummaryModal';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useRideHistory, RideHistoryTypeFilter, RideHistoryPeriodFilter } from '@/hooks/useRideHistory';
 import { useTheme } from '@/hooks/useTheme';
@@ -44,6 +45,7 @@ export default function RideHistoryScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [tripRecord, setTripRecord] = useState<TripRecord | null>(null);
+  const [infoSheet, setInfoSheet] = useState<{ tone: 'info' | 'danger'; title: string; message: string } | null>(null);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -167,7 +169,7 @@ export default function RideHistoryScreen() {
         rows = items;
       }
       if (rows.length === 0) {
-        Alert.alert(t.rideHistoryScreen.exportEmptyTitle, t.rideHistoryScreen.exportEmptyMsg);
+        setInfoSheet({ tone: 'info', title: t.rideHistoryScreen.exportEmptyTitle, message: t.rideHistoryScreen.exportEmptyMsg });
         return;
       }
 
@@ -197,7 +199,7 @@ export default function RideHistoryScreen() {
       const csv = buildCsv(headers, csvRows);
       await shareCsv(csv, `ride-history-${Date.now()}.csv`);
     } catch (e: any) {
-      Alert.alert(t.rideDetail.errorTitle, e.message);
+      setInfoSheet({ tone: 'danger', title: t.rideDetail.errorTitle, message: e.message });
     } finally {
       setExporting(false);
     }
@@ -223,7 +225,7 @@ export default function RideHistoryScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 14, paddingHorizontal: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 14, paddingHorizontal: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           {selectionMode ? (
@@ -327,6 +329,16 @@ export default function RideHistoryScreen() {
       )}
 
       <TripSummaryModal visible={!!tripRecord} record={tripRecord} onClose={() => setTripRecord(null)} />
+
+      <InfoSheet
+        visible={!!infoSheet}
+        tone={infoSheet?.tone}
+        icon={infoSheet?.tone === 'danger' ? 'warning' : 'download'}
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.rideHistoryScreen.gotIt}
+        onClose={() => setInfoSheet(null)}
+      />
     </View>
   );
 }

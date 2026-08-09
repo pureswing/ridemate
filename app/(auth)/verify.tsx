@@ -1,9 +1,11 @@
-import { View, ScrollView, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -14,13 +16,14 @@ export default function VerifyScreen() {
   const { email } = useLocalSearchParams<{ email?: string }>();
   const t = useTranslation();
   const theme = useTheme();
+  const [error, setError] = useState(false);
 
   async function handleConfirmed() {
     const { data } = await supabase.auth.getSession();
     if (data.session) {
       router.replace('/(auth)/disclaimer');
     } else {
-      Alert.alert(t.auth.verify.errorTitle, t.auth.verify.errorMsg);
+      setError(true);
     }
   }
 
@@ -51,6 +54,16 @@ export default function VerifyScreen() {
         </Text>
       </View>
       </ScrollView>
+
+      <InfoSheet
+        visible={error}
+        tone="danger"
+        icon="warning"
+        title={t.auth.verify.errorTitle}
+        message={t.auth.verify.errorMsg}
+        confirmLabel={t.auth.verify.errorDismiss}
+        onClose={() => setError(false)}
+      />
     </SafeAreaView>
   );
 }

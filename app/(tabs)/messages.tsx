@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
+import { useDonorStatus } from '@/hooks/useDonorStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,7 +49,7 @@ function statusConfig(agreement: RideAgreement | null, t: ReturnType<typeof useT
   }
 }
 
-function ConversationRow({ conversation, myId, agreement, insured }: { conversation: Conversation; myId: string; agreement: RideAgreement | null; insured: boolean }) {
+function ConversationRow({ conversation, myId, agreement, insured, donor }: { conversation: Conversation; myId: string; agreement: RideAgreement | null; insured: boolean; donor: boolean }) {
   const theme = useTheme();
   const t = useTranslation();
   const { getLastMessage, getUnreadCount } = useMessages();
@@ -79,7 +80,7 @@ function ConversationRow({ conversation, myId, agreement, insured }: { conversat
       style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 }}
     >
       <View style={{ flexShrink: 0 }}>
-        <Avatar name={otherParty?.full_name ?? '?'} src={otherParty?.avatar_url} size={50} verified={insured} />
+        <Avatar name={otherParty?.full_name ?? '?'} src={otherParty?.avatar_url} size={50} verified={insured} donor={donor} />
         {unread > 0 && (
           <View style={{
             position: 'absolute', top: -2, right: -2, width: 18, height: 18, borderRadius: 9,
@@ -133,6 +134,7 @@ export default function MessagesScreen() {
   const { session } = useAuthStore();
   const { getConversations, deleteConversation } = useMessages();
   const { getAgreementsForPost } = useRideAgreements();
+  const { getDonorStatuses } = useDonorStatus();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -145,6 +147,7 @@ export default function MessagesScreen() {
   // Keyed by the OTHER party's user id — vehicle_profiles is publicly
   // readable, batch-fetched once here (not per-row) same as agreements above.
   const [insuredUsers, setInsuredUsers] = useState<Record<string, boolean>>({});
+  const [donorUsers, setDonorUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterBucket>('active');
 
@@ -190,6 +193,9 @@ export default function MessagesScreen() {
           if (v.insurance_self_certified) insuredMap[v.user_id] = true;
         }
         setInsuredUsers(insuredMap);
+
+        const donorMap = await getDonorStatuses(otherPartyIds);
+        setDonorUsers(Object.fromEntries(donorMap));
       }
     } finally {
       setLoading(false);
@@ -234,7 +240,7 @@ export default function MessagesScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 18, paddingHorizontal: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.md }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 18, paddingHorizontal: 20, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
           {t.messages.eyebrow}
@@ -285,6 +291,7 @@ export default function MessagesScreen() {
                   myId={session!.user.id}
                   agreement={agreements[item.id] ?? null}
                   insured={insuredUsers[otherPartyId] ?? false}
+                  donor={donorUsers[otherPartyId] ?? false}
                 />
               </Swipeable>
             );

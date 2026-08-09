@@ -193,6 +193,11 @@ export interface RidePost {
     // insurance only (VehicleProfile.insurance_self_certified), never a
     // verification the app itself performs.
     vehicle_profiles?: Pick<VehicleProfile, 'insurance_self_certified'>[];
+    // Merged in client-side from the public.donor_status view (see
+    // hooks/useDonorStatus.ts) — subscriptions itself is locked to
+    // "view your own row only", so this can't be embedded via a normal
+    // PostgREST join.
+    is_donor?: boolean;
   };
 }
 
@@ -203,6 +208,21 @@ export interface RidePost {
 export interface RouteStats {
   avg_donation: number | null;
   sample_size: number;
+}
+
+// supabase/migrations/042_route_intelligence.sql — public.ride_post_insights.
+// One row per post, generated/refreshed server-side (generate-post-insight
+// Edge Function) — never fetched or computed client-side.
+export interface RidePostInsight {
+  post_id: string;
+  traffic_duration_seconds: number | null;
+  baseline_duration_seconds: number | null;
+  weather_temp_f: number | null;
+  weather_code: number | null;
+  nearby_events: { name: string; venue_name: string | null; venue_city: string | null; event_date: string | null }[];
+  insight_text: string | null;
+  generated_at: string | null;
+  next_refresh_at: string;
 }
 
 export interface ContactReveal {
@@ -391,7 +411,9 @@ export interface VehicleProfile {
 // SECURITY DEFINER triggers (new message, agreement created/completed,
 // badge received), never inserted directly by the client. `data` carries
 // whatever ids the notification deep-links to (conversation_id, agreement_id...).
-export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received';
+// route_alert (migration 044) is the exception — written by the
+// generate-post-insight Edge Function's service-role client, not a trigger.
+export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received' | 'route_alert';
 
 export interface AppNotification {
   id: string;
@@ -399,7 +421,10 @@ export interface AppNotification {
   type: NotificationType;
   title: string;
   body?: string;
-  data: Record<string, string>;
+  // route_alert's payload (post_id, post_kind, has_update, adjust_options,
+  // delay_minutes) needs richer types than every other notification's
+  // plain string ids — widened here rather than a separate interface.
+  data: Record<string, string | number | boolean | number[]>;
   read_at?: string;
   created_at: string;
 }

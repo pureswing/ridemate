@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { OfferSheet } from '@/components/ride/OfferSheet';
+import { RouteIntelligenceCard } from '@/components/ride/RouteIntelligenceCard';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -21,6 +22,7 @@ import { useRides } from '@/hooks/useRides';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useMessages } from '@/hooks/useMessages';
 import { useBadges } from '@/hooks/useBadges';
+import { useSubscription } from '@/hooks/useSubscription';
 import { RidePost, RidePostDetailsPackage, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -78,6 +80,7 @@ export default function PackageDetailScreen() {
   const { getAgreementsForPost, cancelAgreement } = useRideAgreements();
   const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
+  const { isDonor } = useSubscription();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -292,6 +295,8 @@ export default function PackageDetailScreen() {
             )}
           </View>
 
+          <RouteIntelligenceCard postId={post.id} visible={isDonor} />
+
           {post.description && (
             <Field label={t.rideDetail.notes}>
               <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
@@ -322,7 +327,7 @@ export default function PackageDetailScreen() {
 
           <Card padding={14} elevation="sm" interactive onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
+              <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} donor={post.profile?.is_donor ?? false} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: theme.text }}>
                   {post.profile?.full_name ?? '—'}

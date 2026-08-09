@@ -1,7 +1,9 @@
-import { View, ScrollView, Alert } from 'react-native';
+import { useState } from 'react';
+import { View, ScrollView } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { router } from 'expo-router';
 import { supabase } from '@/lib/supabase';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -11,6 +13,7 @@ import { fonts, radii } from '@/constants/themes';
 export default function DisclaimerScreen() {
   const t = useTranslation();
   const theme = useTheme();
+  const [error, setError] = useState(false);
 
   async function acceptDisclaimer() {
     try {
@@ -25,7 +28,7 @@ export default function DisclaimerScreen() {
       }
       router.replace('/(tabs)');
     } catch {
-      Alert.alert(t.disclaimer.errorTitle, t.disclaimer.errorMsg);
+      setError(true);
     }
   }
 
@@ -69,6 +72,16 @@ export default function DisclaimerScreen() {
           {t.disclaimer.accept}
         </Button>
       </View>
+
+      <InfoSheet
+        visible={error}
+        tone="danger"
+        icon="warning"
+        title={t.disclaimer.errorTitle}
+        message={t.disclaimer.errorMsg}
+        confirmLabel={t.disclaimer.errorDismiss}
+        onClose={() => setError(false)}
+      />
     </View>
   );
 }

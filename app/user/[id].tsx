@@ -18,6 +18,7 @@ import { useBadges } from '@/hooks/useBadges';
 import { useRides } from '@/hooks/useRides';
 import { useUserReports } from '@/hooks/useUserReports';
 import { useCommunitySummary } from '@/hooks/useCommunitySummary';
+import { useDonorStatus } from '@/hooks/useDonorStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,6 +26,7 @@ import { Profile, VehicleProfile, BadgeCount, RidePost } from '@/types';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
+import { PostRow } from '@/components/ride/PostRow';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 
@@ -44,6 +46,7 @@ export default function UserProfileScreen() {
   const { getPostsByUser } = useRides();
   const { createReport, loading: reporting } = useUserReports();
   const { getCommunitySummary } = useCommunitySummary();
+  const { getDonorStatuses } = useDonorStatus();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -54,6 +57,7 @@ export default function UserProfileScreen() {
   const [badges, setBadges] = useState<BadgeCount[]>([]);
   const [selectedBadge, setSelectedBadge] = useState<BadgeCount | null>(null);
   const [posts, setPosts] = useState<RidePost[]>([]);
+  const [isDonor, setIsDonor] = useState(false);
   const [tripCount, setTripCount] = useState<number | null>(null);
   const [summary, setSummary] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
@@ -81,18 +85,20 @@ export default function UserProfileScreen() {
   async function load() {
     setLoading(true);
     try {
-      const [p, v, b, ps, trips] = await Promise.all([
+      const [p, v, b, ps, trips, donorStatuses] = await Promise.all([
         getPublicProfile(id),
         getMyVehicles(id),
         getBadgeCounts(id),
         getPostsByUser(id),
         getCompletedTripCount(id),
+        getDonorStatuses([id]),
       ]);
       setProfile(p);
       setVehicles(v);
       setBadges(b);
       setPosts(ps);
       setTripCount(trips);
+      setIsDonor(donorStatuses.get(id) ?? false);
       if (p) getCommunitySummary(p.full_name, b).then(setSummary);
     } catch {
       Alert.alert(t.rideDetail.errorTitle, t.userProfile.loadError);
@@ -121,7 +127,7 @@ export default function UserProfileScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 22, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 22, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
           <IconButton icon="arrow_back" variant="glass" label={t.post.goBack} onPress={() => router.back()} />
@@ -141,7 +147,7 @@ export default function UserProfileScreen() {
               position: 'absolute', top: -3, left: -3, right: -3, bottom: -3,
               borderRadius: 42, borderWidth: 3, borderColor: 'rgba(20,12,6,0.4)',
             }} />
-            <Avatar name={profile.full_name} src={profile.avatar_url} size={78} verified={verified} />
+            <Avatar name={profile.full_name} src={profile.avatar_url} size={78} verified={verified} donor={isDonor} />
           </View>
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 22, letterSpacing: letterSpacingFor(22, tracking.tight), color: theme.cream, marginTop: 10 }}>
             {profile.full_name}
@@ -255,33 +261,7 @@ export default function UserProfileScreen() {
               {t.userProfile.activePostsSection}
             </Text>
             <View style={{ gap: 10 }}>
-              {posts.map((p) => {
-                const isOffer = p.type === 'offer';
-                const pathname = p.kind === 'package' ? '/package/[id]' : p.kind === 'hauling' ? '/hauling/[id]' : '/ride/[id]';
-                const accent = isOffer ? theme.driverText : theme.passengerText;
-                return (
-                  <Card key={p.id} interactive onPress={() => router.push({ pathname, params: { id: p.id } })} padding={14} radius={radii.lg} elevation="sm" accent={accent}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: accent }}>
-                        {isOffer ? t.userProfile.postTypeOffer : t.userProfile.postTypeRequest}
-                      </Text>
-                      <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint }}>
-                        {new Date(p.scheduled_at).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}
-                      </Text>
-                    </View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: theme.text }}>{p.origin_city}</Text>
-                      <Icon name="arrow_forward" size={14} color={theme.textFaint} />
-                      <Text style={{ fontFamily: fonts.displayBold, fontSize: 15, color: theme.text }}>{p.destination_city}</Text>
-                    </View>
-                    {p.suggested_donation != null && (
-                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: accent, marginTop: 5 }}>
-                        {p.price_mode === 'firm' ? `$${p.suggested_donation}` : `$${p.suggested_donation} OBO`}
-                      </Text>
-                    )}
-                  </Card>
-                );
-              })}
+              {posts.map((p) => <PostRow key={p.id} post={p} />)}
             </View>
           </View>
         )}

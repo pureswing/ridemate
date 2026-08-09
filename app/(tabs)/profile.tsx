@@ -109,7 +109,7 @@ function VehicleMiniCard({
 export default function ProfileScreen() {
   const { profile, session } = useAuthStore();
   const { signOut } = useAuth();
-  const { tier, daysRemaining } = useSubscription();
+  const { tier, isDonor, daysRemaining } = useSubscription();
   const { getBadgeCounts, getStrikeLevel } = useBadges();
   const { getMyVehicles } = useVehicleProfile();
   const t = useTranslation();
@@ -254,7 +254,7 @@ export default function ProfileScreen() {
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 46, paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 46, paddingBottom: 40, alignItems: 'center', borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         {strikeLevel > 0 && (
           <View style={{ position: 'absolute', top: insets.top + 12, right: 72 }}>
@@ -304,6 +304,7 @@ export default function ProfileScreen() {
               icon={!profile?.avatar_url ? 'person' : undefined}
               size={90}
               verified={verified}
+              donor={isDonor}
             />
           </View>
           {/* Same "glass" look as the header's settings/nav IconButtons
@@ -399,9 +400,13 @@ export default function ProfileScreen() {
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               <View style={{ width: 44, height: 44, borderRadius: 14, overflow: 'hidden' }}>
                 {tier === 'donor' ? (
-                  <View style={{ flex: 1, backgroundColor: theme.donorText, alignItems: 'center', justifyContent: 'center' }}>
+                  <LinearGradient
+                    colors={theme.gradientGold as [string, string, ...string[]]}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+                    style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
+                  >
                     <Icon name={TIER_ICON.donor} size={21} color="#FFFFFF" />
-                  </View>
+                  </LinearGradient>
                 ) : (
                   <View style={{ flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }}>
                     <Icon name={TIER_ICON.free} size={21} color="rgba(255,255,255,0.75)" />

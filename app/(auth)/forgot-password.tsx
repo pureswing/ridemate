@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthBackButton } from '@/components/auth/AuthBackButton';
@@ -19,6 +20,7 @@ const emailOk = (e: string) => /\S+@\S+\.\S+/.test(e);
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { resetPasswordForEmail, loading } = useAuth();
   const t = useTranslation();
   const theme = useTheme();
@@ -28,7 +30,7 @@ export default function ForgotPasswordScreen() {
       await resetPasswordForEmail(email.trim().toLowerCase());
       setSent(true);
     } catch (e: any) {
-      Alert.alert(t.auth.forgotPassword.errorTitle, e.message);
+      setError(e.message);
     }
   }
 
@@ -64,6 +66,16 @@ export default function ForgotPasswordScreen() {
         </View>
       )}
       </ScrollView>
+
+      <InfoSheet
+        visible={!!error}
+        tone="danger"
+        icon="warning"
+        title={t.auth.forgotPassword.errorTitle}
+        message={error ?? ''}
+        confirmLabel={t.auth.forgotPassword.errorDismiss}
+        onClose={() => setError(null)}
+      />
     </SafeAreaView>
   );
 }

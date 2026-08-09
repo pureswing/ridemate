@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react';
 import { View, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { useRideStore } from '@/store/rideStore';
@@ -9,6 +8,7 @@ import { useRides } from '@/hooks/useRides';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { RideCard } from '@/components/ride/RideCard';
+import { RideCardGrid } from '@/components/ride/RideCardGrid';
 import { HomeHeader } from '@/components/layout/HomeHeader';
 import { FilterDrawer, DEFAULT_FILTER_STATE, FilterState, countActiveFilters } from '@/components/ride/FilterDrawer';
 import { radii } from '@/constants/themes';
@@ -78,7 +78,17 @@ export default function FeedScreen() {
           confirmed the hard way). This trades away the documented "Chip/IconButton
           need a ScrollView ancestor to paint" safety net (feedback_button_scrollview_bug
           memory) to get real fixed positioning — needs on-device confirmation that
-          the chips/buttons still render (colors/text visible, not blank). */}
+          the chips/buttons still render (colors/text visible, not blank).
+          HomeHeader carries its own zIndex:10 (matching every other screen's
+          gradient header) — without it, a card scrolled up
+          under its bottom edge paints OVER its drop shadow instead of under
+          it: later siblings in the same stacking context paint on top by
+          declaration order (Android's elevation alone doesn't guarantee this
+          across siblings, and iOS has no elevation at all), and the list
+          sits later in the tree. Putting the zIndex on the gradient itself
+          (not an extra wrapping View) keeps its rounded-corner clip intact —
+          an unstyled wrapper View got its own Android compositing layer,
+          whose rectangular bounds showed a sliver past the rounded corner. */}
       {header}
       <View style={{ flex: 1 }}>
         {loading && posts.length === 0 ? (
@@ -91,7 +101,11 @@ export default function FeedScreen() {
             keyExtractor={(item) => item.id}
             numColumns={layout === 'grid' ? 2 : 1}
             columnWrapperStyle={layout === 'grid' ? { gap: 12 } : undefined}
-            renderItem={({ item }) => <RideCard post={item} style={layout === 'grid' ? { flex: 1 } : undefined} />}
+            renderItem={({ item }) =>
+              layout === 'grid'
+                ? <RideCardGrid post={item} style={{ flex: 1 }} />
+                : <RideCard post={item} />
+            }
             ListEmptyComponent={<EmptyState />}
             contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 28, paddingBottom: 16, flexGrow: 1 }}
             refreshControl={
@@ -99,15 +113,6 @@ export default function FeedScreen() {
             }
           />
         )}
-        {/* Cards scrolling up under the fixed header fade into the background
-            instead of hard-cutting at its edge — an absolute overlay, not real
-            transparency on the cards themselves. pointerEvents="none" so it
-            doesn't block scroll/tap on the list underneath. */}
-        <LinearGradient
-          colors={[theme.background, `${theme.background}00`]}
-          pointerEvents="none"
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28 }}
-        />
       </View>
       <FilterDrawer
         visible={filtersOpen}

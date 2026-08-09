@@ -119,7 +119,7 @@ export const shadows: Record<'xs' | 'sm' | 'md' | 'lg' | 'gold' | 'jade' | 'orch
   goldTight:   { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
   jadeTight:   { shadowColor: '#0E9C93', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
   orchidTight: { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
-  donorTight: { shadowColor: '#C97BFF', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
+  donorTight: { shadowColor: '#FF6243', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5 },
 };
 
 export const theme: AppTheme = {
@@ -187,10 +187,11 @@ export const theme: AppTheme = {
   haulingText:   '#9E4A14',
   haulingSoft:   'rgba(224,123,57,0.14)',
   haulingBorder: 'rgba(224,123,57,0.34)',
-  // Donor purple has no existing token — new accent, scoped to the donor tier badge only.
-  donorText:   '#C97BFF',
-  donorSoft:   'rgba(201,123,255,0.14)',
-  donorBorder: 'rgba(201,123,255,0.34)',
+  // Donor accent — was a standalone purple, now the same gold as the rest
+  // of the brand (gradientGold/gold500) instead of a one-off hue.
+  donorText:   '#FF6243',
+  donorSoft:   'rgba(255,98,67,0.14)',
+  donorBorder: 'rgba(255,98,67,0.34)',
   gradientGold:   ['#FF6243', '#FF9B57', '#FFC15E'],
   gradientOrchid: ['#FF7A5E', '#ED4A2B'],
   gradientJade:   ['#1FB6AC', '#0E9C93'],

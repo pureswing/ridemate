@@ -12,6 +12,7 @@ import { BottomSheet } from '@/components/ui/BottomSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useFavorites } from '@/hooks/useFavorites';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
+import { useDonorStatus } from '@/hooks/useDonorStatus';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -26,12 +27,14 @@ export default function SavedDriversScreen() {
   const { session } = useAuthStore();
   const { getFavorites, removeFavorite, loading: removing } = useFavorites();
   const { getCompletedTripCount } = usePublicProfile();
+  const { getDonorStatuses } = useDonorStatus();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
 
   const [favorites, setFavorites] = useState<UserFavorite[]>([]);
   const [insured, setInsured] = useState<Record<string, boolean>>({});
+  const [donors, setDonors] = useState<Record<string, boolean>>({});
   const [tripCounts, setTripCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [cityFilter, setCityFilter] = useState<string>('__all__');
@@ -50,9 +53,10 @@ export default function SavedDriversScreen() {
       setFavorites(list);
       const driverIds = Array.from(new Set(list.map((f) => f.driver_id)));
       if (driverIds.length > 0) {
-        const [{ data: vehicles }, tripsList] = await Promise.all([
+        const [{ data: vehicles }, tripsList, donorMap] = await Promise.all([
           supabase.from('vehicle_profiles').select('user_id, insurance_self_certified').in('user_id', driverIds),
           Promise.all(driverIds.map(async (id) => [id, await getCompletedTripCount(id)] as const)),
+          getDonorStatuses(driverIds),
         ]);
         const insuredMap: Record<string, boolean> = {};
         for (const v of vehicles ?? []) {
@@ -60,6 +64,7 @@ export default function SavedDriversScreen() {
         }
         setInsured(insuredMap);
         setTripCounts(Object.fromEntries(tripsList));
+        setDonors(Object.fromEntries(donorMap));
       }
     } catch {
     } finally {
@@ -89,7 +94,7 @@ export default function SavedDriversScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 16, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
           <IconButton icon="arrow_back" variant="glass" label={t.post.goBack} onPress={() => router.back()} />
@@ -110,7 +115,7 @@ export default function SavedDriversScreen() {
           <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
             {filtered.length} {filtered.length === 1 ? t.savedDriversScreen.driverSuffix : t.savedDriversScreen.driversSuffix}
             {cityFilter !== '__all__' && (
-              <Text style={{ fontFamily: fonts.bodyBold, color: theme.gold400 }}>
+              <Text style={{ fontFamily: fonts.bodyBold, color: theme.gold300 }}>
                 {' '}({countInFilterCity}/{CITY_LIMIT} {t.savedDriversScreen.slotsSuffix})
               </Text>
             )}
@@ -138,7 +143,7 @@ export default function SavedDriversScreen() {
             filtered.map((f) => (
               <Card key={f.id} interactive onPress={() => setActiveDriver(f)} padding={14} radius={radii.lg} elevation="sm" accent={theme.driverText}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <Avatar name={f.driver?.full_name ?? '?'} src={f.driver?.avatar_url} size={48} verified={insured[f.driver_id] ?? false} />
+                  <Avatar name={f.driver?.full_name ?? '?'} src={f.driver?.avatar_url} size={48} verified={insured[f.driver_id] ?? false} donor={donors[f.driver_id] ?? false} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text numberOfLines={1} style={{ fontFamily: fonts.displayBold, fontSize: 15, color: theme.text }}>
                       {f.driver?.full_name ?? '—'}

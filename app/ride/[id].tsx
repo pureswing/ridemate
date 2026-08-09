@@ -15,6 +15,7 @@ import { CardBox } from '@/components/ui/CardBox';
 import { RuleChip } from '@/components/ui/RuleChip';
 import { OfferSheet } from '@/components/ride/OfferSheet';
 import { FlightInfoCard } from '@/components/ride/FlightInfoCard';
+import { RouteIntelligenceCard } from '@/components/ride/RouteIntelligenceCard';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
@@ -23,6 +24,7 @@ import { useRides } from '@/hooks/useRides';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useMessages } from '@/hooks/useMessages';
 import { useBadges } from '@/hooks/useBadges';
+import { useSubscription } from '@/hooks/useSubscription';
 import { RidePost, RidePostDetailsRide, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -112,6 +114,7 @@ export default function RideDetailScreen() {
   const { getAgreementsForPost, cancelAgreement } = useRideAgreements();
   const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
+  const { isDonor } = useSubscription();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -338,6 +341,13 @@ export default function RideDetailScreen() {
               value={date.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })} />
           </View>
 
+          {/* No airport leg to show its own status card, so Route
+              Intelligence sits right here instead — see the other instance
+              right after the Airport trip card below for when there is one. */}
+          {!(post.airport && post.flight_number) && (
+            <RouteIntelligenceCard postId={post.id} visible={isDonor} />
+          )}
+
           {/* Seats/Adults + Children */}
           <View style={{ flexDirection: 'row', gap: 12 }}>
             {isOffer && post.seats_available != null ? (
@@ -378,6 +388,10 @@ export default function RideDetailScreen() {
                 </CardBox>
               )}
             </Field>
+          )}
+
+          {post.airport && post.flight_number && (
+            <RouteIntelligenceCard postId={post.id} visible={isDonor} />
           )}
 
           {/* Luggage — same chrome as StatTile, but a bespoke two-column layout
@@ -485,7 +499,7 @@ export default function RideDetailScreen() {
           {/* Poster */}
           <Card padding={14} elevation="sm" interactive onPress={() => router.push({ pathname: '/user/[id]', params: { id: post.user_id } })}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} />
+              <Avatar name={post.profile?.full_name ?? '?'} src={post.profile?.avatar_url} size={44} verified={post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false} donor={post.profile?.is_donor ?? false} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 15, color: theme.text }}>
                   {post.profile?.full_name ?? '—'}

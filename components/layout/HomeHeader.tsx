@@ -69,7 +69,7 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
       colors={theme.gradientGold as [string, string, ...string[]]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={{ paddingTop: insets.top + 12, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, ...shadows.md }}
+      style={{ paddingTop: insets.top + 12, paddingBottom: 20, paddingHorizontal: 20, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
     >
       {/* Light icons while this gradient hero is mounted — reverts to the app
           default (dark, set in app/_layout.tsx) once it unmounts. */}
@@ -147,10 +147,10 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
           {activeFilterCount > 0 && (
             <View style={{
               position: 'absolute', top: -3, right: -3, minWidth: 16, height: 16, borderRadius: 8,
-              paddingHorizontal: 3, backgroundColor: theme.gold400, borderWidth: 2, borderColor: theme.primary,
+              paddingHorizontal: 3, backgroundColor: theme.gradientJade[0],
               alignItems: 'center', justifyContent: 'center',
             }}>
-              <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9, lineHeight: 11, color: theme.textOnPrimary ?? '#1a1209' }}>
+              <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 9, lineHeight: 11, color: theme.textOnPrimary }}>
                 {activeFilterCount}
               </Text>
             </View>

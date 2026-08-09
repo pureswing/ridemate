@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Alert, ScrollView, Pressable } from 'react-native';
+import { View, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthBackButton } from '@/components/auth/AuthBackButton';
@@ -18,6 +19,7 @@ const emailOk = (e: string) => /\S+@\S+\.\S+/.test(e);
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const { signIn, loading } = useAuth();
   const t = useTranslation();
   const theme = useTheme();
@@ -28,7 +30,7 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim().toLowerCase(), password);
     } catch (e: any) {
-      Alert.alert(t.login.errorTitle, e.message);
+      setError(e.message);
     }
   }
 
@@ -62,6 +64,16 @@ export default function LoginScreen() {
           </View>
         </ScrollView>
       </KeyboardWrapper>
+
+      <InfoSheet
+        visible={!!error}
+        tone="danger"
+        icon="warning"
+        title={t.login.errorTitle}
+        message={error ?? ''}
+        confirmLabel={t.login.errorDismiss}
+        onClose={() => setError(null)}
+      />
     </SafeAreaView>
   );
 }

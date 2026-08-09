@@ -283,7 +283,7 @@ function KpiCard({ icon, label, value, accent, sub, theme, onInfo }: {
         <View style={{ flexDirection: 'row', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.cardBorder, justifyContent: 'space-around' }}>
           {sub.map((s) => (
             <View key={s.label} style={{ alignItems: 'center', gap: 4, maxWidth: 80 }}>
-              <Icon name={s.icon} size={13} color={s.color} />
+              <Icon name={s.icon} size={20} color={s.color} />
               <Text numberOfLines={1} style={{ fontFamily: fonts.bodyRegular, fontSize: 10, color: theme.textFaint, textAlign: 'center' }}>{s.label}</Text>
               <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13.5, color: s.color }}>{s.value}</Text>
             </View>
@@ -355,7 +355,7 @@ export default function DashboardScreen() {
       <LinearGradient
         colors={theme.gradientGold as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-        style={{ paddingTop: insets.top + 8, paddingBottom: 18, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg }}
+        style={{ paddingTop: insets.top + 8, paddingBottom: 18, borderBottomLeftRadius: 26, borderBottomRightRadius: 26, ...shadows.lg, zIndex: 10 }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
           <IconButton icon="arrow_back" variant="glass" label={t.post.goBack} onPress={() => router.back()} />

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { PasswordStrength } from '@/components/auth/PasswordStrength';
@@ -25,6 +26,8 @@ export default function ResetPasswordScreen() {
   const [checking, setChecking] = useState(true);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const { updatePassword, loading } = useAuth();
   const t = useTranslation();
   const theme = useTheme();
@@ -41,10 +44,9 @@ export default function ResetPasswordScreen() {
     try {
       await updatePassword(password);
       await supabase.auth.signOut();
-      Alert.alert(t.auth.resetPassword.successTitle, t.auth.resetPassword.successMsg);
-      router.replace('/(auth)/login');
+      setSuccess(true);
     } catch (e: any) {
-      Alert.alert(t.auth.resetPassword.errorTitle, e.message);
+      setError(e.message);
     }
   }
 
@@ -89,6 +91,25 @@ export default function ResetPasswordScreen() {
         </Button>
       </View>
       </ScrollView>
+
+      <InfoSheet
+        visible={success}
+        tone="info"
+        icon="check_circle"
+        title={t.auth.resetPassword.successTitle}
+        message={t.auth.resetPassword.successMsg}
+        confirmLabel={t.auth.resetPassword.continueLabel}
+        onClose={() => router.replace('/(auth)/login')}
+      />
+      <InfoSheet
+        visible={!!error}
+        tone="danger"
+        icon="warning"
+        title={t.auth.resetPassword.errorTitle}
+        message={error ?? ''}
+        confirmLabel={t.auth.resetPassword.errorDismiss}
+        onClose={() => setError(null)}
+      />
     </SafeAreaView>
   );
 }

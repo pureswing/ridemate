@@ -3,26 +3,35 @@ import { supabase } from '@/lib/supabase';
 import { useRideStore } from '@/store/rideStore';
 import { RidePost, RouteStats } from '@/types';
 
-// vehicle_profiles.user_id references auth.users, not public.profiles (unlike
-// every other table), so PostgREST can't auto-embed it under profiles(...) —
-// fetched separately and merged here instead of fixing the FK (that needs
-// table-owner privileges we don't have on this Supabase project).
-async function withVehicleVerification(posts: RidePost[]): Promise<RidePost[]> {
+// Two merges in one pass, both for the same reason: neither vehicle_profiles
+// nor donor_status can be embedded via a normal PostgREST join. vehicle_profiles.
+// user_id references auth.users, not public.profiles (unlike every other
+// table), so PostgREST can't auto-embed it under profiles(...) — fixing that
+// needs table-owner privileges this project doesn't have. donor_status draws
+// from subscriptions, which is locked to "view your own row only" (RLS) —
+// see supabase/migrations/039_donor_status_view.sql for the narrow view that
+// exposes just the one bit a badge needs from that table.
+async function withProfileExtras(posts: RidePost[]): Promise<RidePost[]> {
   const userIds = [...new Set(posts.map((p) => p.user_id))];
   if (userIds.length === 0) return posts;
 
-  const { data, error } = await supabase
-    .from('vehicle_profiles')
-    .select('user_id, insurance_self_certified')
-    .in('user_id', userIds);
-  if (error || !data) return posts;
+  const [vehicleRes, donorRes] = await Promise.all([
+    supabase.from('vehicle_profiles').select('user_id, insurance_self_certified').in('user_id', userIds),
+    supabase.from('donor_status').select('user_id, is_donor').in('user_id', userIds),
+  ]);
 
-  const byUser = new Map<string, boolean>();
-  for (const v of data) byUser.set(v.user_id, v.insurance_self_certified);
+  const verifiedByUser = new Map<string, boolean>();
+  for (const v of vehicleRes.data ?? []) verifiedByUser.set(v.user_id, v.insurance_self_certified);
+  const donorByUser = new Map<string, boolean>();
+  for (const d of donorRes.data ?? []) donorByUser.set(d.user_id, d.is_donor);
 
   return posts.map((post) => post.profile ? {
     ...post,
-    profile: { ...post.profile, vehicle_profiles: [{ insurance_self_certified: byUser.get(post.user_id) ?? false }] },
+    profile: {
+      ...post.profile,
+      vehicle_profiles: [{ insurance_self_certified: verifiedByUser.get(post.user_id) ?? false }],
+      is_donor: donorByUser.get(post.user_id) ?? false,
+    },
   } : post);
 }
 
@@ -55,7 +64,7 @@ export function useRides() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setPosts(await withVehicleVerification((data as RidePost[]) ?? []));
+      setPosts(await withProfileExtras((data as RidePost[]) ?? []));
     } finally {
       setLoading(false);
     }
@@ -116,25 +125,48 @@ export function useRides() {
       .eq('id', id)
       .single();
     if (error) throw error;
-    const [withVerification] = await withVehicleVerification([data as RidePost]);
-    return withVerification;
+    const [withExtras] = await withProfileExtras([data as RidePost]);
+    return withExtras;
   }
 
   // Active posts by a given user — the public user-profile screen's
   // "Active posts" list. Same public-feed visibility rules as fetchPosts
   // (status active, not expired) since this is shown to any viewer, not
   // just the post owner.
+  //
+  // Also excludes posts with a completed agreement: "completed" is a status
+  // on ride_agreements, not ride_posts — there's no ride_posts status value
+  // for "this trip already happened" (the CHECK constraint only allows
+  // active/filled/cancelled/expired), and nothing transitions a post away
+  // from 'active'/'filled' when its agreement completes. Without this, a
+  // finished job's post kept showing up here as if it were still open. Not
+  // a scheduled_at-in-the-past filter — a genuinely still-open post with an
+  // old date (never matched, never explicitly closed) is still "active" and
+  // should keep showing.
   async function getPostsByUser(userId: string, limit = 5): Promise<RidePost[]> {
-    const { data, error } = await supabase
+    const now = new Date().toISOString();
+    const { data: completed, error: completedError } = await supabase
+      .from('ride_agreements')
+      .select('post_id')
+      .or(`driver_id.eq.${userId},rider_id.eq.${userId}`)
+      .eq('status', 'completed');
+    if (completedError) throw completedError;
+    const completedPostIds = (completed ?? []).map((a) => a.post_id);
+
+    let query = supabase
       .from('ride_posts')
       .select('*, profile:profiles(full_name, avatar_url, default_role)')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .gt('expires_at', new Date().toISOString())
+      .gt('expires_at', now)
       .order('created_at', { ascending: false })
       .limit(limit);
+    if (completedPostIds.length > 0) {
+      query = query.not('id', 'in', `(${completedPostIds.join(',')})`);
+    }
+    const { data, error } = await query;
     if (error) throw error;
-    return await withVehicleVerification((data as RidePost[]) ?? []);
+    return await withProfileExtras((data as RidePost[]) ?? []);
   }
 
   // supabase/migrations/009_route_price_stats.sql — historical average donation

@@ -51,7 +51,7 @@ import {
   Summary, UsersRound, Activity, Coins,
   Palette, Tag, UserPen, Scale, CircleQuestionMark,
   // membership
-  Heart, CreditCard,
+  Heart, HeartHandshake, CreditCard,
   // completion badges
   Wind, AlarmClockCheck, SmilePlus, Music4, Candy, Gem, MapPlus,
   SunMoon, PackageCheck, Bubbles, MessagesSquare,
@@ -273,6 +273,7 @@ export const icons = {
 
   // ── Membership ───────────────────────────────────────────────────────
   heart: Heart,
+  heart_handshake: HeartHandshake,
   credit_card: CreditCard,
 
   // ── Luggage type icons (ride detail) ────────────────────────────────

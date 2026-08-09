@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, Alert, ScrollView } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/Icon';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { AuthHeader } from '@/components/auth/AuthHeader';
 import { AuthInput } from '@/components/auth/AuthInput';
 import { AuthBackButton } from '@/components/auth/AuthBackButton';
@@ -29,6 +30,7 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [legalName, setLegalName] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   const { signUp, upsertLegalName, loading } = useAuth();
   const t = useTranslation();
@@ -49,7 +51,7 @@ export default function RegisterScreen() {
       }
       router.replace(needsVerification ? { pathname: '/(auth)/verify', params: { email: email.trim() } } : '/(auth)/disclaimer');
     } catch (e: any) {
-      Alert.alert(t.register.errorTitle, e.message);
+      setError(e.message);
     }
   }
 
@@ -112,6 +114,16 @@ export default function RegisterScreen() {
           )}
         </ScrollView>
       </KeyboardWrapper>
+
+      <InfoSheet
+        visible={!!error}
+        tone="danger"
+        icon="warning"
+        title={t.register.errorTitle}
+        message={error ?? ''}
+        confirmLabel={t.register.errorDismiss}
+        onClose={() => setError(null)}
+      />
     </SafeAreaView>
   );
 }
