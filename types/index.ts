@@ -255,7 +255,7 @@ export interface Conversation {
   requester_id: string;
   created_at: string;
   last_message_at: string;
-  post?: Pick<RidePost, 'id' | 'kind' | 'type' | 'origin_city' | 'destination_city' | 'scheduled_at'>;
+  post?: Pick<RidePost, 'id' | 'kind' | 'type' | 'status' | 'origin_city' | 'destination_city' | 'scheduled_at'>;
   post_owner?: Pick<Profile, 'full_name' | 'avatar_url'>;
   requester?: Pick<Profile, 'full_name' | 'avatar_url'>;
 }

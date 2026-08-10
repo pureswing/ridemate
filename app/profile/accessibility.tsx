@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -8,6 +8,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Switch } from '@/components/ui/Switch';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,6 +34,7 @@ export default function AccessibilityScreen() {
   const [active, setActive] = useState<AccessibilityNeed[]>(profile?.accessibility_needs ?? []);
   const [note, setNote] = useState(profile?.accessibility_note ?? '');
   const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   function toggle(id: AccessibilityNeed) {
     setActive((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -48,7 +50,7 @@ export default function AccessibilityScreen() {
       });
       router.back();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setErrorMsg(e.message);
     } finally {
       setSaving(false);
     }
@@ -151,6 +153,15 @@ export default function AccessibilityScreen() {
           {saving ? t.profile.saving : t.profile.saveChanges}
         </Button>
       </View>
+      <InfoSheet
+        visible={!!errorMsg}
+        tone="danger"
+        icon="warning"
+        title={t.rideDetail.errorTitle}
+        message={errorMsg ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setErrorMsg(null)}
+      />
     </View>
   );
 }

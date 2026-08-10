@@ -4,7 +4,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { RideAgreement, VehicleProfile, BadgeType } from '@/types';
 
 export type RideHistoryTypeFilter = 'all' | 'driver' | 'rider' | 'package' | 'hauling';
-export type RideHistoryPeriodFilter = 'all' | 'week' | 'month' | 'lastMonth';
+export type RideHistoryPeriodFilter = 'all' | 'week' | 'month';
 
 const PAGE_SIZE = 20;
 
@@ -19,11 +19,7 @@ function matchesPeriod(scheduledAt: string, filter: RideHistoryPeriodFilter): bo
   const d = new Date(scheduledAt);
   const now = new Date();
   if (filter === 'week') return d >= startOfWeek(now);
-  if (filter === 'month') return d >= new Date(now.getFullYear(), now.getMonth(), 1);
-  // lastMonth: the whole previous calendar month, not "last 30 days".
-  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  return d >= lastMonthStart && d < thisMonthStart;
+  return d >= new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
 function matchesType(a: RideAgreement, userId: string, filter: RideHistoryTypeFilter): boolean {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -10,6 +10,7 @@ import { CardBox } from '@/components/ui/CardBox';
 import { RowDivider } from '@/components/ui/RowDivider';
 import { PlainToggleRow } from '@/components/ui/PlainToggleRow';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
+import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -40,12 +41,14 @@ export default function SettingsScreen() {
   const [matchThreshold, setMatchThreshold] = useState(70);
   const [tripUpdates, setTripUpdates] = useState(true);
   const [remindersOn, setRemindersOn] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
-  function handleSignOut() {
-    Alert.alert(t.profile.signOutTitle, t.profile.signOutConfirm, [
-      { text: t.profile.cancel, style: 'cancel' },
-      { text: t.profile.exit, style: 'destructive', onPress: signOut },
-    ]);
+  async function confirmSignOut() {
+    setSigningOut(true);
+    await signOut();
+    setSigningOut(false);
+    setShowSignOutConfirm(false);
   }
 
   return (
@@ -169,7 +172,7 @@ export default function SettingsScreen() {
 
         {/* Sign out */}
         <TouchableOpacity
-          onPress={handleSignOut}
+          onPress={() => setShowSignOutConfirm(true)}
           style={{
             flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
             borderWidth: 1, borderColor: theme.danger + '66', borderRadius: radii.md, paddingVertical: 14,
@@ -179,6 +182,18 @@ export default function SettingsScreen() {
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: theme.danger }}>{t.profile.signOut}</Text>
         </TouchableOpacity>
       </ScrollView>
+      <ConfirmSheet
+        visible={showSignOutConfirm}
+        tone="danger"
+        icon="logout"
+        title={t.profile.signOutTitle}
+        message={t.profile.signOutConfirm}
+        confirmLabel={t.profile.exit}
+        cancelLabel={t.profile.cancel}
+        busy={signingOut}
+        onConfirm={confirmSignOut}
+        onCancel={() => setShowSignOutConfirm(false)}
+      />
     </View>
   );
 }

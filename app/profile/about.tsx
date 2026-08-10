@@ -162,6 +162,18 @@ export default function AboutScreen() {
               {t.about.legalAcknowledgement}
             </Text>
           </View>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+            <TouchableOpacity onPress={() => router.push('/legal/terms')} style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.passengerText, textAlign: 'center' }}>
+                {t.legal.terms.title}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/legal/privacy')} style={{ flex: 1 }}>
+              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.passengerText, textAlign: 'center' }}>
+                {t.legal.privacy.title}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </Section>
 
         <Section title={t.about.contactSection} icon="email" accent={theme.courierText} theme={theme}>

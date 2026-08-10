@@ -58,7 +58,7 @@ export function useMessages() {
       .from('conversations')
       .select(`
         *,
-        post:ride_posts(id, kind, type, origin_city, destination_city, scheduled_at),
+        post:ride_posts(id, kind, type, status, origin_city, destination_city, scheduled_at),
         post_owner:profiles!post_owner_id(full_name, avatar_url),
         requester:profiles!requester_id(full_name, avatar_url)
       `)
@@ -73,7 +73,7 @@ export function useMessages() {
       .from('conversations')
       .select(`
         *,
-        post:ride_posts(id, kind, type, origin_city, destination_city, scheduled_at),
+        post:ride_posts(id, kind, type, status, origin_city, destination_city, scheduled_at),
         post_owner:profiles!post_owner_id(full_name, avatar_url),
         requester:profiles!requester_id(full_name, avatar_url)
       `)
@@ -136,6 +136,24 @@ export function useMessages() {
     return count ?? 0;
   }, [session]);
 
+  // Tab-bar dot check — is there any unread message from someone else,
+  // newer than `since` (null = don't filter by age, i.e. first check of the
+  // session). RLS already scopes `messages` to conversations I'm part of, so
+  // no join against `conversations` is needed here.
+  const hasUnreadSince = useCallback(async (since: Date | null): Promise<boolean> => {
+    if (!session?.user) return false;
+    let query = supabase
+      .from('messages')
+      .select('id')
+      .is('read_at', null)
+      .neq('sender_id', session.user.id)
+      .limit(1);
+    if (since) query = query.gt('created_at', since.toISOString());
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data?.length ?? 0) > 0;
+  }, [session]);
+
   // Marks every unread message from the other party as read — call once a
   // thread is opened.
   const markConversationRead = useCallback(async (conversationId: string): Promise<void> => {
@@ -162,7 +180,7 @@ export function useMessages() {
 
   return {
     findConversation, findConversationWithParty, getOrCreateConversation, getConversations, getConversationById,
-    getMessages, sendMessage, getLastMessage, getUnreadCount, markConversationRead,
+    getMessages, sendMessage, getLastMessage, getUnreadCount, markConversationRead, hasUnreadSince,
     deleteConversation, loading,
   };
 }

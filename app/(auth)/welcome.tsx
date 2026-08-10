@@ -50,11 +50,14 @@ export default function WelcomeScreen() {
         <Button variant="ghost" size="lg" icon="log_in" fullWidth onPress={() => router.push('/(auth)/login')}>
           {t.auth.welcome.signIn}
         </Button>
+        {/* app/legal/terms.tsx and app/legal/privacy.tsx — neither has a
+            session dependency, so they're safe to open from this pre-auth
+            entry point. */}
         <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, textAlign: 'center', marginTop: 10 }}>
           {t.auth.welcome.termsPrefix}{' '}
-          <Text style={{ color: theme.primary, fontFamily: fonts.bodyBold }}>{t.auth.welcome.terms}</Text>
+          <Text onPress={() => router.push('/legal/terms')} style={{ color: theme.primary, fontFamily: fonts.bodyBold }}>{t.auth.welcome.terms}</Text>
           {' '}{t.auth.welcome.and}{' '}
-          <Text style={{ color: theme.primary, fontFamily: fonts.bodyBold }}>{t.auth.welcome.privacy}</Text>
+          <Text onPress={() => router.push('/legal/privacy')} style={{ color: theme.primary, fontFamily: fonts.bodyBold }}>{t.auth.welcome.privacy}</Text>
         </Text>
       </View>
       </ScrollView>

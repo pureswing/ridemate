@@ -104,11 +104,22 @@ export default function MembershipScreen() {
     setConfirmingCancel(false);
   }
 
+  // Only worth showing where free and paid actually diverge — rows where
+  // both tiers get the identical thing (e.g. posting/browsing, messaging)
+  // are true but not a "comparison", so they're filtered out here rather
+  // than padding the table with two matching checkmarks. hasText rows
+  // (e.g. saved addresses: "1" vs "Up to 5") always count as differing,
+  // since the boolean free/paid fields on those rows are both true.
+  const DIFFERING_FEATURES = PLAN_FEATURES.filter((row) => row.hasText || row.free !== row.paid);
+
   const FEATURE_LABELS: Record<string, string> = {
     postBrowse: t.membership.featurePostBrowse,
     messaging: t.membership.featureMessaging,
     savedAddresses: t.membership.featureSavedAddresses,
     earlyAccess: t.membership.featureEarlyAccess,
+    routeIntel: t.membership.featureRouteIntel,
+    communityFeedback: t.membership.featureCommunityFeedback,
+    dashboardInsights: t.membership.featureDashboardInsights,
   };
   const FEATURE_TEXT: Record<string, { free: string; paid: string }> = {
     savedAddresses: { free: t.membership.featureSavedAddressesFree, paid: t.membership.featureSavedAddressesPaid },
@@ -213,7 +224,7 @@ export default function MembershipScreen() {
               </Text>
             </View>
             <RowDivider theme={theme} />
-            {PLAN_FEATURES.map((row, i) => (
+            {DIFFERING_FEATURES.map((row, i) => (
               <View key={row.key}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12 }}>
                   <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.text, paddingRight: 8 }}>
@@ -226,7 +237,7 @@ export default function MembershipScreen() {
                     <FeatureCell value={row.paid} text={row.hasText ? FEATURE_TEXT[row.key]?.paid : undefined} />
                   </View>
                 </View>
-                {i < PLAN_FEATURES.length - 1 && <RowDivider theme={theme} />}
+                {i < DIFFERING_FEATURES.length - 1 && <RowDivider theme={theme} />}
               </View>
             ))}
           </CardBox>

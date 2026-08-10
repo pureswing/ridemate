@@ -215,7 +215,6 @@ export default function RideHistoryScreen() {
     { key: 'all', label: t.rideHistoryScreen.periodAll },
     { key: 'week', label: t.rideHistoryScreen.periodWeek },
     { key: 'month', label: t.rideHistoryScreen.periodMonth },
-    { key: 'lastMonth', label: t.rideHistoryScreen.periodLastMonth },
   ];
 
   return (
@@ -282,6 +281,9 @@ export default function RideHistoryScreen() {
                 </Chip>
               ))}
             </ScrollView>
+            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: 'rgba(255,255,255,0.7)', marginTop: 10, paddingHorizontal: 4 }}>
+              {t.rideHistoryScreen.selectionHint}
+            </Text>
           </>
         )}
       </LinearGradient>

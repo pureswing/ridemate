@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Alert, ActivityIndicator, Image, Share } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Image, Share } from 'react-native';
 import * as Linking from 'expo-linking';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { StatusBar } from 'expo-status-bar';
@@ -17,6 +17,7 @@ import { OfferSheet } from '@/components/ride/OfferSheet';
 import { FlightInfoCard } from '@/components/ride/FlightInfoCard';
 import { RouteIntelligenceCard } from '@/components/ride/RouteIntelligenceCard';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { ZoomableImageModal } from '@/components/ui/ZoomableImageModal';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
@@ -130,6 +131,7 @@ export default function RideDetailScreen() {
   const [mapZoomOpen, setMapZoomOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     if (id) loadPost();
@@ -157,7 +159,7 @@ export default function RideDetailScreen() {
         await Promise.all(tasks);
       }
     } catch {
-      Alert.alert(t.rideDetail.errorTitle, t.rideDetail.loadError);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: t.rideDetail.loadError });
     } finally {
       setLoading(false);
     }
@@ -166,7 +168,7 @@ export default function RideDetailScreen() {
   async function handleMessage(offerAmount?: number) {
     if (!session?.user || !post) return;
     if (post.user_id === session.user.id) {
-      Alert.alert(t.rideDetail.ownAdMsg, t.rideDetail.ownAdAlert);
+      setInfoSheet({ title: t.rideDetail.ownAdMsg, message: t.rideDetail.ownAdAlert });
       return;
     }
     setMessaging(true);
@@ -183,7 +185,7 @@ export default function RideDetailScreen() {
       setOfferOpen(false);
       router.push({ pathname: '/messages/[id]', params: { id: conv.id } });
     } catch {
-      Alert.alert(t.rideDetail.errorTitle, t.messages.sendError);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: t.messages.sendError });
     } finally {
       setMessaging(false);
     }
@@ -211,7 +213,7 @@ export default function RideDetailScreen() {
       const conv = await findConversationWithParty(post.id, counterpartId);
       if (conv) router.push({ pathname: '/messages/[id]', params: { id: conv.id } });
     } catch {
-      Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: t.messages.loadError });
     } finally {
       setGoingToConversation(false);
     }
@@ -238,7 +240,7 @@ export default function RideDetailScreen() {
       setShowDeleteConfirm(false);
       router.back();
     } catch (e: any) {
-      Alert.alert(t.rideDetail.errorTitle, e.message);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: e.message });
     } finally {
       setDeletingPost(false);
     }
@@ -648,6 +650,15 @@ export default function RideDetailScreen() {
         busy={deletingPost}
         onConfirm={handleDeletePost}
         onCancel={() => setShowDeleteConfirm(false)}
+      />
+      <InfoSheet
+        visible={!!infoSheet}
+        tone="danger"
+        icon="warning"
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setInfoSheet(null)}
       />
     </View>
   );

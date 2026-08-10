@@ -31,7 +31,7 @@ export const DONOR_CONFIRM_THRESHOLD = 50;
 // AI report rows were dropped (none of those are gated anywhere in the app).
 // `hasText` rows render their i18n free/paid strings instead of a check/x icon.
 export interface PlanFeatureRow {
-  key: 'postBrowse' | 'messaging' | 'savedAddresses' | 'earlyAccess';
+  key: 'postBrowse' | 'messaging' | 'savedAddresses' | 'earlyAccess' | 'routeIntel' | 'communityFeedback' | 'dashboardInsights';
   free: boolean;
   paid: boolean;
   hasText?: boolean;
@@ -42,4 +42,14 @@ export const PLAN_FEATURES: PlanFeatureRow[] = [
   { key: 'messaging', free: true, paid: true },
   { key: 'savedAddresses', free: true, paid: true, hasText: true },
   { key: 'earlyAccess', free: false, paid: true },
+  // RouteIntelligenceCard (ride/package/hauling detail screens) is gated
+  // on isDonor — see supabase/migrations/042_route_intelligence.sql.
+  { key: 'routeIntel', free: false, paid: true },
+  // AI weekly community-feedback summary (app/user/[id].tsx) — gated on the
+  // VIEWER's own isDonor, see useCommunitySummary.ts's caller.
+  { key: 'communityFeedback', free: false, paid: true },
+  // Dashboard's Activity/Finance/"Did you know?" sections (app/profile/
+  // dashboard.tsx's PAID_SECTIONS) — mock data today, but already gated on
+  // isDonor same as everything else here.
+  { key: 'dashboardInsights', free: false, paid: true },
 ];

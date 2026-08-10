@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Pressable as RNPressable, ActivityIndicator, Alert } from 'react-native';
+import { View, ScrollView, Pressable as RNPressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -19,6 +19,7 @@ import { useRides } from '@/hooks/useRides';
 import { useUserReports } from '@/hooks/useUserReports';
 import { useCommunitySummary } from '@/hooks/useCommunitySummary';
 import { useDonorStatus } from '@/hooks/useDonorStatus';
+import { useSubscription } from '@/hooks/useSubscription';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +27,8 @@ import { Profile, VehicleProfile, BadgeCount, RidePost } from '@/types';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
+import { VehicleDetailModal } from '@/components/profile/VehicleDetailModal';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { PostRow } from '@/components/ride/PostRow';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
@@ -47,13 +50,20 @@ export default function UserProfileScreen() {
   const { createReport, loading: reporting } = useUserReports();
   const { getCommunitySummary } = useCommunitySummary();
   const { getDonorStatuses } = useDonorStatus();
+  // Gates the AI community-feedback summary below — a donor perk for the
+  // VIEWER, same model as RouteIntelligenceCard, not a property of whose
+  // profile is being viewed (that's the separate `isDonor` state below,
+  // which drives the profile OWNER's Avatar badge).
+  const { isDonor: viewerIsDonor } = useSubscription();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [vehicles, setVehicles] = useState<VehicleProfile[]>([]);
+  const [viewingVehicle, setViewingVehicle] = useState<VehicleProfile | null>(null);
   const [badges, setBadges] = useState<BadgeCount[]>([]);
   const [selectedBadge, setSelectedBadge] = useState<BadgeCount | null>(null);
   const [posts, setPosts] = useState<RidePost[]>([]);
@@ -99,9 +109,11 @@ export default function UserProfileScreen() {
       setPosts(ps);
       setTripCount(trips);
       setIsDonor(donorStatuses.get(id) ?? false);
-      if (p) getCommunitySummary(p.full_name, b).then(setSummary);
+      // Donor-only — skips the paid OpenAI call entirely for non-donor
+      // viewers rather than fetching it and just hiding the result.
+      if (p && viewerIsDonor) getCommunitySummary(p.full_name, b).then(setSummary);
     } catch {
-      Alert.alert(t.rideDetail.errorTitle, t.userProfile.loadError);
+      setErrorMsg(t.userProfile.loadError);
     } finally {
       setLoading(false);
     }
@@ -188,14 +200,15 @@ export default function UserProfileScreen() {
             </Text>
             <View style={{ gap: 10 }}>
               {vehicles.map((v) => (
-                <Card key={v.id} padding={12} radius={radii.lg} elevation="sm">
+                <Card key={v.id} padding={12} radius={radii.lg} elevation="sm" interactive onPress={() => setViewingVehicle(v)}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: theme.driverSoft, alignItems: 'center', justifyContent: 'center' }}>
                       <Icon name="car" size={21} color={theme.driverText} />
                     </View>
-                    <Text style={{ fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
+                    <Text style={{ flex: 1, fontFamily: fonts.displayBold, fontSize: 14.5, color: theme.text }}>
                       {v.year} {v.make} {v.model}
                     </Text>
+                    <Icon name="chevron_right" size={18} color={theme.textFaint} />
                   </View>
                 </Card>
               ))}
@@ -280,12 +293,28 @@ export default function UserProfileScreen() {
             await createReport(session.user.id, id, reasons, note);
             return true;
           } catch {
-            Alert.alert(t.rideDetail.errorTitle, t.userProfile.reportError);
+            setErrorMsg(t.userProfile.reportError);
             return false;
           }
         }}
       />
       <BadgeInfoSheet badge={selectedBadge?.badge_type ?? null} count={selectedBadge?.count} onClose={() => setSelectedBadge(null)} />
+      {viewingVehicle && (
+        <VehicleDetailModal
+          visible
+          vehicle={viewingVehicle}
+          onClose={() => setViewingVehicle(null)}
+        />
+      )}
+      <InfoSheet
+        visible={!!errorMsg}
+        tone="danger"
+        icon="warning"
+        title={t.rideDetail.errorTitle}
+        message={errorMsg ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setErrorMsg(null)}
+      />
     </View>
   );
 }

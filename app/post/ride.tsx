@@ -1,7 +1,8 @@
 ﻿import { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Image } from 'react-native';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
@@ -189,6 +190,7 @@ export default function PostRideScreen() {
 
   const [loading, setLoading] = useState(false);
   const [posted, setPosted] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -315,12 +317,12 @@ export default function PostRideScreen() {
 
   async function handleSubmit() {
     if (!ready) {
-      Alert.alert(t.post.requiredFields, t.post.fillRequired);
+      setInfoSheet({ title: t.post.requiredFields, message: t.post.fillRequired });
       return;
     }
     const scheduledAt = new Date(`${date}T${time}:00`);
     if (isNaN(scheduledAt.getTime())) {
-      Alert.alert(t.post.invalidDate, t.post.dateFormat);
+      setInfoSheet({ title: t.post.invalidDate, message: t.post.dateFormat });
       return;
     }
 
@@ -409,7 +411,7 @@ export default function PostRideScreen() {
       setPosted(true);
       setTimeout(() => router.replace('/(tabs)'), 1500);
     } catch (e: any) {
-      Alert.alert(t.post.errorTitle, e.message);
+      setInfoSheet({ title: t.post.errorTitle, message: e.message });
     } finally {
       setLoading(false);
     }
@@ -925,6 +927,16 @@ export default function PostRideScreen() {
           theme={theme} t={t} accent={accent}
         />
       </BottomSheet>
+
+      <InfoSheet
+        visible={!!infoSheet}
+        tone="danger"
+        icon="warning"
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setInfoSheet(null)}
+      />
     </View>
   );
 }

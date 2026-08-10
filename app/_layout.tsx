@@ -94,6 +94,8 @@ export default function RootLayout() {
           <Stack.Screen name="profile/settings" options={{ headerShown: false }} />
           <Stack.Screen name="profile/dashboard" options={{ headerShown: false }} />
           <Stack.Screen name="profile/about" options={{ headerShown: false }} />
+          <Stack.Screen name="legal/terms" options={{ headerShown: false }} />
+          <Stack.Screen name="legal/privacy" options={{ headerShown: false }} />
           <Stack.Screen name="profile/saved-drivers" options={{ headerShown: false }} />
           <Stack.Screen name="profile/ride-history" options={{ headerShown: false }} />
           <Stack.Screen name="profile/membership" options={{ headerShown: false }} />

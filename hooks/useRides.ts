@@ -134,26 +134,16 @@ export function useRides() {
   // (status active, not expired) since this is shown to any viewer, not
   // just the post owner.
   //
-  // Also excludes posts with a completed agreement: "completed" is a status
-  // on ride_agreements, not ride_posts — there's no ride_posts status value
-  // for "this trip already happened" (the CHECK constraint only allows
-  // active/filled/cancelled/expired), and nothing transitions a post away
-  // from 'active'/'filled' when its agreement completes. Without this, a
-  // finished job's post kept showing up here as if it were still open. Not
-  // a scheduled_at-in-the-past filter — a genuinely still-open post with an
-  // old date (never matched, never explicitly closed) is still "active" and
-  // should keep showing.
+  // A post whose agreement completes flips to 'filled' server-side (see
+  // migration 046_post_filled_on_agreement_completed.sql's trigger) — so
+  // .eq('status','active') alone already excludes finished jobs here, no
+  // separate completed-agreement lookup needed. (An earlier version of this
+  // function did that lookup client-side, but ride_agreements' RLS only
+  // returns rows the CURRENT viewer is a party to, so it silently missed
+  // every completed job the viewer wasn't personally involved in.)
   async function getPostsByUser(userId: string, limit = 5): Promise<RidePost[]> {
     const now = new Date().toISOString();
-    const { data: completed, error: completedError } = await supabase
-      .from('ride_agreements')
-      .select('post_id')
-      .or(`driver_id.eq.${userId},rider_id.eq.${userId}`)
-      .eq('status', 'completed');
-    if (completedError) throw completedError;
-    const completedPostIds = (completed ?? []).map((a) => a.post_id);
-
-    let query = supabase
+    const { data, error } = await supabase
       .from('ride_posts')
       .select('*, profile:profiles(full_name, avatar_url, default_role)')
       .eq('user_id', userId)
@@ -161,10 +151,6 @@ export function useRides() {
       .gt('expires_at', now)
       .order('created_at', { ascending: false })
       .limit(limit);
-    if (completedPostIds.length > 0) {
-      query = query.not('id', 'in', `(${completedPostIds.join(',')})`);
-    }
-    const { data, error } = await query;
     if (error) throw error;
     return await withProfileExtras((data as RidePost[]) ?? []);
   }

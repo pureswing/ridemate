@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, FlatList, TextInput, ActivityIndicator, Alert } from 'react-native';
+import { View, FlatList, TextInput, ActivityIndicator } from 'react-native';
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -13,8 +13,10 @@ import { Avatar } from '@/components/ui/Avatar';
 import { BadgeSelector } from '@/components/community/BadgeSelector';
 import { TripSummaryModal } from '@/components/ride/TripSummaryModal';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { renderBodyWithBoldPrice } from '@/components/ui/HighlightedPrice';
 import { useAuthStore } from '@/store/authStore';
+import { useMessagesBadgeStore } from '@/store/messagesBadgeStore';
 import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useBadges } from '@/hooks/useBadges';
@@ -66,6 +68,9 @@ function AgreementPanel({
   const [cancelling, setCancelling] = useState(false);
   const [showNoShowSheet, setShowNoShowSheet] = useState(false);
   const [reporting, setReporting] = useState(false);
+  const [showMarkCompleteConfirm, setShowMarkCompleteConfirm] = useState(false);
+  const [completingJob, setCompletingJob] = useState(false);
+  const [panelError, setPanelError] = useState<string | null>(null);
 
   const isDriver = agreement.driver_id === currentUserId;
   const myRole = isDriver ? 'driver' : 'rider';
@@ -81,21 +86,21 @@ function AgreementPanel({
   // Badges fire immediately off MY OWN confirmation, not once both parties
   // have — see 034_completion_badges.sql's matching RLS relaxation.
   function handleMarkComplete() {
-    Alert.alert(t.agreement.markCompleteTitle, t.agreement.markCompleteMsg, [
-      { text: t.agreement.cancel, style: 'cancel' },
-      {
-        text: t.agreement.markComplete,
-        onPress: async () => {
-          try {
-            await confirmCompletion(agreement.id, myRole);
-            if (!alreadyBadged) setShowBadges(true);
-            onUpdate();
-          } catch (e: any) {
-            Alert.alert('Error', e.message);
-          }
-        },
-      },
-    ]);
+    setShowMarkCompleteConfirm(true);
+  }
+
+  async function confirmMarkComplete() {
+    setCompletingJob(true);
+    try {
+      await confirmCompletion(agreement.id, myRole);
+      setShowMarkCompleteConfirm(false);
+      if (!alreadyBadged) setShowBadges(true);
+      onUpdate();
+    } catch (e: any) {
+      setPanelError(e.message);
+    } finally {
+      setCompletingJob(false);
+    }
   }
 
   async function handleReportNoShow() {
@@ -105,7 +110,7 @@ function AgreementPanel({
       setShowNoShowSheet(false);
       onUpdate();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setPanelError(e.message);
     } finally {
       setReporting(false);
     }
@@ -119,7 +124,7 @@ function AgreementPanel({
       setShowCancelSheet(false);
       onUpdate();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setPanelError(e.message);
     } finally {
       setCancelling(false);
     }
@@ -239,6 +244,27 @@ function AgreementPanel({
         onConfirm={handleReportNoShow}
         onCancel={() => setShowNoShowSheet(false)}
         busy={reporting}
+      />
+      <ConfirmSheet
+        visible={showMarkCompleteConfirm}
+        tone="success"
+        icon="check"
+        title={t.agreement.markCompleteTitle}
+        message={t.agreement.markCompleteMsg}
+        confirmLabel={t.agreement.markComplete}
+        cancelLabel={t.agreement.cancel}
+        onConfirm={confirmMarkComplete}
+        onCancel={() => setShowMarkCompleteConfirm(false)}
+        busy={completingJob}
+      />
+      <InfoSheet
+        visible={!!panelError}
+        tone="danger"
+        icon="warning"
+        title={t.rideDetail.errorTitle}
+        message={panelError ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setPanelError(null)}
       />
       <BadgeSelector
         visible={showBadges}
@@ -405,6 +431,19 @@ export default function ConversationScreen() {
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
+  // Set the instant a send attempt reveals the post is no longer valid for
+  // THIS conversation — either taken by a different accepted offer, or
+  // expired/cancelled outright. Closing the sheet deletes this now-dead
+  // conversation and returns to the inbox (see confirmDecline's identical
+  // deleteConversation + navigate pattern below).
+  const [staleReason, setStaleReason] = useState<'taken' | 'gone' | null>(null);
+  const [closingStale, setClosingStale] = useState(false);
+  // fatal: true navigates back on close — mirrors the same pattern in the
+  // post edit screens (ride/edit/[id].tsx etc.): the native Alert this
+  // replaced could call router.back() immediately since it renders outside
+  // the RN tree, but InfoSheet is a normal component that would get
+  // unmounted before the user saw it if we navigated away right away.
+  const [errorSheet, setErrorSheet] = useState<{ message: string; fatal?: boolean } | null>(null);
   const listRef = useRef<FlatList<Message>>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -424,6 +463,10 @@ export default function ConversationScreen() {
   useEffect(() => {
     load();
     markConversationRead(id);
+    // This screen is a top-level route (app/_layout.tsx), reachable
+    // directly (e.g. a notification tap) without ever passing through the
+    // tab-bar Messages list — clear the dot here too, not just there.
+    useMessagesBadgeStore.getState().markSeen();
     pollRef.current = setInterval(refreshMessages, POLL_MS);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [id]);
@@ -433,8 +476,7 @@ export default function ConversationScreen() {
     try {
       const [conv, msgs] = await Promise.all([getConversationById(id), getMessages(id)]);
       if (!conv) {
-        Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
-        router.back();
+        setErrorSheet({ message: t.messages.loadError, fatal: true });
         return;
       }
       setConversation(conv);
@@ -474,7 +516,7 @@ export default function ConversationScreen() {
         setOtherPartyBadgeCount(counts.reduce((sum, c) => sum + c.count, 0));
       }
     } catch {
-      Alert.alert(t.rideDetail.errorTitle, t.messages.loadError);
+      setErrorSheet({ message: t.messages.loadError });
     } finally {
       setLoading(false);
     }
@@ -489,6 +531,24 @@ export default function ConversationScreen() {
   async function handleSend() {
     const text = body.trim();
     if (!text || sending) return;
+
+    // A post can go stale while this thread sits open: 'filled' by an
+    // agreement that ISN'T this conversation's pair (the requester accepted
+    // a different driver's offer and never explicitly declined this one),
+    // or 'expired'/'cancelled' outright with no agreement at all. Checked
+    // at send time, not on load, per the intended UX — the thread stays
+    // readable, it's a new message attempt that surfaces the notice.
+    const postStatus = conversation?.post?.status;
+    const amConfirmedParty = agreement?.status === 'active' || agreement?.status === 'completed';
+    if (postStatus === 'expired' || postStatus === 'cancelled') {
+      setStaleReason('gone');
+      return;
+    }
+    if (postStatus === 'filled' && !amConfirmedParty) {
+      setStaleReason('taken');
+      return;
+    }
+
     setSending(true);
     setBody('');
     try {
@@ -496,10 +556,22 @@ export default function ConversationScreen() {
       setMessages((prev) => [...prev, msg]);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 50);
     } catch {
-      Alert.alert(t.rideDetail.errorTitle, t.messages.sendError);
+      setErrorSheet({ message: t.messages.sendError });
       setBody(text);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function closeStaleConversation() {
+    if (closingStale) return;
+    setClosingStale(true);
+    try {
+      await deleteConversation(id);
+      router.replace('/(tabs)/messages');
+    } catch (e: any) {
+      setClosingStale(false);
+      setErrorSheet({ message: e.message });
     }
   }
 
@@ -521,7 +593,7 @@ export default function ConversationScreen() {
       setShowAcceptSheet(false);
       await load();
     } catch (e: any) {
-      Alert.alert(t.rideDetail.errorTitle, e.message);
+      setErrorSheet({ message: e.message });
     } finally {
       setAccepting(false);
     }
@@ -534,14 +606,29 @@ export default function ConversationScreen() {
       router.back();
     } catch (e: any) {
       setDeclining(false);
-      Alert.alert(t.rideDetail.errorTitle, e.message);
+      setErrorSheet({ message: e.message });
     }
+  }
+
+  function closeErrorSheet() {
+    const wasFatal = errorSheet?.fatal;
+    setErrorSheet(null);
+    if (wasFatal) router.back();
   }
 
   if (loading || !conversation) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.background }}>
         <ActivityIndicator size="large" color={theme.primary} />
+        <InfoSheet
+          visible={!!errorSheet}
+          tone="danger"
+          icon="warning"
+          title={t.rideDetail.errorTitle}
+          message={errorSheet?.message ?? ''}
+          confirmLabel={t.common.gotIt}
+          onClose={closeErrorSheet}
+        />
       </View>
     );
   }
@@ -763,6 +850,24 @@ export default function ConversationScreen() {
         onConfirm={confirmDecline}
         onCancel={() => setShowDeclineSheet(false)}
         busy={declining}
+      />
+      <InfoSheet
+        visible={!!staleReason}
+        tone="danger"
+        icon={staleReason === 'taken' ? 'person' : 'warning'}
+        title={staleReason === 'taken' ? t.messages.postTakenTitle : t.messages.postGoneTitle}
+        message={staleReason === 'taken' ? t.messages.postTakenMsg : t.messages.postGoneMsg}
+        confirmLabel={t.messages.staleClose}
+        onClose={closeStaleConversation}
+      />
+      <InfoSheet
+        visible={!!errorSheet}
+        tone="danger"
+        icon="warning"
+        title={t.rideDetail.errorTitle}
+        message={errorSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={closeErrorSheet}
       />
     </View>
   );

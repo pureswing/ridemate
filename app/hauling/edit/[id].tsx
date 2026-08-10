@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, ScrollView, ActivityIndicator, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,6 +27,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { generateRouteMapImage, generatePinMapImage, getRouteDetails, RouteDetails } from '@/services/routeMap';
 import { PlaceDetail } from '@/services/googlePlaces';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { cityFromAddress } from '@/utils/address';
 import { dateToDateString, dateToTimeString } from '@/utils/dateFormat';
 import { IconName } from '@/constants/icons';
@@ -117,7 +118,7 @@ export default function EditHaulingScreen() {
     if (photoUris.length >= MAX_HAULING_PHOTOS) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant photo library access to add a photo.');
+      setInfoSheet({ title: t.common.photoPermissionTitle, message: t.common.photoPermissionMsg });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.85 });
@@ -134,6 +135,7 @@ export default function EditHaulingScreen() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<{ title: string; message: string; fatal?: boolean } | null>(null);
 
   useEffect(() => { load(); }, [id]);
 
@@ -141,8 +143,7 @@ export default function EditHaulingScreen() {
     try {
       const post = await getPostById(id);
       if (!post || post.user_id !== session?.user?.id) {
-        Alert.alert(t.post.errorTitle, 'Post not found or unauthorized.');
-        router.back();
+        setInfoSheet({ title: t.post.errorTitle, message: t.common.postNotFound, fatal: true });
         return;
       }
       if (!canEditPost(post)) {
@@ -154,8 +155,7 @@ export default function EditHaulingScreen() {
       setOriginal(post);
       prefill(post);
     } catch {
-      Alert.alert(t.post.errorTitle, 'Could not load post.');
-      router.back();
+      setInfoSheet({ title: t.post.errorTitle, message: t.common.postLoadError, fatal: true });
     } finally {
       setPageLoading(false);
     }
@@ -238,14 +238,14 @@ export default function EditHaulingScreen() {
   async function handleSave() {
     if (!original) return;
     if (!ready) {
-      Alert.alert(t.post.requiredFields, t.post.fillRequired);
+      setInfoSheet({ title: t.post.requiredFields, message: t.post.fillRequired });
       return;
     }
     const scheduledAt = flexibleDate
       ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       : new Date(`${date}T${time}:00`);
     if (isNaN(scheduledAt.getTime())) {
-      Alert.alert(t.post.invalidDate, t.post.dateFormat);
+      setInfoSheet({ title: t.post.invalidDate, message: t.post.dateFormat });
       return;
     }
 
@@ -321,7 +321,7 @@ export default function EditHaulingScreen() {
       setSaved(true);
       setTimeout(() => router.back(), 1500);
     } catch (e: any) {
-      Alert.alert(t.post.errorTitle, e.message);
+      setInfoSheet({ title: t.post.errorTitle, message: e.message });
     } finally {
       setSaving(false);
     }
@@ -674,6 +674,15 @@ export default function EditHaulingScreen() {
         cancelLabel={t.post.discardCancel}
         onConfirm={() => router.back()}
         onCancel={() => setShowDiscardConfirm(false)}
+      />
+      <InfoSheet
+        visible={!!infoSheet}
+        tone="danger"
+        icon="warning"
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => { const wasFatal = infoSheet?.fatal; setInfoSheet(null); if (wasFatal) router.back(); }}
       />
     </View>
   );

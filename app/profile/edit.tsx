@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator, TextInput, Modal, Platform, Dimensions } from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Modal, Platform, Dimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,6 +12,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Input } from '@/components/ui/Input';
 import { AddressAutocomplete } from '@/components/ui/AddressAutocomplete';
 import { Button } from '@/components/ui/Button';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { KeyboardWrapper } from '@/components/auth/KeyboardWrapper';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
@@ -93,6 +94,7 @@ export default function EditProfileScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [verified, setVerified] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<{ title: string; message: string; tone?: 'info' | 'danger' } | null>(null);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -157,7 +159,7 @@ export default function EditProfileScreen() {
   async function pickPhoto() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert(t.profile.photoPermissionTitle, t.profile.photoPermissionMsg);
+      setInfoSheet({ title: t.profile.photoPermissionTitle, message: t.profile.photoPermissionMsg });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -189,7 +191,7 @@ export default function EditProfileScreen() {
       ]);
       router.back();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: e.message });
     } finally {
       setSaving(false);
     }
@@ -197,11 +199,11 @@ export default function EditProfileScreen() {
 
   async function handleUpdatePassword() {
     if (newPassword.length < 8) {
-      Alert.alert('', t.profile.passwordTooShort);
+      setInfoSheet({ title: t.common.oops, message: t.profile.passwordTooShort });
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('', t.profile.passwordsDontMatch);
+      setInfoSheet({ title: t.common.oops, message: t.profile.passwordsDontMatch });
       return;
     }
     setChangingPassword(true);
@@ -213,16 +215,16 @@ export default function EditProfileScreen() {
       try {
         await signIn(email, currentPassword);
       } catch {
-        Alert.alert('', t.profile.currentPasswordIncorrect);
+        setInfoSheet({ title: t.common.oops, message: t.profile.currentPasswordIncorrect });
         return;
       }
       await updatePassword(newPassword);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      Alert.alert('', t.profile.passwordUpdated);
+      setInfoSheet({ title: t.common.success, message: t.profile.passwordUpdated, tone: 'info' });
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: e.message });
     } finally {
       setChangingPassword(false);
     }
@@ -428,7 +430,7 @@ export default function EditProfileScreen() {
                       onBlur={() => {
                         const trimmed = (value ?? '').trim();
                         if (trimmed) {
-                          saveAddress(slot.id, trimmed, slotIcons[slot.id]).catch((e: any) => Alert.alert('Error', e.message));
+                          saveAddress(slot.id, trimmed, slotIcons[slot.id]).catch((e: any) => setInfoSheet({ title: t.rideDetail.errorTitle, message: e.message }));
                         } else {
                           deleteAddress(slot.id).catch(() => {});
                         }
@@ -441,7 +443,7 @@ export default function EditProfileScreen() {
                       activeOpacity={0.6}
                       onPress={() => {
                         if (locked) {
-                          Alert.alert('', t.profile.addressLockedMsg);
+                          setInfoSheet({ title: t.common.oops, message: t.profile.addressLockedMsg });
                           return;
                         }
                         setEditingSlot(slot.id);
@@ -527,7 +529,7 @@ export default function EditProfileScreen() {
                       variant="danger"
                       fullWidth
                       disabled={!deleteArmed}
-                      onPress={() => Alert.alert(t.profile.comingSoonTitle, t.profile.comingSoonMsg)}
+                      onPress={() => setInfoSheet({ title: t.profile.comingSoonTitle, message: t.profile.comingSoonMsg, tone: 'info' })}
                     >
                       {t.profile.deleteForeverButton}
                     </Button>
@@ -608,6 +610,15 @@ export default function EditProfileScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+      <InfoSheet
+        visible={!!infoSheet}
+        tone={infoSheet?.tone ?? 'danger'}
+        icon={infoSheet?.tone === 'info' ? 'check_circle' : 'warning'}
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setInfoSheet(null)}
+      />
     </View>
   );
 }

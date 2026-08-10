@@ -2,6 +2,7 @@ import { useState } from 'react';
 import * as Linking from 'expo-linking';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { useMessagesBadgeStore } from '@/store/messagesBadgeStore';
 import { AccessibilityNeed } from '@/types';
 
 export function useAuth() {
@@ -114,6 +115,9 @@ export function useAuth() {
     try {
       await supabase.auth.signOut();
       clear();
+      // Otherwise a stale seenUpTo from this account could suppress a
+      // genuinely new unread message's dot for whoever signs in next.
+      useMessagesBadgeStore.setState({ hasUnread: false, seenUpTo: null });
     } finally {
       setLoading(false);
     }

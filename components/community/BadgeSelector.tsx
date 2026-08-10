@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { View, TouchableOpacity, Alert, ActivityIndicator, TextInput, ScrollView } from 'react-native';
+import { View, TouchableOpacity, ActivityIndicator, TextInput, ScrollView } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon } from '@/components/ui/Icon';
 import { Switch } from '@/components/ui/Switch';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { BadgeGlyph } from './BadgeGlyph';
 import { BadgeDetail } from './BadgeDetail';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -76,6 +77,7 @@ export function BadgeSelector({
   const [blockToggle, setBlockToggle] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [sending, setSending] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Rider reviewing a driver → offer to save them as trusted. Driver
   // reviewing a rider → no such thing, that toggle never appears.
@@ -129,7 +131,7 @@ export function BadgeSelector({
       setFeedback('');
       onDone();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      setErrorMsg(e.message);
     } finally {
       setSending(false);
     }
@@ -140,6 +142,7 @@ export function BadgeSelector({
     : '';
 
   return (
+    <>
     <BottomSheet
       visible={visible}
       onClose={() => {}}
@@ -286,5 +289,15 @@ export function BadgeSelector({
           )}
         </ScrollView>
     </BottomSheet>
+    <InfoSheet
+      visible={!!errorMsg}
+      tone="danger"
+      icon="warning"
+      title={t.rideDetail.errorTitle}
+      message={errorMsg ?? ''}
+      confirmLabel={t.common.gotIt}
+      onClose={() => setErrorMsg(null)}
+    />
+    </>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Alert, Image } from 'react-native';
+import { View, ScrollView, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,6 +9,7 @@ import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { Button } from '@/components/ui/Button';
 import { PublishPicker } from '@/components/ui/PublishPicker';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { Input } from '@/components/ui/Input';
 import { Field } from '@/components/ui/Field';
 import { CardBox } from '@/components/ui/CardBox';
@@ -139,7 +140,7 @@ export default function PostHaulingScreen() {
     if (photoUris.length >= MAX_HAULING_PHOTOS) return;
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant photo library access to add a photo.');
+      setInfoSheet({ title: t.common.photoPermissionTitle, message: t.common.photoPermissionMsg });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [4, 3], quality: 0.85 });
@@ -160,6 +161,7 @@ export default function PostHaulingScreen() {
 
   const [loading, setLoading] = useState(false);
   const [posted, setPosted] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<{ title: string; message: string } | null>(null);
 
   function toggleTag(list: string[], setList: (v: string[]) => void, value: string) {
     setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
@@ -174,7 +176,7 @@ export default function PostHaulingScreen() {
 
   async function handleSubmit() {
     if (!ready) {
-      Alert.alert(t.post.requiredFields, t.post.fillRequired);
+      setInfoSheet({ title: t.post.requiredFields, message: t.post.fillRequired });
       return;
     }
     // Flexible posts still need a real timestamp for the NOT NULL scheduled_at
@@ -184,7 +186,7 @@ export default function PostHaulingScreen() {
       ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
       : new Date(`${date}T${time}:00`);
     if (isNaN(scheduledAt.getTime())) {
-      Alert.alert(t.post.invalidDate, t.post.dateFormat);
+      setInfoSheet({ title: t.post.invalidDate, message: t.post.dateFormat });
       return;
     }
 
@@ -264,7 +266,7 @@ export default function PostHaulingScreen() {
       setPosted(true);
       setTimeout(() => router.replace('/(tabs)'), 1500);
     } catch (e: any) {
-      Alert.alert(t.post.errorTitle, e.message);
+      setInfoSheet({ title: t.post.errorTitle, message: e.message });
     } finally {
       setLoading(false);
     }
@@ -585,6 +587,16 @@ export default function PostHaulingScreen() {
         hasSaved={false}
         accent={accent}
         icon="truck"
+      />
+
+      <InfoSheet
+        visible={!!infoSheet}
+        tone="danger"
+        icon="warning"
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setInfoSheet(null)}
       />
     </View>
   );

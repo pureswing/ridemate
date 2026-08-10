@@ -1,17 +1,27 @@
 import { useEffect } from 'react';
-import { StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Tabs, router } from 'expo-router';
 import { PlatformPressable } from '@react-navigation/elements';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '@/store/authStore';
+import { useMessagesBadgeStore } from '@/store/messagesBadgeStore';
+import { useMessages } from '@/hooks/useMessages';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { Icon } from '@/components/ui/Icon';
 import { fonts, shadows } from '@/constants/themes';
 
+// Matches the chat screen's own polling cadence (app/messages/[id].tsx) —
+// this app has no Supabase Realtime infra, so "instant" unread detection
+// means a short poll, not a push. Mounted once here (not in the messages
+// screens themselves) so it keeps running while the user is on any tab.
+const POLL_MS = 4000;
+
 export default function TabsLayout() {
   const { session, loading } = useAuthStore();
+  const { hasUnread, seenUpTo, setHasUnread } = useMessagesBadgeStore();
+  const { hasUnreadSince } = useMessages();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -19,6 +29,17 @@ export default function TabsLayout() {
   useEffect(() => {
     if (!loading && !session) router.replace('/(auth)/welcome');
   }, [session, loading]);
+
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    const check = () => {
+      hasUnreadSince(seenUpTo).then((v) => { if (!cancelled) setHasUnread(v); }).catch(() => {});
+    };
+    check();
+    const id = setInterval(check, POLL_MS);
+    return () => { cancelled = true; clearInterval(id); };
+  }, [session, seenUpTo, hasUnreadSince, setHasUnread]);
 
   return (
     <Tabs
@@ -63,9 +84,24 @@ export default function TabsLayout() {
         options={{
           title: t.tabs.messages,
           tabBarIcon: ({ color, size }) => (
-            <Icon name="chat" size={size} color={color} />
+            <View>
+              <Icon name="chat" size={size} color={color} />
+              {hasUnread && (
+                <View style={{
+                  position: 'absolute', top: -1, right: -1,
+                  width: 8, height: 8, borderRadius: 4,
+                  backgroundColor: theme.passengerText,
+                  borderWidth: 1.5, borderColor: theme.tabBarBg,
+                }} />
+              )}
+            </View>
           ),
         }}
+        // Optimistic clear the instant the tab is tapped — the poll would
+        // otherwise re-flag the same still-unread (but now-seen) messages on
+        // its next tick, since visiting the inbox list doesn't mark every
+        // message read_at (only opening a specific thread does that).
+        listeners={{ tabPress: () => useMessagesBadgeStore.getState().markSeen() }}
       />
       {/* FAB — center post button */}
       <Tabs.Screen

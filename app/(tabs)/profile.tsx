@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -25,6 +25,7 @@ import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { TIER_ICON } from '@/constants/membershipPlans';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
@@ -132,6 +133,7 @@ export default function ProfileScreen() {
   const [memberSinceWrapped, setMemberSinceWrapped] = useState(false);
 
   const [viewingVehicle, setViewingVehicle] = useState<VehicleProfile | null>(null);
+  const [strikeDetailOpen, setStrikeDetailOpen] = useState(false);
 
   const userId = session?.user?.id ?? '';
   const verified = vehicles.some((v) => v.insurance_self_certified);
@@ -263,10 +265,7 @@ export default function ProfileScreen() {
               variant="glass"
               shadow={shadows.xs}
               label={t.strikes[`level${strikeLevel}` as 'level1' | 'level2' | 'level3']}
-              onPress={() => Alert.alert(
-                t.strikes[`level${strikeLevel}` as 'level1' | 'level2' | 'level3'],
-                strikeLevel === 3 ? t.strikes.level3Detail : t.strikes.strikeDetail
-              )}
+              onPress={() => setStrikeDetailOpen(true)}
             />
             <View style={{
               position: 'absolute', top: -2, right: -2,
@@ -285,7 +284,7 @@ export default function ProfileScreen() {
           style={{ position: 'absolute', top: insets.top + 12, right: 20 }}
         />
 
-        <TouchableOpacity onPress={() => router.push('/profile/edit')} activeOpacity={0.85} style={{ marginBottom: 8, marginTop: 8 }}>
+        <TouchableOpacity onPress={() => router.push('/profile/edit')} activeOpacity={0.85} style={{ marginTop: 14 }}>
           <View style={{ width: 90, height: 90 }}>
             {/* A thin ring drawn OUTSIDE the photo's own bounds, not a
                 same-size fill sitting behind it — a full-size backing layer
@@ -332,7 +331,7 @@ export default function ProfileScreen() {
             textTransform: 'uppercase',
             letterSpacing: letterSpacingFor(12.5, tracking.wide),
             color: 'rgba(255,255,255,0.88)',
-            marginTop: 0,
+            marginTop: 2,
             textAlign: 'center',
           }}
           onTextLayout={(e) => setMemberSinceWrapped(e.nativeEvent.lines.length > 1)}
@@ -558,6 +557,15 @@ export default function ProfileScreen() {
         busy={signingOut}
         onConfirm={confirmSignOut}
         onCancel={() => setShowSignOutConfirm(false)}
+      />
+      <InfoSheet
+        visible={strikeDetailOpen}
+        tone="danger"
+        icon="warning"
+        title={t.strikes[`level${strikeLevel}` as 'level1' | 'level2' | 'level3']}
+        message={strikeLevel === 3 ? t.strikes.level3Detail : t.strikes.strikeDetail}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setStrikeDetailOpen(false)}
       />
     </View>
   );

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { View, FlatList, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import { View, FlatList, ActivityIndicator, Dimensions } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -12,8 +12,10 @@ import { Icon } from '@/components/ui/Icon';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
 import { renderBodyWithBoldPrice } from '@/components/ui/HighlightedPrice';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { useMessagesBadgeStore } from '@/store/messagesBadgeStore';
 import { useMessages } from '@/hooks/useMessages';
 import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useDonorStatus } from '@/hooks/useDonorStatus';
@@ -79,7 +81,12 @@ function ConversationRow({ conversation, myId, agreement, insured, donor }: { co
       onPress={() => router.push({ pathname: '/messages/[id]', params: { id: conversation.id } })}
       style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12 }}
     >
-      <View style={{ flexShrink: 0 }}>
+      {/* marginLeft — the donor badge sits at left:-2 on the Avatar itself
+          (see components/ui/Avatar.tsx), and this row is wrapped in a
+          Swipeable, which clips its content to its own bounds. Flush against
+          the row's left edge, that -2px sliver landed outside the clip and
+          got cut off; a few px of breathing room keeps it inside. */}
+      <View style={{ flexShrink: 0, marginLeft: 4 }}>
         <Avatar name={otherParty?.full_name ?? '?'} src={otherParty?.avatar_url} size={50} verified={insured} donor={donor} />
         {unread > 0 && (
           <View style={{
@@ -150,11 +157,16 @@ export default function MessagesScreen() {
   const [donorUsers, setDonorUsers] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterBucket>('active');
+  const [deleteBlocked, setDeleteBlocked] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       if (!session?.user) return;
       fetchConversations();
+      // Clears the tab-bar dot however this screen was reached (tab tap,
+      // deep link from a notification, back navigation) — not just the
+      // Tabs.Screen listener, which only fires on an actual tap.
+      useMessagesBadgeStore.getState().markSeen();
     }, [session])
   );
 
@@ -212,7 +224,7 @@ export default function MessagesScreen() {
     const agreement = agreements[id];
     if (agreement && (agreement.status === 'pending' || agreement.status === 'active')) {
       swipeableRefs.current.get(id)?.close();
-      Alert.alert(t.messages.deleteBlockedTitle, t.messages.deleteBlockedMsg);
+      setDeleteBlocked(true);
       return;
     }
     swipeableRefs.current.get(id)?.close();
@@ -321,6 +333,15 @@ export default function MessagesScreen() {
           onRefresh={fetchConversations}
         />
       )}
+      <InfoSheet
+        visible={deleteBlocked}
+        tone="danger"
+        icon="warning"
+        title={t.messages.deleteBlockedTitle}
+        message={t.messages.deleteBlockedMsg}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setDeleteBlocked(false)}
+      />
     </View>
   );
 }

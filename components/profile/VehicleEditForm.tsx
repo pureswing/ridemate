@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, ScrollView, Pressable as RNPressable, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, ScrollView, Pressable as RNPressable, ActivityIndicator, Image } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { Icon } from '@/components/ui/Icon';
@@ -11,6 +11,7 @@ import { RuleChip } from '@/components/ui/RuleChip';
 import { PlainToggleRow } from '@/components/ui/PlainToggleRow';
 import { Button } from '@/components/ui/Button';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import * as ImagePicker from 'expo-image-picker';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -151,6 +152,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [importDone, setImportDone] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [infoSheet, setInfoSheet] = useState<{ title: string; message: string } | null>(null);
 
   const [vin, setVin] = useState(existing?.vin ?? '');
   const [vinDecoding, setVinDecoding] = useState(false);
@@ -217,7 +219,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
       const decodedFuel = get('Fuel Type - Primary');
 
       if (!decodedMake || decodedMake === 'null') {
-        Alert.alert('VIN not found', 'Could not decode this VIN. You can fill in the details manually.');
+        setInfoSheet({ title: 'VIN not found', message: 'Could not decode this VIN. You can fill in the details manually.' });
         return;
       }
 
@@ -232,7 +234,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
 
       setVinDecoded(true);
     } catch {
-      Alert.alert('Error', 'Could not reach the vehicle database. Check your connection.');
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: 'Could not reach the vehicle database. Check your connection.' });
     } finally {
       setVinDecoding(false);
     }
@@ -292,7 +294,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
   async function pickPhoto() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please grant photo library access to add a vehicle photo.');
+      setInfoSheet({ title: t.common.photoPermissionTitle, message: 'Please grant photo library access to add a vehicle photo.' });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -308,12 +310,12 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
 
   async function handleSave() {
     if (!make.trim() || !model.trim() || !year.trim() || !color.trim()) {
-      Alert.alert('Required fields', 'Please fill in make, model, year, and color.');
+      setInfoSheet({ title: 'Required fields', message: 'Please fill in make, model, year, and color.' });
       return;
     }
     const yearNum = parseInt(year, 10);
     if (isNaN(yearNum) || yearNum < 1980 || yearNum > 2030) {
-      Alert.alert('Invalid year', 'Enter a valid year between 1980 and 2030.');
+      setInfoSheet({ title: 'Invalid year', message: 'Enter a valid year between 1980 and 2030.' });
       return;
     }
     try {
@@ -348,7 +350,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
       onSaved(saved);
     } catch (e: any) {
       setUploading(false);
-      Alert.alert('Error', e.message);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: e.message });
     }
   }
 
@@ -360,7 +362,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
       onDelete?.();
     } catch (e: any) {
       setDeleting(false);
-      Alert.alert('Error', e.message);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: e.message });
     }
   }
 
@@ -731,6 +733,15 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
                 );
               })()}
       </BottomSheet>
+      <InfoSheet
+        visible={!!infoSheet}
+        tone="danger"
+        icon="warning"
+        title={infoSheet?.title ?? ''}
+        message={infoSheet?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setInfoSheet(null)}
+      />
     </View>
   );
 }

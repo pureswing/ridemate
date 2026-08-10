@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, ScrollView, Modal, Pressable as RNPressable, ActivityIndicator, Alert } from 'react-native';
+import { View, ScrollView, Modal, Pressable as RNPressable, ActivityIndicator } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -9,6 +9,7 @@ import { IconButton } from '@/components/ui/IconButton';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { BottomSheet } from '@/components/ui/BottomSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useFavorites } from '@/hooks/useFavorites';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
@@ -41,6 +42,7 @@ export default function SavedDriversScreen() {
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [activeDriver, setActiveDriver] = useState<UserFavorite | null>(null);
   const [removeTarget, setRemoveTarget] = useState<UserFavorite | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (session?.user) load();
@@ -79,7 +81,7 @@ export default function SavedDriversScreen() {
       setFavorites((prev) => prev.filter((f) => f.driver_id !== removeTarget.driver_id));
       setRemoveTarget(null);
     } catch (e: any) {
-      Alert.alert(t.rideDetail.errorTitle, e.message);
+      setErrorMsg(e.message);
     }
   }
 
@@ -244,6 +246,15 @@ export default function SavedDriversScreen() {
           </RNPressable>
         </RNPressable>
       </Modal>
+      <InfoSheet
+        visible={!!errorMsg}
+        tone="danger"
+        icon="warning"
+        title={t.rideDetail.errorTitle}
+        message={errorMsg ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setErrorMsg(null)}
+      />
     </View>
   );
 }

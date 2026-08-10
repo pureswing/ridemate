@@ -8,6 +8,9 @@ import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
+import { BadgeInfoSheet } from '@/components/community/BadgeInfoSheet';
+import { RowDivider } from '@/components/ui/RowDivider';
+import { RpmTrendChart } from '@/components/profile/RpmTrendChart';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
@@ -28,14 +31,6 @@ import { BadgeType } from '@/types';
 // The design's numeric 5-star "Avg rating" stat was dropped — this app has
 // no star-rating concept anywhere (badges only, a deliberate TNC-compliance
 // choice), so it's swapped for a total-badges count instead.
-const IRS_RATE = 0.725;
-
-const RPM_DATA = [
-  { label: 'Rides', value: 0.61, color: '#0A7E77', icon: 'car' as IconName },
-  { label: 'Courier', value: 0.94, color: '#08637A', icon: 'package' as IconName },
-  { label: 'Hauling', value: 1.28, color: '#9E4A14', icon: 'truck' as IconName },
-];
-
 const BID_HISTORY = [true, true, false, true, true, true, false, true]; // won/lost, oldest→newest
 const BID_WIN_RATE = Math.round((BID_HISTORY.filter(Boolean).length / BID_HISTORY.length) * 100);
 
@@ -320,8 +315,7 @@ export default function DashboardScreen() {
   const { isDonor } = useSubscription();
   const [infoText, setInfoText] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionKey>('overview');
-
-  const maxRpm = Math.max(IRS_RATE, ...RPM_DATA.map((r) => r.value));
+  const [selectedBadge, setSelectedBadge] = useState<{ type: BadgeType; count: number } | null>(null);
 
   const cancelToneColor = CANCEL_TONE === 'mid' ? theme.gold400 : CANCEL_TONE === 'risky' ? theme.danger : theme.driverText;
   const cancelHeadline = {
@@ -416,7 +410,9 @@ export default function DashboardScreen() {
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 14 }}>
                   {BADGES.map((b) => (
                     <View key={b.type} style={{ alignItems: 'center', gap: 5, width: 56 }}>
-                      <BadgeGlyph badge={b.type} size={48} color={BADGE_ICONS[b.type].color} />
+                      <Pressable onPress={() => setSelectedBadge(b)}>
+                        <BadgeGlyph badge={b.type} size={48} color={BADGE_ICONS[b.type].color} />
+                      </Pressable>
                       <Text numberOfLines={1} style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.text }}>{b.count}×</Text>
                     </View>
                   ))}
@@ -610,6 +606,19 @@ export default function DashboardScreen() {
                 </View>
               </SectionCard>
 
+              <SectionCard theme={theme} title={t.dashboard.bidWinTitle} subtitle={t.dashboard.bidWinSub} onInfo={() => setInfoText(t.dashboard.infoBidWin)}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                  <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 6, borderColor: theme.driverText, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: theme.text }}>{BID_WIN_RATE}%</Text>
+                  </View>
+                  <View style={{ flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 40 }}>
+                    {BID_HISTORY.map((won, i) => (
+                      <View key={i} style={{ flex: 1, height: won ? 40 : 18, borderRadius: 3, backgroundColor: won ? theme.driverText : theme.surfaceAlt }} />
+                    ))}
+                  </View>
+                </View>
+              </SectionCard>
+
               <SectionCard theme={theme} title={t.dashboard.routesTitle}>
                 <View style={{ gap: 12 }}>
                   {TOP_ROUTES.map((r) => {
@@ -648,68 +657,46 @@ export default function DashboardScreen() {
               </SectionCard>
 
               <SectionCard theme={theme} title={t.dashboard.rpmTitle} subtitle={t.dashboard.rpmSub} onInfo={() => setInfoText(t.dashboard.infoRpm)}>
-                <View style={{ gap: 10 }}>
-                  {RPM_DATA.map((r) => (
-                    <View key={r.label}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text }}>{r.label}</Text>
-                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: r.value >= IRS_RATE ? theme.driverText : theme.danger }}>${r.value.toFixed(2)}/mi</Text>
-                      </View>
-                      <View style={{ height: 8, borderRadius: 4, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
-                        <View style={{ width: `${(r.value / maxRpm) * 100}%`, height: '100%', backgroundColor: r.color, borderRadius: 4 }} />
-                      </View>
-                    </View>
-                  ))}
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                    <View style={{ width: 8, height: 2, backgroundColor: theme.textFaint }} />
-                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint }}>{t.dashboard.rpmBaseline} · ${IRS_RATE}/mi</Text>
-                  </View>
-                </View>
+                <RpmTrendChart />
               </SectionCard>
 
-              {EXPENSES.map((ex) => {
-                const total = ex.fare + (ex.fuel ?? 0) + (ex.wear ?? 0);
-                return (
-                  <SectionCard key={ex.label} theme={theme}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                      <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon name={ex.icon} size={16} color={ex.color} />
-                      </View>
-                      <Text style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{ex.label} {t.dashboard.expenseSuffix}</Text>
-                      <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: ex.color }}>${total}</Text>
-                    </View>
-                    <View style={{ gap: 6 }}>
-                      <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                        <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFare}</Text>
-                        <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fare}</Text>
-                      </View>
-                      {ex.fuel != null && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFuel}</Text>
-                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fuel}</Text>
+              <SectionCard theme={theme} title={t.dashboard.expensesTitle}>
+                <View style={{ gap: 14 }}>
+                  {EXPENSES.map((ex, i) => {
+                    const total = ex.fare + (ex.fuel ?? 0) + (ex.wear ?? 0);
+                    return (
+                      <View key={ex.label} style={{ gap: 14 }}>
+                        {i > 0 && <RowDivider theme={theme} />}
+                        <View>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                            <View style={{ width: 32, height: 32, borderRadius: 9, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
+                              <Icon name={ex.icon} size={16} color={ex.color} />
+                            </View>
+                            <Text style={{ flex: 1, fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint }}>{ex.label} {t.dashboard.expenseSuffix}</Text>
+                            <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: ex.color }}>${total}</Text>
+                          </View>
+                          <View style={{ gap: 6 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFare}</Text>
+                              <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fare}</Text>
+                            </View>
+                            {ex.fuel != null && (
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseFuel}</Text>
+                                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.fuel}</Text>
+                              </View>
+                            )}
+                            {ex.wear != null && (
+                              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseWear}</Text>
+                                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.wear}</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
-                      )}
-                      {ex.wear != null && (
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                          <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.expenseWear}</Text>
-                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.text }}>${ex.wear}</Text>
-                        </View>
-                      )}
-                    </View>
-                  </SectionCard>
-                );
-              })}
-
-              <SectionCard theme={theme} title={t.dashboard.bidWinTitle} subtitle={t.dashboard.bidWinSub} onInfo={() => setInfoText(t.dashboard.infoBidWin)}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                  <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 6, borderColor: theme.driverText, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: theme.text }}>{BID_WIN_RATE}%</Text>
-                  </View>
-                  <View style={{ flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 40 }}>
-                    {BID_HISTORY.map((won, i) => (
-                      <View key={i} style={{ flex: 1, height: won ? 40 : 18, borderRadius: 3, backgroundColor: won ? theme.driverText : theme.surfaceAlt }} />
-                    ))}
-                  </View>
+                      </View>
+                    );
+                  })}
                 </View>
               </SectionCard>
             </View>
@@ -753,6 +740,7 @@ export default function DashboardScreen() {
           </Text>
         </View>
       </BottomSheet>
+      <BadgeInfoSheet badge={selectedBadge?.type ?? null} count={selectedBadge?.count} onClose={() => setSelectedBadge(null)} />
     </View>
   );
 }

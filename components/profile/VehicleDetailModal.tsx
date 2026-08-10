@@ -49,7 +49,10 @@ interface Props {
   visible: boolean;
   vehicle: VehicleProfile;
   onClose: () => void;
-  onEdit: () => void;
+  // Omit when viewing someone else's vehicle (e.g. from their public
+  // profile) — hides both edit affordances instead of wiring them to a
+  // no-op, since editing a stranger's vehicle isn't a real action.
+  onEdit?: () => void;
 }
 
 // Ported from ui_kits/ridemate-app/VehicleProfile.jsx — the design's
@@ -92,16 +95,25 @@ export function VehicleDetailModal({ visible, vehicle, onClose, onEdit }: Props)
             <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
               {kindLabel}
             </Text>
-            <IconButton icon="sliders" variant="glass" label={t.profile.editVehicle} onPress={onEdit} />
+            {onEdit ? (
+              <IconButton icon="sliders" variant="glass" label={t.profile.editVehicle} onPress={onEdit} />
+            ) : (
+              <View style={{ width: 44 }} />
+            )}
           </View>
           <View style={{ paddingHorizontal: 22, paddingTop: 10 }}>
+            {/* "My Vehicle" only makes sense when onEdit is present (i.e.
+                this is actually your own vehicle, opened from Profile) —
+                otherwise (someone else's, opened from their public profile)
+                that phrasing is misleading, so it falls back to the plain,
+                ownership-neutral "Vehicle" label used there instead. */}
             <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, letterSpacing: letterSpacingFor(24, tracking.tight), color: theme.cream }}>
-              {t.profile.vehicleSection}
+              {onEdit ? t.profile.vehicleSection : t.userProfile.vehicleSection}
             </Text>
           </View>
         </LinearGradient>
 
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: onEdit ? 40 : insets.bottom + 40 }}>
           {/* Photo */}
           <View style={{ width: '100%', height: 188, borderRadius: radii.lg, overflow: 'hidden', borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surfaceAlt, ...shadows.md }}>
             {vehicle.photo_url ? (
@@ -226,11 +238,13 @@ export function VehicleDetailModal({ visible, vehicle, onClose, onEdit }: Props)
           </View>
         </ScrollView>
 
-        <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16, ...shadows.lg }}>
-          <Button variant="primary" size="lg" icon="sliders" fullWidth onPress={onEdit}>
-            {t.profile.editVehicle}
-          </Button>
-        </View>
+        {onEdit && (
+          <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16, ...shadows.lg }}>
+            <Button variant="primary" size="lg" icon="sliders" fullWidth onPress={onEdit}>
+              {t.profile.editVehicle}
+            </Button>
+          </View>
+        )}
       </View>
     </Modal>
   );

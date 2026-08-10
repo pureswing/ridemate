@@ -7,7 +7,17 @@
 //   supabase functions deploy summarize-feedback
 // Returns { summary: null } (not an error) when the key isn't configured
 // yet, so the client can just omit the section instead of failing.
+//
+// Donor-gated (see constants/membershipPlans.ts's communityFeedback row) —
+// gated on the VIEWER, i.e. whoever is CALLING this, not whose profile is
+// being summarized. The client (hooks/useCommunitySummary.ts's caller in
+// app/user/[id].tsx) already skips calling this for a non-donor viewer, but
+// that's a cost-saving convenience, not a real boundary — anyone could
+// still hit this endpoint directly and burn OpenAI credits. This function
+// re-checks the caller's own donor_status server-side before ever calling
+// OpenAI, since that's the only check that can't be bypassed.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
+import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 interface BadgeCount {
   badge_type: string;
@@ -31,6 +41,37 @@ Deno.serve(async (req: Request) => {
   try {
     const apiKey = Deno.env.get('OPENAI_API_KEY');
     if (!apiKey) {
+      return new Response(JSON.stringify({ summary: null }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Caller's own JWT (forwarded automatically by supabase.functions.invoke)
+    // authenticates as them, so this SELECT hits donor_status under their
+    // RLS — same view the app's own donor badges already read from.
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(JSON.stringify({ summary: null }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData?.user) {
+      return new Response(JSON.stringify({ summary: null }), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    const { data: donorRow } = await supabase
+      .from('donor_status')
+      .select('is_donor')
+      .eq('user_id', userData.user.id)
+      .maybeSingle();
+    if (!donorRow?.is_donor) {
       return new Response(JSON.stringify({ summary: null }), {
         headers: { 'Content-Type': 'application/json' },
       });
