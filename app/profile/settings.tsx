@@ -19,13 +19,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 
-const MATCH_THRESHOLDS = [50, 70, 80, 100];
-
 // Ported from ui_kits/ridemate-app/Settings.jsx. Language is the only piece
-// backed by a real store (useLanguageStore) — notifications/reminders/match
-// threshold have no push infrastructure behind them anywhere in this app
-// yet, so they're UI-only local state, same scoping as the Calendar tab's
-// Reminders panel.
+// backed by a real store (useLanguageStore) — notifications/reminders have
+// no push infrastructure behind them anywhere in this app yet, so they're
+// UI-only local state, same scoping as the Calendar tab's Reminders panel.
 export default function SettingsScreen() {
   const { signOut } = useAuth();
   const theme = useTheme();
@@ -38,7 +35,6 @@ export default function SettingsScreen() {
   const [notifRides, setNotifRides] = useState(true);
   const [notifPackages, setNotifPackages] = useState(true);
   const [notifHauling, setNotifHauling] = useState(true);
-  const [matchThreshold, setMatchThreshold] = useState(70);
   const [tripUpdates, setTripUpdates] = useState(true);
   const [remindersOn, setRemindersOn] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
@@ -96,6 +92,11 @@ export default function SettingsScreen() {
               );
             })}
           </View>
+        </View>
+
+        {/* Search */}
+        <View style={{ gap: 10 }}>
+          <Text style={sectionLabelStyle(theme)}>{t.settings.searchSection}</Text>
           <CardBox>
             <PlainToggleRow
               icon="passenger"
@@ -127,26 +128,6 @@ export default function SettingsScreen() {
               </>
             )}
           </CardBox>
-          {notifMaster && (
-            <View>
-              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: theme.text, marginBottom: 4 }}>{t.settings.matchThreshold}</Text>
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.muted, marginBottom: 10 }}>{t.settings.matchThresholdSub}</Text>
-              <View style={{ flexDirection: 'row', gap: 6 }}>
-                {MATCH_THRESHOLDS.map((pct) => (
-                  <TouchableOpacity
-                    key={pct}
-                    onPress={() => setMatchThreshold(pct)}
-                    style={{
-                      flex: 1, height: 36, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center',
-                      backgroundColor: matchThreshold === pct ? theme.primary : theme.surfaceAlt,
-                    }}
-                  >
-                    <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: matchThreshold === pct ? '#fff' : theme.muted }}>{pct}%</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
         </View>
 
         {/* Ride reminders */}

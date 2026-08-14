@@ -119,6 +119,15 @@ export function RouteIntelligenceCard({ postId, visible }: Props) {
               </View>
             )}
 
+            {insight!.road_construction.slice(0, 2).map((c, i) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 12, backgroundColor: theme.surfaceAlt, borderLeftWidth: 3, borderLeftColor: theme.danger }}>
+                <Icon name="construction" size={15} color={theme.danger} />
+                <Text style={{ flex: 1, fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.textSecondary, lineHeight: 19 }}>
+                  {c.description}{c.county ? ` (${c.county} County)` : ''}
+                </Text>
+              </View>
+            ))}
+
             {insight!.nearby_events.slice(0, 3).map((ev, i) => (
               <View key={i} style={{ flexDirection: 'row', gap: 10, padding: 12, borderRadius: 12, backgroundColor: theme.surfaceAlt, borderLeftWidth: 3, borderLeftColor: theme.accent }}>
                 <Icon name="ticket" size={15} color={theme.accent} />

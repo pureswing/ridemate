@@ -39,6 +39,13 @@ interface Props {
   originCity: string;
   destinationCity: string;
   scheduledAt: string;
+  // The driver's own profile "Area of Work" (profiles.home_city) — used as
+  // the Saved Drivers grouping city instead of the trip's origin_city. A
+  // driver's work area is a stable, self-declared value; a trip's origin
+  // is one-off and (for a saved-address slot in particular) not even
+  // reliably a real city string — see utils/address.ts's cityFromAddress.
+  // Undefined/empty falls back to originCity so saving never silently no-ops.
+  receiverHomeCity?: string;
   // How many more completions are queued behind this one — CompletionGate's
   // stack. Omitted (or 0) outside that context, e.g. the manual
   // mark-complete flow, which only ever has the one.
@@ -63,7 +70,7 @@ const OTHER = '__other__';
 // ui_kits/ridemate-app/JobCompletionReview.jsx.
 export function BadgeSelector({
   visible, agreementId, receiverId, receiverName, receiverAvatar, receiverVerified,
-  currentRole, kind, originCity, destinationCity, scheduledAt, queueRemaining = 0,
+  currentRole, kind, originCity, destinationCity, scheduledAt, receiverHomeCity, queueRemaining = 0,
   onDone, onBeforeSend,
 }: Props) {
   const t = useTranslation();
@@ -113,7 +120,7 @@ export function BadgeSelector({
 
       if (saveDriver && otherIsDriver) {
         try {
-          await saveFavorite(receiverId, originCity);
+          await saveFavorite(receiverId, receiverHomeCity?.trim() || originCity);
         } catch {
           // Favorites cap or already-saved — not worth blocking completion over.
         }

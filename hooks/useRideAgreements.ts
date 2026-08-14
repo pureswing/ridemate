@@ -12,8 +12,8 @@ export function useRideAgreements() {
       .from('ride_agreements')
       .select(`
         *,
-        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation, duration_seconds),
-        driver:profiles!driver_id(full_name, avatar_url),
+        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation, duration_seconds, details),
+        driver:profiles!driver_id(full_name, avatar_url, home_city),
         rider:profiles!rider_id(full_name, avatar_url)
       `)
       .eq('post_id', postId);
@@ -28,8 +28,8 @@ export function useRideAgreements() {
       .from('ride_agreements')
       .select(`
         *,
-        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation, duration_seconds),
-        driver:profiles!driver_id(full_name, avatar_url),
+        post:ride_posts(origin_city, destination_city, scheduled_at, type, kind, suggested_donation, duration_seconds, details),
+        driver:profiles!driver_id(full_name, avatar_url, home_city),
         rider:profiles!rider_id(full_name, avatar_url)
       `)
       .or(`driver_id.eq.${uid},rider_id.eq.${uid}`)

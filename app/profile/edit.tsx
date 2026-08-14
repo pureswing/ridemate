@@ -57,12 +57,12 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 // Label + helper text on the same row (helper right-aligned) — the field
 // label convention used throughout this screen, distinct from Input's own
 // label (which renders alone, no helper slot on that row).
-function FieldHeader({ label, helper }: { label: string; helper?: string }) {
+function FieldHeader({ label, helper, required }: { label: string; helper?: string; required?: boolean }) {
   const theme = useTheme();
   return (
     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 7, gap: 8 }}>
       <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12, letterSpacing: letterSpacingFor(12, tracking.wide), textTransform: 'uppercase', color: theme.text }}>
-        {label}
+        {label}{required && <Text style={{ color: theme.danger }}> *</Text>}
       </Text>
       {helper ? (
         <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bodyMedium, fontSize: 11, color: theme.textFaint, textAlign: 'right' }}>
@@ -175,6 +175,10 @@ export default function EditProfileScreen() {
 
   async function handleSave() {
     if (!profile) return;
+    if (!homeCity.trim()) {
+      setInfoSheet({ title: t.post.requiredFields, message: t.profile.areaOfWorkRequiredMsg });
+      return;
+    }
     setSaving(true);
     try {
       let avatarUrl = profile.avatar_url;
@@ -183,7 +187,7 @@ export default function EditProfileScreen() {
         updateProfile(profile.id, {
           full_name: fullName.trim() || profile.full_name,
           avatar_url: avatarUrl,
-          home_city: homeCity.trim() || undefined,
+          home_city: homeCity.trim(),
           bio: bio.trim() || undefined,
           accessibility_needs: accessibilityNeeds,
         }),
@@ -301,7 +305,7 @@ export default function EditProfileScreen() {
           </View>
 
           <View style={{ marginBottom: 20 }}>
-            <FieldHeader label={t.profile.areaOfWorkLabel} helper={t.profile.areaOfWorkHelper} />
+            <FieldHeader label={t.profile.areaOfWorkLabel} helper={t.profile.areaOfWorkHelper} required />
             <Input icon="location" value={homeCity} onChangeText={setHomeCity} placeholder={t.profile.areaOfWorkPlaceholder} />
           </View>
 

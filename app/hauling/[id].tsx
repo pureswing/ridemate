@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, ScrollView, ActivityIndicator, Image, Share, Modal, Pressable as RNPressable } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { StatusBar } from 'expo-status-bar';
@@ -103,6 +104,19 @@ export default function HaulingDetailScreen() {
   useEffect(() => {
     if (id) loadPost();
   }, [id]);
+
+  // Refetch just the post fields (not the view-count/agreement/messaged
+  // side effects loadPost also does) whenever this screen regains focus —
+  // covers coming back from Edit, where the fields visibly not updating
+  // without a manual pull-to-refresh was the reported bug. Skips the very
+  // first focus since the effect above already handles the initial load.
+  const isFirstFocus = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      if (isFirstFocus.current) { isFirstFocus.current = false; return; }
+      if (id) getPostById(id).then((data) => { if (data) setPost(data); });
+    }, [id, getPostById])
+  );
 
   async function loadPost() {
     setLoading(true);

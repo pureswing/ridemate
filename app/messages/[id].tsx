@@ -78,6 +78,9 @@ function AgreementPanel({
   const otherId = isDriver ? agreement.rider_id : agreement.driver_id;
   const otherName = isDriver ? agreement.rider?.full_name ?? '—' : agreement.driver?.full_name ?? '—';
   const otherAvatar = isDriver ? agreement.rider?.avatar_url : agreement.driver?.avatar_url;
+  // Only meaningful when I'm the rider (saving the driver) — see
+  // CompletionGate.tsx's identical comment.
+  const otherHomeCity = isDriver ? undefined : agreement.driver?.home_city;
 
   useEffect(() => {
     hasGivenBadges(agreement.id).then(setAlreadyBadged);
@@ -174,6 +177,7 @@ function AgreementPanel({
           originCity={agreement.post?.origin_city ?? '—'}
           destinationCity={agreement.post?.destination_city ?? '—'}
           scheduledAt={agreement.post?.scheduled_at ?? ''}
+          receiverHomeCity={otherHomeCity}
           onDone={() => { setShowBadges(false); setAlreadyBadged(true); }}
         />
         <TripSummaryModal visible={!!tripRecord} record={tripRecord} onClose={() => setTripRecord(null)} />
@@ -212,15 +216,18 @@ function AgreementPanel({
           <Text style={{ color: '#fff', fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.reportNoShow}</Text>
         </TouchableOpacity>
       </View>
-      {isDriver && (
-        <TouchableOpacity
-          style={{ borderRadius: radii.md, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: theme.danger }}
-          onPress={() => setShowCancelSheet(true)}
-          disabled={loading}
-        >
-          <Text style={{ color: theme.danger, fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.cancelJob}</Text>
-        </TouchableOpacity>
-      )}
+      {/* Either party can cancel — the DB already allows it (RLS: auth.uid()
+          = driver_id OR rider_id), and the post creator isn't always the
+          driver (a hauling/package/ride-request post's creator is the
+          rider role), so gating this to isDriver left them with no way to
+          back out of a confirmed job on their own post. */}
+      <TouchableOpacity
+        style={{ borderRadius: radii.md, paddingVertical: 11, alignItems: 'center', borderWidth: 1, borderColor: theme.danger }}
+        onPress={() => setShowCancelSheet(true)}
+        disabled={loading}
+      >
+        <Text style={{ color: theme.danger, fontSize: 13, fontFamily: fonts.bodyBold }}>{t.agreement.cancelJob}</Text>
+      </TouchableOpacity>
       <ConfirmSheet
         visible={showCancelSheet}
         tone="danger"
@@ -403,6 +410,23 @@ function VehiclePeekCard({
   );
 }
 
+// A post/agreement can go stale while a conversation sits around: 'filled'
+// by an agreement that ISN'T this conversation's pair (the requester accepted
+// a different driver's offer and never explicitly declined this one),
+// 'expired'/'cancelled' outright with no agreement at all, or a CONFIRMED
+// agreement getting cancelled/no-show afterward. Shared between the initial
+// load (so a notification can't reopen a dead thread and let it sit there
+// fully readable — the earlier gap this closes) and every send attempt (in
+// case it goes stale while the thread is already open).
+function staleReasonFor(conversation: Conversation | null, agreement: RideAgreement | null): 'taken' | 'gone' | 'jobCancelled' | null {
+  const postStatus = conversation?.post?.status;
+  const amConfirmedParty = agreement?.status === 'active' || agreement?.status === 'completed';
+  if (agreement?.status === 'cancelled' || agreement?.status === 'no_show') return 'jobCancelled';
+  if (postStatus === 'expired' || postStatus === 'cancelled') return 'gone';
+  if (postStatus === 'filled' && !amConfirmedParty) return 'taken';
+  return null;
+}
+
 export default function ConversationScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { session } = useAuthStore();
@@ -431,12 +455,18 @@ export default function ConversationScreen() {
   const [loading, setLoading] = useState(true);
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
-  // Set the instant a send attempt reveals the post is no longer valid for
-  // THIS conversation — either taken by a different accepted offer, or
-  // expired/cancelled outright. Closing the sheet deletes this now-dead
-  // conversation and returns to the inbox (see confirmDecline's identical
-  // deleteConversation + navigate pattern below).
-  const [staleReason, setStaleReason] = useState<'taken' | 'gone' | null>(null);
+  // Set the instant a send attempt reveals the post/agreement is no longer
+  // valid for THIS conversation — taken by a different accepted offer,
+  // expired/cancelled outright, or (jobCancelled) OUR OWN confirmed
+  // agreement was cancelled by either party. That last one needed its own
+  // reason because cancelling an agreement reopens the post itself (see
+  // migration 033's trigger) — postStatus alone goes back to 'active', so
+  // the earlier 'gone' check (which only looks at postStatus) never caught
+  // it, letting both sides keep messaging in a thread the "conversation
+  // closed" banner above already said was dead. Closing the sheet deletes
+  // this now-dead conversation and returns to the inbox (see confirmDecline's
+  // identical deleteConversation + navigate pattern below).
+  const [staleReason, setStaleReason] = useState<'taken' | 'gone' | 'jobCancelled' | null>(null);
   const [closingStale, setClosingStale] = useState(false);
   // fatal: true navigates back on close — mirrors the same pattern in the
   // post edit screens (ride/edit/[id].tsx etc.): the native Alert this
@@ -487,6 +517,15 @@ export default function ConversationScreen() {
         mine = list.find((a) => a.rider_id === myId || a.driver_id === myId) ?? null;
         setAgreement(mine);
       }
+      // Catches a thread reopened via a stale notification (e.g. tapping an
+      // old "new message" alert after the job was since cancelled) — no
+      // point fetching vehicle/trip data below for a conversation about to
+      // show the stale sheet and get deleted.
+      const reason = staleReasonFor(conv, mine);
+      if (reason) {
+        setStaleReason(reason);
+        return;
+      }
       // The prospective driver: definitive once an agreement exists
       // (agreement.driver_id). Before that — for an "offer" post the owner
       // is the one offering to drive/haul; for a "request" post (package
@@ -532,20 +571,12 @@ export default function ConversationScreen() {
     const text = body.trim();
     if (!text || sending) return;
 
-    // A post can go stale while this thread sits open: 'filled' by an
-    // agreement that ISN'T this conversation's pair (the requester accepted
-    // a different driver's offer and never explicitly declined this one),
-    // or 'expired'/'cancelled' outright with no agreement at all. Checked
-    // at send time, not on load, per the intended UX — the thread stays
-    // readable, it's a new message attempt that surfaces the notice.
-    const postStatus = conversation?.post?.status;
-    const amConfirmedParty = agreement?.status === 'active' || agreement?.status === 'completed';
-    if (postStatus === 'expired' || postStatus === 'cancelled') {
-      setStaleReason('gone');
-      return;
-    }
-    if (postStatus === 'filled' && !amConfirmedParty) {
-      setStaleReason('taken');
+    // Re-check on every send too, not just on load — a post/agreement can
+    // still go stale while this thread sits open (e.g. the other party
+    // cancels mid-conversation).
+    const reason = staleReasonFor(conversation, agreement);
+    if (reason) {
+      setStaleReason(reason);
       return;
     }
 
@@ -568,10 +599,18 @@ export default function ConversationScreen() {
     setClosingStale(true);
     try {
       await deleteConversation(id);
-      router.replace('/(tabs)/messages');
-    } catch (e: any) {
+    } catch {
+      // Already gone (e.g. this ran once already — BottomSheet's dismissable
+      // backdrop can call onClose a second time) or some other cleanup
+      // failure — either way the thread is dead from this user's side, and
+      // leaving staleReason set here trapped them behind a sheet whose
+      // retry could never succeed once the row was gone: tap "Got it" →
+      // delete fails → error sheet → "Got it" → staleReason still set →
+      // same sheet again, with no way out. Always clear it and leave.
+    } finally {
       setClosingStale(false);
-      setErrorSheet({ message: e.message });
+      setStaleReason(null);
+      router.replace('/(tabs)/messages');
     }
   }
 
@@ -855,8 +894,16 @@ export default function ConversationScreen() {
         visible={!!staleReason}
         tone="danger"
         icon={staleReason === 'taken' ? 'person' : 'warning'}
-        title={staleReason === 'taken' ? t.messages.postTakenTitle : t.messages.postGoneTitle}
-        message={staleReason === 'taken' ? t.messages.postTakenMsg : t.messages.postGoneMsg}
+        title={
+          staleReason === 'taken' ? t.messages.postTakenTitle
+          : staleReason === 'jobCancelled' ? t.messages.jobCancelledTitle
+          : t.messages.postGoneTitle
+        }
+        message={
+          staleReason === 'taken' ? t.messages.postTakenMsg
+          : staleReason === 'jobCancelled' ? t.messages.jobCancelledMsg
+          : t.messages.postGoneMsg
+        }
         confirmLabel={t.messages.staleClose}
         onClose={closeStaleConversation}
       />

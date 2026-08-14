@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, Image } from 'react-native';
+import { View, Image } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import * as ImagePicker from 'expo-image-picker';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { LinearGradient } from 'expo-linear-gradient';

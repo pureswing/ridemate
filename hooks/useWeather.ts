@@ -13,7 +13,22 @@ interface Weather {
   city?: string;
 }
 
-// Miami — fallback when location permission is denied or unavailable.
+interface WeatherState {
+  weather: Weather | null;
+  // True once a real fetch attempt has been exhausted (after the retry
+  // below) and failed — lets the header show "weather unavailable" instead
+  // of either "loading" forever or, as this replaced, a hardcoded 84°F/Clear
+  // stand-in silently presented as real. That fallback was the actual bug
+  // reported: two devices standing in the same city showed different
+  // temperatures because one had quietly fallen back to the fake reading
+  // while still carrying a real (GPS-resolved) city name — nothing in the
+  // UI distinguished "real" from "made up".
+  failed: boolean;
+}
+
+// Miami — fallback coordinates when location permission is denied or
+// unavailable. Still a REAL API call for those coordinates, just with no
+// city label attached (see apply()'s callers) — never a fabricated reading.
 const FALLBACK_LAT = 25.7617;
 const FALLBACK_LON = -80.1918;
 
@@ -37,27 +52,39 @@ function codeToWeather(code: number): { icon: IconName; labelKey: WeatherLabelKe
   return { icon: 'weather_cloud', labelKey: 'cloudy' };
 }
 
+async function fetchWeatherOnce(lat: number, lon: number): Promise<Weather> {
+  const res = await withTimeout(
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`),
+    6000
+  );
+  const data = await res.json();
+  if (!data?.current) throw new Error('no data');
+  const w = codeToWeather(data.current.weather_code);
+  return { temp: Math.round(data.current.temperature_2m), icon: w.icon, labelKey: w.labelKey };
+}
+
 // Free, keyless API (open-meteo.com) — not subject to the paid-API cost
 // concerns that apply to Places/Distance Matrix/AeroDataBox.
-export function useWeather(): Weather | null {
+export function useWeather(): WeatherState {
   const [weather, setWeather] = useState<Weather | null>(null);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
 
     async function apply(lat: number, lon: number, city?: string) {
-      try {
-        const res = await withTimeout(
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=fahrenheit&timezone=auto`),
-          6000
-        );
-        const data = await res.json();
-        if (cancelled || !data?.current) throw new Error('no data');
-        const w = codeToWeather(data.current.weather_code);
-        setWeather({ temp: Math.round(data.current.temperature_2m), icon: w.icon, labelKey: w.labelKey, city });
-      } catch {
-        if (!cancelled) setWeather({ temp: 84, icon: 'weather_sun', labelKey: 'clear' });
+      // One retry — a single network hiccup shouldn't surface as "weather
+      // unavailable" when a second attempt would likely succeed.
+      for (let attempt = 0; attempt < 2; attempt++) {
+        try {
+          const w = await fetchWeatherOnce(lat, lon);
+          if (!cancelled) setWeather({ ...w, city });
+          return;
+        } catch {
+          // fall through to retry, or to the failed state below
+        }
       }
+      if (!cancelled) setFailed(true);
     }
 
     (async () => {
@@ -96,5 +123,5 @@ export function useWeather(): Weather | null {
     return () => { cancelled = true; };
   }, []);
 
-  return weather;
+  return { weather, failed };
 }

@@ -31,6 +31,11 @@ interface WeekItem {
   scheduledAt: Date;
   donation?: number;
   status: UiStatus;
+  // 'Anytime this week' hauling jobs (details.flexibleDate) — scheduledAt on
+  // these is a fake placeholder (see app/post/hauling.tsx), never a real
+  // commitment, so they're never bucketed into the day grid or treated as
+  // the "next ride" below; they get their own always-visible section instead.
+  isFlexible: boolean;
 }
 
 function toUiStatus(s: AgreementStatus): UiStatus {
@@ -98,6 +103,7 @@ export default function ThisWeekScreen() {
             scheduledAt: new Date(a.post!.scheduled_at),
             donation: a.post!.suggested_donation,
             status: toUiStatus(a.status),
+            isFlexible: (a.post!.details as any)?.flexibleDate === true,
           };
         });
       setItems(mapped);
@@ -119,7 +125,13 @@ export default function ThisWeekScreen() {
   const weekNumber = Math.ceil((weekStart.getDate() + new Date(weekStart.getFullYear(), weekStart.getMonth(), 1).getDay()) / 7);
   const weekRangeLabel = `${t.calendar.weekPrefix} ${weekNumber}, ${weekStart.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}–${weekEnd.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })}`;
 
-  const itemsInWeek = items.filter((it) => it.scheduledAt >= weekStart && it.scheduledAt <= new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59));
+  // Flexible-date jobs never had a real day to begin with — pulled out of
+  // the day grid entirely instead of pinning them to their fake placeholder
+  // date, and shown in their own always-visible section below.
+  const flexibleItems = items.filter((it) => it.isFlexible);
+  const datedItems = items.filter((it) => !it.isFlexible);
+
+  const itemsInWeek = datedItems.filter((it) => it.scheduledAt >= weekStart && it.scheduledAt <= new Date(weekEnd.getFullYear(), weekEnd.getMonth(), weekEnd.getDate(), 23, 59, 59));
   const itemsByDay: Record<number, WeekItem[]> = {};
   itemsInWeek.forEach((it) => {
     const d = it.scheduledAt.getDate();
@@ -128,7 +140,7 @@ export default function ThisWeekScreen() {
 
   const listItems = itemsByDay[selected] ?? [];
 
-  const nextRide = [...items]
+  const nextRide = [...datedItems]
     .filter((it) => it.status === 'upcoming' && it.scheduledAt.getTime() > Date.now())
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())[0] ?? null;
 
@@ -215,6 +227,21 @@ export default function ThisWeekScreen() {
       </LinearGradient>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+        {/* Always visible regardless of which day tab is selected — these
+            jobs don't have a real day, so pinning this section to `selected`
+            would be exactly the misleading behavior this section exists to
+            avoid. */}
+        {!loading && flexibleItems.length > 0 && (
+          <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
+            <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint, paddingBottom: 8 }}>
+              {t.calendar.flexibleSectionTitle}
+            </Text>
+            <View style={{ gap: 8 }}>
+              {flexibleItems.map((it) => <WeekRow key={it.id} item={it} theme={theme} t={t} />)}
+            </View>
+          </View>
+        )}
+
         <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.textFaint, padding: 16, paddingBottom: 8 }}>
           {t.calendar.monthNames[weekStart.getMonth()]} {selected}
         </Text>
@@ -336,7 +363,9 @@ function WeekRow({ item, theme, t }: { item: WeekItem; theme: ReturnType<typeof 
             <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 11.5, color: theme.muted }}>{item.otherName}</Text>
           </View>
           <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 3 }}>
-            {item.scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · {item.scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}
+            {item.isFlexible
+              ? t.calendar.flexibleBadge
+              : `${item.scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · ${item.scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}`}
           </Text>
         </View>
         <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 13, color: accent, flexShrink: 0 }}>

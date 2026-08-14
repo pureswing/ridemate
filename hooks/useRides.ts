@@ -84,6 +84,15 @@ export function useRides() {
       .select()
       .single();
     if (error) throw error;
+
+    // Fire-and-forget: the DB trigger already seeded a ride_post_insights row
+    // (migration 042) that the cron would otherwise pick up on its next tick
+    // (up to 15 min later) — this nudges generate-post-insight to process
+    // just this one post right away instead of making the creator wait. Not
+    // awaited and errors are swallowed — a delayed/failed first insight is
+    // never worth blocking or failing the post submission over.
+    supabase.functions.invoke('generate-post-insight', { body: { post_id: (data as RidePost).id } }).catch(() => {});
+
     return data as RidePost;
   }
 

@@ -38,6 +38,10 @@ export function CompletionGate() {
   const otherId = isDriver ? current.rider_id : current.driver_id;
   const otherName = isDriver ? current.rider?.full_name ?? '—' : current.driver?.full_name ?? '—';
   const otherAvatar = isDriver ? current.rider?.avatar_url : current.driver?.avatar_url;
+  // Only meaningful when the CURRENT user is the rider (saving the driver) —
+  // isDriver here means "I am the driver", so the driver being reviewed in
+  // that case is the current user, not `current.driver`.
+  const otherHomeCity = isDriver ? undefined : current.driver?.home_city;
 
   return (
     <BadgeSelector
@@ -51,6 +55,7 @@ export function CompletionGate() {
       originCity={current.post?.origin_city ?? '—'}
       destinationCity={current.post?.destination_city ?? '—'}
       scheduledAt={current.post?.scheduled_at ?? ''}
+      receiverHomeCity={otherHomeCity}
       queueRemaining={queue.length - 1}
       onBeforeSend={handleBeforeSend}
       onDone={() => setQueue((prev) => prev.slice(1))}

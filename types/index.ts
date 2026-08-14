@@ -220,6 +220,7 @@ export interface RidePostInsight {
   weather_temp_f: number | null;
   weather_code: number | null;
   nearby_events: { name: string; venue_name: string | null; venue_city: string | null; event_date: string | null }[];
+  road_construction: { description: string | null; county: string | null; start_date: string | null; end_date: string | null }[];
   insight_text: string | null;
   generated_at: string | null;
   next_refresh_at: string;
@@ -305,7 +306,7 @@ export interface RideAgreement {
     | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation' | 'duration_seconds'
     | 'distance_text' | 'duration_text' | 'details'
   >;
-  driver?: Pick<Profile, 'full_name' | 'avatar_url' | 'username'>;
+  driver?: Pick<Profile, 'full_name' | 'avatar_url' | 'username' | 'home_city'>;
   rider?: Pick<Profile, 'full_name' | 'avatar_url' | 'username'>;
 }
 
@@ -409,11 +410,10 @@ export interface VehicleProfile {
 
 // supabase/migrations/026_notifications.sql — rows are written only by
 // SECURITY DEFINER triggers (new message, agreement created/completed,
-// badge received), never inserted directly by the client. `data` carries
-// whatever ids the notification deep-links to (conversation_id, agreement_id...).
-// route_alert (migration 044) is the exception — written by the
-// generate-post-insight Edge Function's service-role client, not a trigger.
-export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received' | 'route_alert';
+// badge received, trip update), never inserted directly by the client.
+// `data` carries whatever ids the notification deep-links to
+// (conversation_id, agreement_id, post_id...).
+export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received' | 'trip_update';
 
 export interface AppNotification {
   id: string;
@@ -421,9 +421,6 @@ export interface AppNotification {
   type: NotificationType;
   title: string;
   body?: string;
-  // route_alert's payload (post_id, post_kind, has_update, adjust_options,
-  // delay_minutes) needs richer types than every other notification's
-  // plain string ids — widened here rather than a separate interface.
   data: Record<string, string | number | boolean | number[]>;
   read_at?: string;
   created_at: string;

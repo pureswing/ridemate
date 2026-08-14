@@ -52,7 +52,7 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
   const { getUnreadCount } = useNotifications();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
-  const weather = useWeather();
+  const { weather, failed: weatherFailed } = useWeather();
   const { line1, line2, accent } = greeting(profile?.full_name ?? t.header.you, t);
   const [unread, setUnread] = useState(0);
 
@@ -114,7 +114,7 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
               </>
             ) : (
               <Text numberOfLines={1} style={{ flexShrink: 1, fontFamily: fonts.bodyBold, fontSize: 12.5, lineHeight: Math.round(12.5 * leading.snug), color: 'rgba(255,255,255,0.65)' }}>
-                {t.header.weatherLoading}
+                {weatherFailed ? t.header.weatherUnavailable : t.header.weatherLoading}
               </Text>
             )}
           </View>

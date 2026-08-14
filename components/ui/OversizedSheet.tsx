@@ -1,13 +1,41 @@
 import { useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { ThemedText as Text } from './ThemedText';
-import { RuleChip } from './RuleChip';
 import { Button } from './Button';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
-import { fonts, shadows } from '@/constants/themes';
+import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { OVERSIZED_ITEMS } from '@/constants/rideFormOptions';
+
+// Plain RN Pressable, not the shared gesture-handler-based RuleChip — this
+// renders inside a BottomSheet's Modal, and nesting a gesture-handler
+// touchable inside a plain Modal is what leaves the whole screen's touches
+// dead after the modal closes once (same root cause as ConfirmSheet.tsx's
+// buttons; see that file's comment).
+function OversizedChip({ active, onPress, accent, theme, children }: {
+  active: boolean; onPress: () => void; accent: string; theme: ReturnType<typeof useTheme>; children: string;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        height: 38, paddingHorizontal: 14, borderRadius: radii.pill, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: active ? accent : theme.surface,
+        borderWidth: 1.5, borderColor: active ? accent : theme.border,
+      }}
+    >
+      <Text
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.85}
+        style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: active ? '#fff' : theme.textSecondary }}
+      >
+        {children}
+      </Text>
+    </Pressable>
+  );
+}
 
 export interface OversizedInfo {
   types: string[];
@@ -38,7 +66,7 @@ export function OversizedSheet({ value, onSave, theme, t, accent }: Props) {
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {OVERSIZED_ITEMS.map((item) => (
-          <RuleChip key={item} active={types.includes(item)} onPress={() => toggle(item)} accent={accent} theme={theme}>{item}</RuleChip>
+          <OversizedChip key={item} active={types.includes(item)} onPress={() => toggle(item)} accent={accent} theme={theme}>{item}</OversizedChip>
         ))}
       </View>
       <View style={{ marginTop: 16 }}>

@@ -55,6 +55,8 @@ import {
   // completion badges
   Wind, AlarmClockCheck, SmilePlus, Music4, Candy, Gem, MapPlus,
   SunMoon, PackageCheck, Bubbles, MessagesSquare,
+  // route intelligence
+  Cone,
 } from 'lucide-react-native';
 
 // @lucide/lab icons aren't individual components like the main set above —
@@ -91,6 +93,7 @@ export const icons = {
   location: MapPin,
   route: Route,
   navigation: Navigation,
+  construction: Cone,
 
   // ── Contact methods ───────────────────────────────────────────────────
   phone: Phone,

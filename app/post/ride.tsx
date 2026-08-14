@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react';
-import { View, ScrollView, ActivityIndicator, Image } from 'react-native';
+import { View, ActivityIndicator, Image } from 'react-native';
+import { ScrollView } from 'react-native-gesture-handler';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { InfoSheet } from '@/components/ui/InfoSheet';
@@ -464,11 +465,15 @@ export default function PostRideScreen() {
         </View>
       </LinearGradient>
 
-      {/* removeClippedSubviews={false} — Android's default clipping of
-          off-screen ScrollView content can leave touch handlers stale for
-          content below the fold until a native scroll event forces a
-          re-layout; this is the documented fix for exactly that symptom
-          (works once visible, then unresponsive until you scroll). */}
+      {/* react-native-gesture-handler's ScrollView, not core RN's — core
+          ScrollView's touch responder can go stale for gesture-handler
+          Pressables (this form's TouchableOpacity) during a long session,
+          leaving every field unresponsive except the sticky footer button
+          outside the scroll area (facebook/react-native#47740,
+          software-mansion/react-native-gesture-handler#3227). Keeping the
+          whole gesture tree on one system avoids the desync.
+          removeClippedSubviews={false} stays as a second line of defense
+          against Android's off-screen clipping doing something similar. */}
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" removeClippedSubviews={false} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
         {/* I'm offering / looking */}
         <Field label={t.post.imTitle}>
