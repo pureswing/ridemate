@@ -25,7 +25,10 @@ const screenWidth = Dimensions.get('window').width;
 // Matches ui_kits/ridemate-app/NotificationCenter.jsx's NC_TYPE_META — the 5
 // notification types this app's DB actually produces (026_notifications.sql,
 // trip_update added in 051). The design's offer/reminder/system types still
-// belong to features that don't exist here yet.
+// belong to features that don't exist here yet. "New post" alerts
+// (053_push_tokens_and_new_post_push.sql) are deliberately NOT one of
+// these — they're real OS push only, never shown in this in-app screen; see
+// hooks/usePushNotifications.ts.
 const TYPE_META: Record<NotificationType, { icon: IconName; color: string; bg: string }> = {
   message: { icon: 'chat', color: '#ED4A2B', bg: '#FFF1ED' },
   agreement_created: { icon: 'check', color: '#2BA84A', bg: '#2BA84A1A' },

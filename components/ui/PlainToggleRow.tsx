@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 import { TouchableOpacity } from './TouchableOpacity';
 import { ThemedText as Text } from './ThemedText';
+import { DriftText } from './DriftText';
 import { Icon } from './Icon';
 import { useTheme } from '@/hooks/useTheme';
 import { IconName } from '@/constants/icons';
@@ -31,7 +32,11 @@ export function PlainToggleRow({ icon, label, sub, checked, onChange, accent, th
         )}
         <View style={{ flexShrink: 1, minWidth: 0 }}>
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14.5, color: theme.text }}>{label}</Text>
-          {sub && <Text numberOfLines={1} style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint }}>{sub}</Text>}
+          {/* DriftText, not numberOfLines={1} — a long sub (worse in Spanish,
+              where these strings run longer) was truncating to "..." on
+              narrower cards instead of ever being fully readable; this
+              drifts it into view instead. */}
+          {sub && <DriftText style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint }}>{sub}</DriftText>}
         </View>
       </View>
       <View style={{ width: 38, height: 22, borderRadius: 11, backgroundColor: checked ? accent : theme.border, justifyContent: 'center' }}>

@@ -13,9 +13,10 @@ interface Props {
   onClose: () => void;
   onPublic: () => void;
   onPrivate: () => void;
-  // Whether the user has any saved drivers to send a private post to first —
-  // always false for now (no Saved Drivers backing data yet), which honestly
-  // reflects the app's current state rather than faking availability.
+  // Whether the poster has any saved (favorited) drivers in this post's
+  // origin city — computed by the caller via useFavorites().countFavoritesInCity,
+  // gated by Settings' trusted_drivers_first master toggle (see
+  // app/post/{ride,package,hauling}.tsx's submit-button onPress).
   hasSaved: boolean;
   accent: string;
   icon: IconName;
@@ -23,8 +24,9 @@ interface Props {
 
 // Bottom-sheet shown when tapping a post's submit button — lets the user
 // choose public vs. saved-drivers-first visibility before the post actually
-// goes out. Matches ui_kits/ridemate-app/PublishPicker.jsx. Visual only for
-// now; onPrivate is unreachable while hasSaved is false.
+// goes out. Matches ui_kits/ridemate-app/PublishPicker.jsx. onPrivate submits
+// with visibility='private' + a goes_public_at delay (see the post screens'
+// handleSubmit) — only reachable when hasSaved is true.
 export function PublishPicker({ visible, onClose, onPublic, onPrivate, hasSaved, accent, icon }: Props) {
   const theme = useTheme();
   const t = useTranslation();

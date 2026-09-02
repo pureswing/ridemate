@@ -19,6 +19,11 @@ export interface FilterState {
   originCity: string; // 'all' = any
   maxPrice: number; // 0 = any
   features: string[];
+  // Real, wired-up filter (unlike the rest of this drawer, still UI-only —
+  // see this file's own header comment) — the post creator's own active
+  // posts, applied client-side against the signed-in user's id in
+  // app/(tabs)/index.tsx.
+  myPostsOnly: boolean;
   airportOnly: boolean;
   verifiedOnly: boolean;
 }
@@ -30,6 +35,7 @@ export const DEFAULT_FILTER_STATE: FilterState = {
   originCity: 'all',
   maxPrice: 0,
   features: [],
+  myPostsOnly: false,
   airportOnly: false,
   verifiedOnly: false,
 };
@@ -42,6 +48,7 @@ export function countActiveFilters(f: FilterState): number {
     f.originCity !== 'all',
     f.maxPrice > 0,
     f.features.length > 0,
+    f.myPostsOnly,
     f.airportOnly,
     f.verifiedOnly,
   ].filter(Boolean).length;
@@ -275,6 +282,7 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
             {/* Options */}
             <Section label={t.filterDrawer.options} theme={theme}>
               <View style={{ gap: 14 }}>
+                <ToggleLine label={t.filterDrawer.myPostsOnly} sub={t.filterDrawer.myPostsOnlySub} value={value.myPostsOnly} onChange={(v) => patch({ myPostsOnly: v })} theme={theme} />
                 <ToggleLine label={t.filterDrawer.airportOnly} sub={t.filterDrawer.airportOnlySub} value={value.airportOnly} onChange={(v) => patch({ airportOnly: v })} theme={theme} />
                 <ToggleLine label={t.filterDrawer.verifiedOnly} sub={t.filterDrawer.verifiedOnlySub} value={value.verifiedOnly} onChange={(v) => patch({ verifiedOnly: v })} theme={theme} />
               </View>

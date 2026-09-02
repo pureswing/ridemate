@@ -53,17 +53,26 @@ interface Props {
   // profile) — hides both edit affordances instead of wiring them to a
   // no-op, since editing a stranger's vehicle isn't a real action.
   onEdit?: () => void;
+  // Plate is PII — never shown on a public profile visit (no onEdit, no
+  // relationship context). The one caller that shows another user's
+  // vehicle with a real reason to (the post creator, inside their own
+  // active chat thread with the driver) passes this explicitly true; see
+  // app/messages/[id].tsx's VehiclePeekCard, which follows the same rule.
+  showPlate?: boolean;
 }
 
 // Ported from ui_kits/ridemate-app/VehicleProfile.jsx — the design's
 // "isLuxury"/insurance-document fields have no equivalent in VehicleProfile
 // (types/index.ts), so those are left out rather than faked; everything
 // else (vehicle_type, plate, rules) is real vehicle_profiles data.
-export function VehicleDetailModal({ visible, vehicle, onClose, onEdit }: Props) {
+export function VehicleDetailModal({ visible, vehicle, onClose, onEdit, showPlate }: Props) {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
 
+  // Own vehicle (onEdit present) always shows it; anyone else only sees it
+  // when the caller explicitly vouches for the relationship (showPlate).
+  const canSeePlate = !!onEdit || !!showPlate;
   const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || t.profile.addVehicle;
   const kindLabel = vehicle.kind === 'hauling' ? t.profile.haulingCategory : t.profile.ridesCourierCategory;
   const specs: { icon: IconName; label: string; value: string }[] = [
@@ -74,7 +83,7 @@ export function VehicleDetailModal({ visible, vehicle, onClose, onEdit }: Props)
     { icon: 'palette', label: t.profile.vehicleColor, value: vehicle.color || '—' },
     { icon: fuelIcon(vehicle.fuel_type), label: 'Fuel', value: vehicle.fuel_type || '—' },
     { icon: 'passenger', label: 'Seats', value: vehicle.seats != null ? String(vehicle.seats) : '—' },
-    ...(vehicle.plate ? [{ icon: 'tag' as IconName, label: t.profile.vehiclePlate, value: vehicle.plate }] : []),
+    ...(vehicle.plate && canSeePlate ? [{ icon: 'tag' as IconName, label: t.profile.vehiclePlate, value: vehicle.plate }] : []),
   ];
   const RULE_KEYS: VehicleAmenity[] = ['smoke_free', 'smoking', 'vape_free', 'cannabis_free', 'cannabis_ok', 'food_off', 'no_pets', 'pets_ok'];
   const activeFeatures = vehicle.amenities.filter((a) => a in AMENITY_LABELS && !RULE_KEYS.includes(a));

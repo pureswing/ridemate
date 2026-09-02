@@ -26,6 +26,7 @@
         "backgroundColor": "#FFFAF5"
       },
       "package": "com.ridemate.app",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
@@ -52,10 +53,23 @@
           "backgroundColor": "#FFFAF5"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "color": "#D9B871"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "aa7277a3-781d-4d0d-afb1-a7264280b812"
+      }
+    },
+    "owner": "pureswing"
   }
 }

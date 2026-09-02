@@ -9,19 +9,25 @@ import { useFonts } from 'expo-font';
 import '../global.css';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useNewPostToasts } from '@/hooks/useNewPostToasts';
 import { supabase } from '@/lib/supabase';
 import { applyAuthDeepLink } from '@/lib/authDeepLink';
 import { useLanguageStore } from '@/store/languageStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { CompletionGate } from '@/components/community/CompletionGate';
+import { PostToastHost } from '@/components/ui/PostToastHost';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const { setSession, setLoading } = useAuthStore();
+  const { setSession, setLoading, session } = useAuthStore();
   const { loadProfile } = useAuth();
   const { loadLanguage } = useLanguageStore();
   const t = useTranslation();
+
+  usePushNotifications(session?.user?.id);
+  useNewPostToasts(session?.user?.id);
 
   const [fontsLoaded] = useFonts({
     BricolageGrotesque_600SemiBold: require('@expo-google-fonts/bricolage-grotesque/600SemiBold/BricolageGrotesque_600SemiBold.ttf'),
@@ -104,6 +110,7 @@ export default function RootLayout() {
           <Stack.Screen name="post/hauling" options={{ headerShown: false }} />
         </Stack>
         <CompletionGate />
+        <PostToastHost />
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

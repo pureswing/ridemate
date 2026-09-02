@@ -22,6 +22,7 @@ import { DateTimeField } from '@/components/ui/DateTimeField';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
+import { useFavorites } from '@/hooks/useFavorites';
 import { PostVisibility, RidePostDetailsHauling } from '@/types';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -45,8 +46,9 @@ export default function PostHaulingScreen() {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
-  const { session } = useAuthStore();
+  const { session, profile } = useAuthStore();
   const { createPost, uploadRouteMap, uploadHaulingPhoto } = useRides();
+  const { countFavoritesInCity } = useFavorites();
 
 
   // Hauling posts are always the "I need this hauled" side of the board —
@@ -156,9 +158,9 @@ export default function PostHaulingScreen() {
   const [note, setNote] = useState('');
 
   // ── Visibility ──
-  const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [privateDelayHours, setPrivateDelayHours] = useState(6);
   const [showPublish, setShowPublish] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [posted, setPosted] = useState(false);
@@ -175,7 +177,7 @@ export default function PostHaulingScreen() {
     (disposal === 'driver' || destinationCity.trim())
   );
 
-  async function handleSubmit() {
+  async function handleSubmit(chosenVisibility: PostVisibility) {
     if (!ready) {
       setInfoSheet({ title: t.post.requiredFields, message: t.post.fillRequired });
       return;
@@ -214,7 +216,7 @@ export default function PostHaulingScreen() {
         ...(photoUrls.length > 0 ? { photoUrls } : {}),
       };
 
-      const goesPublicAt = visibility === 'private'
+      const goesPublicAt = chosenVisibility === 'private'
         ? new Date(Date.now() + privateDelayHours * 60 * 60 * 1000).toISOString()
         : undefined;
 
@@ -253,7 +255,7 @@ export default function PostHaulingScreen() {
         price_mode: priceMode,
         description: note || undefined,
         contact_method: 'in_app',
-        visibility,
+        visibility: chosenVisibility,
         goes_public_at: goesPublicAt,
         round_trip: false,
         airport: false,
@@ -575,7 +577,14 @@ export default function PostHaulingScreen() {
 
       {/* sticky post button — stays visible while the form scrolls */}
       <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16 }}>
-        <Button variant="primary" size="lg" fullWidth disabled={!ready || loading || uploadingPhoto} onPress={() => setShowPublish(true)}>
+        <Button
+          variant="primary" size="lg" fullWidth disabled={!ready || loading || uploadingPhoto}
+          onPress={async () => {
+            const saved = profile?.trusted_drivers_first ? await countFavoritesInCity(originCity) : 0;
+            setHasSaved(saved > 0);
+            setShowPublish(true);
+          }}
+        >
           {loading ? t.post.publishing : 'Post haul job'}
         </Button>
       </View>
@@ -583,9 +592,9 @@ export default function PostHaulingScreen() {
       <PublishPicker
         visible={showPublish}
         onClose={() => setShowPublish(false)}
-        onPublic={() => { setShowPublish(false); handleSubmit(); }}
-        onPrivate={() => setShowPublish(false)}
-        hasSaved={false}
+        onPublic={() => { setShowPublish(false); handleSubmit('public'); }}
+        onPrivate={() => { setShowPublish(false); handleSubmit('private'); }}
+        hasSaved={hasSaved}
         accent={accent}
         icon="truck"
       />

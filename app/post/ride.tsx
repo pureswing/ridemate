@@ -33,6 +33,7 @@ import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
+import { useFavorites } from '@/hooks/useFavorites';
 import { PostType, PostVisibility, RidePostDetailsRide, RouteStats, AccessibilityNeed } from '@/types';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -57,6 +58,7 @@ export default function PostRideScreen() {
   const { session, profile } = useAuthStore();
   const { createPost, uploadRouteMap, getRoutePriceStats } = useRides();
   const { getMyVehicle } = useVehicleProfile();
+  const { countFavoritesInCity } = useFavorites();
 
   // â”€â”€ I'm offering / looking for â”€â”€
   const [type, setType] = useState<PostType>('offer');
@@ -185,9 +187,9 @@ export default function PostRideScreen() {
   const [note, setNote] = useState('');
 
   // â”€â”€ Visibility â”€â”€
-  const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [privateDelayHours, setPrivateDelayHours] = useState(6);
   const [showPublish, setShowPublish] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [posted, setPosted] = useState(false);
@@ -316,7 +318,7 @@ export default function PostRideScreen() {
 
   const ready = !!(originCity.trim() && destinationCity.trim() && date.trim() && time.trim());
 
-  async function handleSubmit() {
+  async function handleSubmit(chosenVisibility: PostVisibility) {
     if (!ready) {
       setInfoSheet({ title: t.post.requiredFields, message: t.post.fillRequired });
       return;
@@ -358,7 +360,7 @@ export default function PostRideScreen() {
 
     setLoading(true);
     try {
-      const goesPublicAt = visibility === 'private'
+      const goesPublicAt = chosenVisibility === 'private'
         ? new Date(Date.now() + privateDelayHours * 60 * 60 * 1000).toISOString()
         : undefined;
 
@@ -397,7 +399,7 @@ export default function PostRideScreen() {
         price_mode: priceMode,
         description: note || undefined,
         contact_method: 'in_app',
-        visibility,
+        visibility: chosenVisibility,
         goes_public_at: goesPublicAt,
         airport,
         airport_leg: airport ? airportLeg : undefined,
@@ -909,7 +911,17 @@ export default function PostRideScreen() {
 
       {/* sticky submit */}
       <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16 }}>
-        <Button variant="primary" size="lg" fullWidth disabled={!ready || loading} onPress={() => setShowPublish(true)}>
+        <Button
+          variant="primary" size="lg" fullWidth disabled={!ready || loading}
+          onPress={async () => {
+            // trusted_drivers_first (Settings) is the master switch — if it's
+            // off, the saved-drivers-first option never shows regardless of
+            // whether the user actually has any saved for this city.
+            const saved = profile?.trusted_drivers_first ? await countFavoritesInCity(originCity) : 0;
+            setHasSaved(saved > 0);
+            setShowPublish(true);
+          }}
+        >
           {loading ? t.post.publishing : (isDriver ? t.post.postRideOffer : isEvent ? t.post.requestEventRides : t.post.postRideRequest)}
         </Button>
       </View>
@@ -917,9 +929,9 @@ export default function PostRideScreen() {
       <PublishPicker
         visible={showPublish}
         onClose={() => setShowPublish(false)}
-        onPublic={() => { setShowPublish(false); handleSubmit(); }}
-        onPrivate={() => setShowPublish(false)}
-        hasSaved={false}
+        onPublic={() => { setShowPublish(false); handleSubmit('public'); }}
+        onPrivate={() => { setShowPublish(false); handleSubmit('private'); }}
+        hasSaved={hasSaved}
         accent={accent}
         icon={isDriver ? 'car' : 'passenger'}
       />

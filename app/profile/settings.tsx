@@ -12,6 +12,7 @@ import { PlainToggleRow } from '@/components/ui/PlainToggleRow';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useLanguageStore } from '@/store/languageStore';
@@ -19,26 +20,41 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 
-// Ported from ui_kits/ridemate-app/Settings.jsx. Language is the only piece
-// backed by a real store (useLanguageStore) — notifications/reminders have
-// no push infrastructure behind them anywhere in this app yet, so they're
-// UI-only local state, same scoping as the Calendar tab's Reminders panel.
+// Ported from ui_kits/ridemate-app/Settings.jsx. Language is backed by a real
+// store (useLanguageStore); the notif_master/rides/packages/hauling/
+// post_messages/reminders toggles are backed by real profiles columns that
+// gate real OS push notifications (see supabase/migrations/
+// 053_push_tokens_and_new_post_push.sql, 054_post_message_push.sql,
+// 055_ride_reminders.sql, and hooks/usePushNotifications.ts) — deliberately
+// push-only, these never show up in the in-app Notification Center
+// (app/notifications.tsx). Trip update alerts and trusted-drivers-first
+// still have no infrastructure behind them, so they stay UI-only local state.
 export default function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { signOut, updateProfile } = useAuth();
+  const { profile } = useAuthStore();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const { language, setLanguage } = useLanguageStore();
 
-  const [trustedFirst, setTrustedFirst] = useState(false);
-  const [notifMaster, setNotifMaster] = useState(true);
-  const [notifRides, setNotifRides] = useState(true);
-  const [notifPackages, setNotifPackages] = useState(true);
-  const [notifHauling, setNotifHauling] = useState(true);
+  const [trustedFirst, setTrustedFirst] = useState(profile?.trusted_drivers_first ?? true);
+  const [notifMaster, setNotifMaster] = useState(profile?.notif_master ?? true);
+  const [notifRides, setNotifRides] = useState(profile?.notif_rides ?? true);
+  const [notifPackages, setNotifPackages] = useState(profile?.notif_packages ?? true);
+  const [notifHauling, setNotifHauling] = useState(profile?.notif_hauling ?? true);
+  const [notifPostMessages, setNotifPostMessages] = useState(profile?.notif_post_messages ?? true);
   const [tripUpdates, setTripUpdates] = useState(true);
-  const [remindersOn, setRemindersOn] = useState(false);
+  const [remindersOn, setRemindersOn] = useState(profile?.notif_reminders ?? false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+
+  // Optimistic: flip the switch immediately, persist in the background, and
+  // roll back only if the save actually fails (no user-facing loading state
+  // for a single boolean toggle).
+  function persistNotifPref(field: 'notif_master' | 'notif_rides' | 'notif_packages' | 'notif_hauling' | 'notif_post_messages' | 'notif_reminders' | 'trusted_drivers_first', value: boolean, revert: () => void) {
+    if (!profile) return;
+    updateProfile(profile.id, { [field]: value }).catch(revert);
+  }
 
   async function confirmSignOut() {
     setSigningOut(true);
@@ -103,7 +119,7 @@ export default function SettingsScreen() {
               label={t.settings.trustedFirst}
               sub={t.settings.trustedFirstSub}
               checked={trustedFirst}
-              onChange={setTrustedFirst}
+              onChange={(v) => { setTrustedFirst(v); persistNotifPref('trusted_drivers_first', v, () => setTrustedFirst(!v)); }}
               accent={theme.primary}
               theme={theme}
             />
@@ -114,15 +130,57 @@ export default function SettingsScreen() {
         <View style={{ gap: 10 }}>
           <Text style={sectionLabelStyle(theme)}>{t.settings.notificationsTitle}</Text>
           <CardBox>
-            <PlainToggleRow icon="notification" label={t.settings.notifMaster} checked={notifMaster} onChange={setNotifMaster} accent={theme.primary} theme={theme} />
+            <PlainToggleRow
+              icon="notification"
+              label={t.settings.notifMaster}
+              sub={t.settings.notifMasterSub}
+              checked={notifMaster}
+              onChange={(v) => { setNotifMaster(v); persistNotifPref('notif_master', v, () => setNotifMaster(!v)); }}
+              accent={theme.primary}
+              theme={theme}
+            />
             {notifMaster && (
               <>
                 <RowDivider theme={theme} />
-                <PlainToggleRow icon="car" label={t.settings.notifRides} checked={notifRides} onChange={setNotifRides} accent={theme.primary} theme={theme} />
+                <PlainToggleRow
+                  icon="car"
+                  label={t.settings.notifRides}
+                  sub={t.settings.notifRidesSub}
+                  checked={notifRides}
+                  onChange={(v) => { setNotifRides(v); persistNotifPref('notif_rides', v, () => setNotifRides(!v)); }}
+                  accent={theme.primary}
+                  theme={theme}
+                />
                 <RowDivider theme={theme} />
-                <PlainToggleRow icon="package" label={t.settings.notifPackages} checked={notifPackages} onChange={setNotifPackages} accent={theme.primary} theme={theme} />
+                <PlainToggleRow
+                  icon="package"
+                  label={t.settings.notifPackages}
+                  sub={t.settings.notifPackagesSub}
+                  checked={notifPackages}
+                  onChange={(v) => { setNotifPackages(v); persistNotifPref('notif_packages', v, () => setNotifPackages(!v)); }}
+                  accent={theme.primary}
+                  theme={theme}
+                />
                 <RowDivider theme={theme} />
-                <PlainToggleRow icon="truck" label={t.settings.notifHauling} checked={notifHauling} onChange={setNotifHauling} accent={theme.primary} theme={theme} />
+                <PlainToggleRow
+                  icon="truck"
+                  label={t.settings.notifHauling}
+                  sub={t.settings.notifHaulingSub}
+                  checked={notifHauling}
+                  onChange={(v) => { setNotifHauling(v); persistNotifPref('notif_hauling', v, () => setNotifHauling(!v)); }}
+                  accent={theme.primary}
+                  theme={theme}
+                />
+                <RowDivider theme={theme} />
+                <PlainToggleRow
+                  icon="chat"
+                  label={t.settings.notifPostMessages}
+                  sub={t.settings.notifPostMessagesSub}
+                  checked={notifPostMessages}
+                  onChange={(v) => { setNotifPostMessages(v); persistNotifPref('notif_post_messages', v, () => setNotifPostMessages(!v)); }}
+                  accent={theme.primary}
+                  theme={theme}
+                />
                 <RowDivider theme={theme} />
                 <PlainToggleRow icon="event" label={t.settings.tripUpdates} sub={t.settings.tripUpdatesSub} checked={tripUpdates} onChange={setTripUpdates} accent={theme.primary} theme={theme} />
               </>
@@ -134,7 +192,15 @@ export default function SettingsScreen() {
         <View style={{ gap: 10 }}>
           <Text style={sectionLabelStyle(theme)}>{t.settings.remindersTitle}</Text>
           <CardBox>
-            <PlainToggleRow icon="notification" label={t.settings.remindersTitle} sub={t.settings.remindersSub} checked={remindersOn} onChange={setRemindersOn} accent={theme.primary} theme={theme} />
+            <PlainToggleRow
+              icon="notification"
+              label={t.settings.remindersTitle}
+              sub={t.settings.remindersSub}
+              checked={remindersOn}
+              onChange={(v) => { setRemindersOn(v); persistNotifPref('notif_reminders', v, () => setRemindersOn(!v)); }}
+              accent={theme.primary}
+              theme={theme}
+            />
           </CardBox>
         </View>
 

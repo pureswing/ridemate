@@ -42,6 +42,34 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+// Reverse geocode via Nominatim (OpenStreetMap) — free, keyless, no per-call
+// cost. Replaced expo-location's device-native reverseGeocodeAsync, which
+// turned out to be unreliable on some Android devices/manufacturers (OnePlus
+// in particular kept failing to resolve a city at all, leaving the weather
+// line with a real temperature but no location — see the on-device report
+// that led to this). Nominatim's usage policy caps this at ~1 request/second
+// and asks for an identifying User-Agent — both trivially satisfied by one
+// call per Home screen mount. Falls back to undefined (weather line just
+// omits the city) on any failure, same as before — never a fabricated name.
+//
+// Confirmed via on-device debugging that a stuck/flaky RN fetch() to this
+// host on some networks (curl from the same device's shell succeeds in
+// under a second when RN's fetch times out — looks like an OkHttp/IPv6
+// path issue on that network, not this app or Nominatim) is a real,
+// occasional failure mode outside this code's control; the retry + "just
+// omit the city" fallback below is the correct degraded behavior for it.
+async function reverseGeocodeCity(lat: number, lon: number): Promise<string | undefined> {
+  const res = await withTimeout(
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
+      headers: { 'User-Agent': 'RideMate/1.0 (contact: support@ridemate.app)' },
+    }),
+    5000
+  );
+  const data = await res.json();
+  const address = data?.address;
+  return address?.city ?? address?.town ?? address?.village ?? address?.hamlet ?? address?.municipality ?? undefined;
+}
+
 function codeToWeather(code: number): { icon: IconName; labelKey: WeatherLabelKey } {
   if (code === 0 || code === 1) return { icon: 'weather_sun', labelKey: 'clear' };
   if (code === 2 || code === 3) return { icon: 'weather_cloud', labelKey: code === 3 ? 'overcast' : 'partlyCloudy' };
@@ -94,21 +122,27 @@ export function useWeather(): WeatherState {
         // most direct path to a real location instead of always falling back.
         const { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
-          const pos = await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }), 6000);
+          // A cold GPS fix (getCurrentPositionAsync) can take well past this
+          // hook's timeout indoors or with a poor sky view — confirmed
+          // on-device (a desk-bound test phone timed out after 6s waiting
+          // for a fresh fix). getLastKnownPositionAsync returns Android/iOS's
+          // already-cached last fix near-instantly when one exists, which is
+          // plenty accurate for "what city am I roughly in" — only falls
+          // through to waiting on a fresh fix if there's truly no cached one.
+          const cachedPos = await Location.getLastKnownPositionAsync({ maxAge: 15 * 60_000 });
+          const pos = cachedPos ?? await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low }), 6000);
           if (cancelled) return;
 
-          // Device-native reverse geocoding (Apple/Google's own geocoder via
-          // expo-location) — no separate API, no key, no network cost, unlike
-          // a Places/geocoding API call would be.
+          // One retry, same reasoning as the weather fetch's retry below —
+          // a single slow/dropped request on a flaky connection shouldn't
+          // be the difference between showing "Winter Haven" and nothing.
           let city: string | undefined;
-          try {
-            const [place] = await withTimeout(
-              Location.reverseGeocodeAsync({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
-              4000
-            );
-            city = place?.city ?? undefined;
-          } catch {
-            // city stays undefined — weather line just omits it
+          for (let attempt = 0; attempt < 2 && !city; attempt++) {
+            try {
+              city = await reverseGeocodeCity(pos.coords.latitude, pos.coords.longitude);
+            } catch {
+              // city stays undefined — weather line just omits it
+            }
           }
 
           if (!cancelled) apply(pos.coords.latitude, pos.coords.longitude, city);

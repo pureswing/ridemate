@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { View, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
+import { useAuthStore } from '@/store/authStore';
 import { useRideStore } from '@/store/rideStore';
 import { useRides } from '@/hooks/useRides';
 import { useTheme } from '@/hooks/useTheme';
@@ -32,12 +33,18 @@ function EmptyState() {
 export default function FeedScreen() {
   const { posts, filters, loading, setFilters } = useRideStore();
   const { fetchPosts } = useRides();
+  const { session } = useAuthStore();
   const theme = useTheme();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
-  // UI only for now — this drawer isn't wired into the actual feed query yet.
+  // UI only for now — this drawer isn't wired into the actual feed query yet,
+  // except myPostsOnly (applied client-side below).
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
   const activeAdvancedFilterCount = countActiveFilters(advancedFilters);
+  const visiblePosts = useMemo(
+    () => advancedFilters.myPostsOnly ? posts.filter((p) => p.user_id === session?.user?.id) : posts,
+    [posts, advancedFilters.myPostsOnly, session?.user?.id]
+  );
   // Separate from the store's `loading` (also set by filter-triggered fetches) —
   // this only tracks an explicit user pull, so switching chips doesn't pop the
   // native pull-to-refresh spinner up mid-screen.
@@ -66,7 +73,7 @@ export default function FeedScreen() {
       activeFilterCount={activeAdvancedFilterCount}
       layout={layout}
       onLayoutChange={setLayout}
-      resultsCount={posts.length}
+      resultsCount={visiblePosts.length}
     />
   );
 
@@ -97,7 +104,7 @@ export default function FeedScreen() {
           <FlatList
             style={{ flex: 1 }}
             key={layout}
-            data={posts}
+            data={visiblePosts}
             keyExtractor={(item) => item.id}
             numColumns={layout === 'grid' ? 2 : 1}
             columnWrapperStyle={layout === 'grid' ? { gap: 12 } : undefined}

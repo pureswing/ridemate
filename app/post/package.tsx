@@ -22,6 +22,7 @@ import { RouteMapPlaceholder } from '@/components/ride/RouteMapPlaceholder';
 import { router } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useRides } from '@/hooks/useRides';
+import { useFavorites } from '@/hooks/useFavorites';
 import { PostVisibility, RidePostDetailsPackage } from '@/types';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
@@ -40,8 +41,9 @@ export default function PostPackageScreen() {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
-  const { session } = useAuthStore();
+  const { session, profile } = useAuthStore();
   const { createPost, uploadRouteMap } = useRides();
+  const { countFavoritesInCity } = useFavorites();
 
 
   // Package/hauling posts are always the "I need this done" side of the
@@ -139,9 +141,9 @@ export default function PostPackageScreen() {
   const [note, setNote] = useState('');
 
   // ── Visibility ──
-  const [visibility, setVisibility] = useState<PostVisibility>('public');
   const [privateDelayHours, setPrivateDelayHours] = useState(6);
   const [showPublish, setShowPublish] = useState(false);
+  const [hasSaved, setHasSaved] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [posted, setPosted] = useState(false);
@@ -162,7 +164,7 @@ export default function PostPackageScreen() {
     (!isHighValue || highValueOk)
   );
 
-  async function handleSubmit() {
+  async function handleSubmit(chosenVisibility: PostVisibility) {
     if (!ready) {
       setInfoSheet({ title: t.post.requiredFields, message: t.post.fillRequired });
       return;
@@ -187,7 +189,7 @@ export default function PostPackageScreen() {
 
     setLoading(true);
     try {
-      const goesPublicAt = visibility === 'private'
+      const goesPublicAt = chosenVisibility === 'private'
         ? new Date(Date.now() + privateDelayHours * 60 * 60 * 1000).toISOString()
         : undefined;
 
@@ -221,7 +223,7 @@ export default function PostPackageScreen() {
         price_mode: priceMode,
         description: note || undefined,
         contact_method: 'in_app',
-        visibility,
+        visibility: chosenVisibility,
         goes_public_at: goesPublicAt,
         round_trip: false,
         airport: false,
@@ -577,7 +579,14 @@ export default function PostPackageScreen() {
 
       {/* sticky post button — stays visible while the form scrolls */}
       <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16 }}>
-        <Button variant="primary" size="lg" fullWidth disabled={!ready || loading} onPress={() => setShowPublish(true)}>
+        <Button
+          variant="primary" size="lg" fullWidth disabled={!ready || loading}
+          onPress={async () => {
+            const saved = profile?.trusted_drivers_first ? await countFavoritesInCity(originCity) : 0;
+            setHasSaved(saved > 0);
+            setShowPublish(true);
+          }}
+        >
           {loading ? t.post.publishing : 'Post delivery request'}
         </Button>
       </View>
@@ -585,9 +594,9 @@ export default function PostPackageScreen() {
       <PublishPicker
         visible={showPublish}
         onClose={() => setShowPublish(false)}
-        onPublic={() => { setShowPublish(false); handleSubmit(); }}
-        onPrivate={() => setShowPublish(false)}
-        hasSaved={false}
+        onPublic={() => { setShowPublish(false); handleSubmit('public'); }}
+        onPrivate={() => { setShowPublish(false); handleSubmit('private'); }}
+        hasSaved={hasSaved}
         accent={accent}
         icon="package"
       />

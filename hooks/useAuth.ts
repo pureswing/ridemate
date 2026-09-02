@@ -29,6 +29,13 @@ export function useAuth() {
     bio?: string;
     accessibility_needs?: AccessibilityNeed[];
     accessibility_note?: string;
+    notif_master?: boolean;
+    notif_rides?: boolean;
+    notif_packages?: boolean;
+    notif_hauling?: boolean;
+    notif_post_messages?: boolean;
+    notif_reminders?: boolean;
+    trusted_drivers_first?: boolean;
   }) {
     const { data: updated, error } = await supabase
       .from('profiles')

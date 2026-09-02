@@ -310,6 +310,7 @@ function VehiclePeekCard({
   onAccept,
   onDecline,
   accepting,
+  showPlate,
 }: {
   // Absent for a pooling 'offer' post's owner-side card — the other party
   // there is a rider, who has no vehicle relevant to the trip. Falls back
@@ -324,6 +325,9 @@ function VehiclePeekCard({
   onAccept?: () => void;
   onDecline?: () => void;
   accepting?: boolean;
+  // Plate is PII — the caller only passes this true for the post creator
+  // (see the call site's comment), never for the other party.
+  showPlate?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -389,6 +393,7 @@ function VehiclePeekCard({
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
               {vehicle.seats != null && <Badge tone="neutral" size="sm">{`${vehicle.seats} ${t.messages.vehicleSeats}`}</Badge>}
               {vehicle.insurance_self_certified && <Badge tone="success" icon="shield" size="sm">{t.messages.vehicleInsured}</Badge>}
+              {showPlate && vehicle.plate && <Badge tone="neutral" icon="tag" size="sm">{vehicle.plate}</Badge>}
             </View>
             {vehicle.amenities.length > 0 && (
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -822,6 +827,11 @@ export default function ConversationScreen() {
               onAccept={isOwner && !agreement ? () => setShowAcceptSheet(true) : undefined}
               onDecline={isOwner && !agreement ? () => setShowDeclineSheet(true) : undefined}
               accepting={accepting}
+              // Plate is PII — only the post creator sees it, and only here,
+              // inside their own active chat thread with the driver (never
+              // on a public profile visit — see VehicleDetailModal's
+              // showPlate prop for that same rule).
+              showPlate={isOwner}
             />
           ) : null}
           {agreement && (

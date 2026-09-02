@@ -55,6 +55,18 @@ export interface Profile {
   // supabase/migrations/012_profile_extra_fields.sql
   home_city?: string;
   bio?: string;
+  // supabase/migrations/052_new_post_notifications.sql — per-kind new-post
+  // notification opt-ins; notif_master is the section-wide kill switch.
+  notif_master: boolean;
+  notif_rides: boolean;
+  notif_packages: boolean;
+  notif_hauling: boolean;
+  // supabase/migrations/054_post_message_push.sql
+  notif_post_messages: boolean;
+  // supabase/migrations/055_ride_reminders.sql
+  notif_reminders: boolean;
+  // supabase/migrations/056_trusted_drivers_first_default.sql
+  trusted_drivers_first: boolean;
   created_at: string;
   updated_at: string;
 }
