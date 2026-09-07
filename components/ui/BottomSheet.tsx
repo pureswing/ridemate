@@ -27,6 +27,21 @@ export function BottomSheet({ visible, onClose, children, dismissable = true, sh
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+
+  // A percentage maxHeight (e.g. '88%') on `style` needs resolving against
+  // the actual window height ourselves — its real parent here is this
+  // `Animated.View`, which has no explicit height of its own (it sizes to
+  // content), and RN/Yoga's percentage resolution inside a Modal's separate
+  // native root falls back to the full screen instead of erroring, giving a
+  // sheet that reserves e.g. 88% of the SCREEN regardless of how short its
+  // actual content is — a big blank gap below the content, filled with
+  // `backgroundColor`, instead of the sheet just hugging its content like a
+  // fixed-pixel maxHeight would.
+  const flatStyle = StyleSheet.flatten(style) ?? {};
+  const resolvedMaxHeight = typeof flatStyle.maxHeight === 'string' && flatStyle.maxHeight.endsWith('%')
+    ? screenHeight * (parseFloat(flatStyle.maxHeight) / 100)
+    : flatStyle.maxHeight;
+  const resolvedStyle = { ...flatStyle, ...(resolvedMaxHeight !== undefined ? { maxHeight: resolvedMaxHeight } : {}) };
   const [mounted, setMounted] = useState(visible);
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const sheetTranslateY = useRef(new Animated.Value(screenHeight)).current;
@@ -80,7 +95,7 @@ export function BottomSheet({ visible, onClose, children, dismissable = true, sh
                   useSafeAreaInsets() under-reports inside a Modal's own
                   native root (gesture-nav Android in particular). */}
               <Animated.View style={{ position: 'absolute', left: 0, right: 0, bottom: -40, height: 40, backgroundColor: backgroundColor ?? theme.surface }} />
-              <Animated.View style={style}>
+              <Animated.View style={resolvedStyle}>
                 {showHandle && (
                   <Animated.View style={{ width: 40, height: 4, borderRadius: 99, backgroundColor: theme.border, alignSelf: 'center', marginTop: 12, marginBottom: 8 }} />
                 )}

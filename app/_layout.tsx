@@ -14,6 +14,7 @@ import { useNewPostToasts } from '@/hooks/useNewPostToasts';
 import { supabase } from '@/lib/supabase';
 import { applyAuthDeepLink } from '@/lib/authDeepLink';
 import { useLanguageStore } from '@/store/languageStore';
+import { useSeenPostsStore } from '@/store/seenPostsStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { CompletionGate } from '@/components/community/CompletionGate';
 import { PostToastHost } from '@/components/ui/PostToastHost';
@@ -24,6 +25,7 @@ export default function RootLayout() {
   const { setSession, setLoading, session } = useAuthStore();
   const { loadProfile } = useAuth();
   const { loadLanguage } = useLanguageStore();
+  const { load: loadSeenPosts } = useSeenPostsStore();
   const t = useTranslation();
 
   usePushNotifications(session?.user?.id);
@@ -43,6 +45,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     loadLanguage();
+    loadSeenPosts();
   }, []);
 
   useEffect(() => {

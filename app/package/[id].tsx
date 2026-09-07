@@ -29,6 +29,7 @@ import { RidePost, RidePostDetailsPackage, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSeenPostsStore } from '@/store/seenPostsStore';
 import { formatEta, formatDurationShort } from '@/utils/dateFormat';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
@@ -83,6 +84,7 @@ export default function PackageDetailScreen() {
   const { findConversation, findConversationWithParty, getOrCreateConversation, sendMessage } = useMessages();
   const { getBadgeCounts } = useBadges();
   const { isDonor } = useSubscription();
+  const { markSeen } = useSeenPostsStore();
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
@@ -125,6 +127,7 @@ export default function PackageDetailScreen() {
       if (data) {
         // Don't count the poster's own views of their own post.
         if (session?.user && data.user_id !== session.user.id) incrementPostViews(data.id);
+        markSeen(data.id, data.edited_at ?? data.created_at);
         const tasks: Promise<any>[] = [
           getBadgeCounts(data.user_id).then((counts) => setPosterBadgeCount(counts.reduce((sum, c) => sum + c.count, 0))),
         ];

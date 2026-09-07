@@ -117,17 +117,18 @@ export function useRideAgreements() {
   // automatically flips the post back to 'active' (public) the moment this
   // status change lands.
   const cancelAgreement = useCallback(async (agreementId: string): Promise<void> => {
+    if (!session?.user) return;
     setLoading(true);
     try {
       const { error } = await supabase
         .from('ride_agreements')
-        .update({ status: 'cancelled' })
+        .update({ status: 'cancelled', cancelled_by: session.user.id })
         .eq('id', agreementId);
       if (error) throw error;
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session]);
 
   return { getMyAgreements, getAgreementsForPost, getPendingCompletions, createAgreement, confirmCompletion, reportNoShow, cancelAgreement, loading };
 }

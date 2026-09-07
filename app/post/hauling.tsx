@@ -192,6 +192,10 @@ export default function PostHaulingScreen() {
       setInfoSheet({ title: t.post.invalidDate, message: t.post.dateFormat });
       return;
     }
+    if (!flexibleDate && scheduledAt.getTime() < Date.now()) {
+      setInfoSheet({ title: t.post.pastDateTitle, message: t.post.pastDateMsg });
+      return;
+    }
 
     setLoading(true);
     try {

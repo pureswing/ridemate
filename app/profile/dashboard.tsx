@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View, ScrollView, Pressable, Animated, LayoutChangeEvent } from 'react-native';
+import { View, ScrollView, Pressable, Animated, LayoutChangeEvent, ActivityIndicator } from 'react-native';
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
@@ -15,109 +15,30 @@ import { BADGE_ICONS } from '@/constants/badgeIcons';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useDashboardStats } from '@/hooks/useDashboardStats';
+import { useWeeklyFeedbackSummary } from '@/hooks/useWeeklyFeedbackSummary';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
 import { BadgeType } from '@/types';
 
-// Ported from ui_kits/ridemate-app/Dashboard.jsx — PURELY VISUAL. Every
-// number on this screen is a local fixture, not a real query (no
-// Supabase/hooks calls at all). The design source computes these from
-// window.RM_* globals (ride history, bid stats, cancellation stats,
-// community rank, etc.) that don't exist as real backend concepts in this
-// app yet — this screen exists to preview the visual design, not to report
-// real activity. Wire it to real data later once those concepts exist.
-// The design's numeric 5-star "Avg rating" stat was dropped — this app has
-// no star-rating concept anywhere (badges only, a deliberate TNC-compliance
-// choice), so it's swapped for a total-badges count instead.
-const BID_HISTORY = [true, true, false, true, true, true, false, true]; // won/lost, oldest→newest
-const BID_WIN_RATE = Math.round((BID_HISTORY.filter(Boolean).length / BID_HISTORY.length) * 100);
-
-// Notice given before a cancellation is what the tone/suggestion/flag logic
-// is built on — not raw counts. Matches the design's byUser/onUser split:
-// "by you" drives your tone and flags, "on you" is just shown for context.
-const CANCELLATION = {
-  byUserCount: 2, byUserAvgNotice: 5.2,
-  onUserCount: 1, onUserAvgNotice: 3.8,
-  communityAvgNotice: 4.0,
-  flags: 1, flagThreshold: 5,
-};
-const CANCEL_TONE: 'none' | 'healthy' | 'mid' | 'risky' =
-  CANCELLATION.byUserCount === 0 ? 'none'
-    : CANCELLATION.byUserAvgNotice >= 4 ? 'healthy'
-    : CANCELLATION.byUserAvgNotice >= 2 ? 'mid'
-    : 'risky';
-
-// Real BadgeType keys — the glyphs render via the same BadgeGlyph shield
-// used in the completion-review flow and Profile's Community badges row,
-// not a hand-rolled icon box.
-const BADGES: { type: BadgeType; count: number }[] = [
-  { type: 'clean_car', count: 12 },
-  { type: 'punctual', count: 9 },
-  { type: 'friendly', count: 15 },
-  { type: 'great_chat', count: 6 },
-];
-
+// Real Dashboard data, sourced via hooks/useDashboardStats.ts +
+// utils/dashboardStats.ts — see the "Wire up Dashboard stats to real data"
+// plan for the full mapping from ride_agreements/ride_posts/ride_badges to
+// each stat below. Dollar figures reflect the listed price of a post at the
+// moment its agreement completed, never a verified real transaction (there
+// is no payment processing in this app) — see legalDisclaimer below.
 const RANK_TIERS = ['New', 'Active', 'Trusted', 'Elite'];
-const CURRENT_TIER = 2; // index into RANK_TIERS — "Trusted"
 
-const FEEDBACK_TOTAL = 18;
-const FEEDBACK_STRENGTHS = ['Punctual', 'Clean car', 'Friendly'];
-const FEEDBACK_WATCHOUTS = ['Slow to reply'];
-
-const MILESTONES: { icon: IconName; label: string; progress: number; goal: string }[] = [
-  { icon: 'route', label: '50 rides completed', progress: 0.76, goal: '38 / 50' },
-  { icon: 'event', label: '6 months on RideMate', progress: 0.5, goal: '3 / 6 mo' },
-  { icon: 'star', label: '10 badges earned', progress: 0.8, goal: '8 / 10' },
-  { icon: 'shield_check', label: 'Zero no-shows streak', progress: 1, goal: '12 / 12' },
-];
-
-const TRIPS_AS_DRIVER = { total: 38, rides: 24, courier: 9, hauling: 5 };
-const TIME_ON_ROAD = { total: '26h 40m', rides: '16h 0m', courier: '6h 0m', hauling: '4h 40m' };
-
-const EARNINGS = [
-  { label: 'Rides', amount: 340, color: '#0A7E77' },
-  { label: 'Courier', amount: 128, color: '#08637A' },
-  { label: 'Hauling', amount: 96, color: '#9E4A14' },
-];
-const EARNINGS_TOTAL = EARNINGS.reduce((s, e) => s + e.amount, 0);
-const TOTAL_SPENT = 212;
-
-const MILES_DRIVEN = { total: 1520, rides: 960, courier: 360, hauling: 200 };
-
-const MONTHLY_ACTIVITY = [
-  { m: 'Feb', driver: 0, passenger: 0 },
-  { m: 'Mar', driver: 1, passenger: 0 },
-  { m: 'Apr', driver: 2, passenger: 1 },
-  { m: 'May', driver: 3, passenger: 2 },
-  { m: 'Jun', driver: 5, passenger: 3 },
-  { m: 'Jul', driver: 6, passenger: 3 },
-];
-const MONTHLY_MAX = 8;
+const EARNINGS_COLORS: Record<string, string> = { Rides: '#0A7E77', Courier: '#08637A', Hauling: '#9E4A14' };
+const EXPENSE_META: Record<string, { label: string; icon: IconName; color: string }> = {
+  ride: { label: 'Ride', icon: 'car', color: '#ED4A2B' },
+  package: { label: 'Courier', icon: 'package', color: '#0EA5C4' },
+  hauling: { label: 'Hauling', icon: 'truck', color: '#E07B39' },
+};
 
 const DOW_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const DOW_COUNT = [1, 4, 6, 3, 7, 5, 2];
-const DOW_MAX = Math.max(...DOW_COUNT);
-
-const TOP_ROUTES = [
-  { origin: 'Winter Haven', destination: 'Orlando', count: 6 },
-  { origin: 'Orlando', destination: 'Tampa', count: 4 },
-  { origin: 'Winter Haven', destination: 'Lakeland', count: 3 },
-];
-const ROUTES_COMPLETED_TOTAL = 38;
-
-const EXPENSES: { label: string; icon: IconName; color: string; fare: number; fuel?: number; wear?: number }[] = [
-  { label: 'Ride', icon: 'car', color: '#ED4A2B', fare: 180, fuel: 36, wear: 138 },
-  { label: 'Courier', icon: 'package', color: '#0EA5C4', fare: 64, fuel: 14, wear: 52 },
-  { label: 'Hauling', icon: 'truck', color: '#E07B39', fare: 40, fuel: 9, wear: 35 },
-];
-
-const FUN_FACTS: { icon: IconName; label: string; stat: string; route: string; date: string }[] = [
-  { icon: 'route', label: 'Your longest trip', stat: '62 mi', route: 'Winter Haven → Miami', date: 'Jun 14' },
-  { icon: 'money', label: 'Your best paid trip', stat: '$85', route: 'Winter Haven → Orlando', date: 'Jul 2' },
-  { icon: 'schedule', label: 'Your longest ride', stat: '95 min', route: 'Winter Haven → Jacksonville', date: 'May 22' },
-];
 
 type SectionKey = 'overview' | 'community' | 'activity' | 'finance' | 'funfacts';
 const SECTION_ICONS: Record<SectionKey, IconName> = {
@@ -313,10 +234,37 @@ export default function DashboardScreen() {
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const { isDonor } = useSubscription();
+  const { stats, loading, error } = useDashboardStats();
+  const { summary: weeklySummary } = useWeeklyFeedbackSummary();
   const [infoText, setInfoText] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionKey>('overview');
   const [selectedBadge, setSelectedBadge] = useState<{ type: BadgeType; count: number } | null>(null);
 
+  const sectionTitle: Record<SectionKey, string> = {
+    overview: t.dashboard.overviewTitle,
+    community: t.dashboard.communityTitle,
+    activity: t.dashboard.activityTitle,
+    finance: t.dashboard.financeTitle,
+    funfacts: t.dashboard.funFactsTitle,
+  };
+
+  const locked = PAID_SECTIONS.includes(activeSection) && !isDonor;
+
+  if (loading || !stats) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.background, alignItems: 'center', justifyContent: 'center' }}>
+        <StatusBar style="light" />
+        <ActivityIndicator size="large" color={theme.primary} />
+      </View>
+    );
+  }
+
+  const CANCELLATION = stats.community.cancellation;
+  const CANCEL_TONE: 'none' | 'healthy' | 'mid' | 'risky' =
+    CANCELLATION.byUserCount === 0 ? 'none'
+      : CANCELLATION.byUserAvgNotice >= 4 ? 'healthy'
+      : CANCELLATION.byUserAvgNotice >= 2 ? 'mid'
+      : 'risky';
   const cancelToneColor = CANCEL_TONE === 'mid' ? theme.gold400 : CANCEL_TONE === 'risky' ? theme.danger : theme.driverText;
   const cancelHeadline = {
     none: t.dashboard.cancelHeadlineNone, healthy: t.dashboard.cancelHeadlineHealthy,
@@ -332,15 +280,38 @@ export default function DashboardScreen() {
     ? (CANCELLATION.byUserAvgNotice >= CANCELLATION.communityAvgNotice ? t.dashboard.cancelVsCommunityAbove : t.dashboard.cancelVsCommunityBelow)
     : null;
 
-  const sectionTitle: Record<SectionKey, string> = {
-    overview: t.dashboard.overviewTitle,
-    community: t.dashboard.communityTitle,
-    activity: t.dashboard.activityTitle,
-    finance: t.dashboard.financeTitle,
-    funfacts: t.dashboard.funFactsTitle,
-  };
-
-  const locked = PAID_SECTIONS.includes(activeSection) && !isDonor;
+  const BADGES = stats.community.badges.filter((b) => b.count > 0).map((b) => ({ type: b.badge_type, count: b.count }));
+  const CURRENT_TIER = stats.community.rankTierIndex;
+  const FEEDBACK_TOTAL = stats.community.totalBadges;
+  const TRIPS_AS_DRIVER = stats.overview.trips;
+  const TIME_ON_ROAD = stats.overview.time;
+  const EARNINGS = stats.finance.earnings.map((e) => ({ ...e, color: EARNINGS_COLORS[e.label] }));
+  const EARNINGS_TOTAL = stats.overview.earnedTotal;
+  const TOTAL_SPENT = stats.overview.totalSpent;
+  const MILES_DRIVEN = stats.activity.miles;
+  const MONTHLY_ACTIVITY = stats.activity.monthlyActivity;
+  const MONTHLY_MAX = Math.max(1, ...MONTHLY_ACTIVITY.flatMap((m) => [m.driver, m.passenger]));
+  const DOW_COUNT = stats.activity.dowCount;
+  const DOW_MAX = Math.max(1, ...DOW_COUNT);
+  const TOP_ROUTES = stats.activity.topRoutes;
+  const ROUTES_COMPLETED_TOTAL = stats.activity.routesCompletedTotal;
+  const BID_WIN_RATE = stats.activity.bidWinRate;
+  const BID_HISTORY = stats.activity.bidHistory;
+  const EXPENSES = stats.finance.expenses.map((e) => ({ ...EXPENSE_META[e.kind], fare: e.fare, fuel: e.fuel, wear: e.wear }));
+  const FUN_FACTS: { icon: IconName; label: string; stat: string; route: string; date: string }[] = [
+    stats.funFacts.longestTrip && {
+      icon: 'route' as IconName, label: 'Your longest trip', stat: `${Math.round(stats.funFacts.longestTrip.mi)} mi`,
+      route: stats.funFacts.longestTrip.route, date: new Date(stats.funFacts.longestTrip.date).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' }),
+    },
+    stats.funFacts.bestPaidTrip && {
+      icon: 'money' as IconName, label: 'Your best paid trip', stat: `$${stats.funFacts.bestPaidTrip.amount}`,
+      route: stats.funFacts.bestPaidTrip.route, date: new Date(stats.funFacts.bestPaidTrip.date).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' }),
+    },
+    stats.funFacts.longestRide && {
+      icon: 'schedule' as IconName, label: 'Your longest ride', stat: `${stats.funFacts.longestRide.minutes} min`,
+      route: stats.funFacts.longestRide.route, date: new Date(stats.funFacts.longestRide.date).toLocaleDateString(t.locale, { month: 'short', day: 'numeric' }),
+    },
+  ].filter((f): f is NonNullable<typeof f> => !!f);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
@@ -374,6 +345,13 @@ export default function DashboardScreen() {
             {t.dashboard.mockNotice}
           </Text>
         </View>
+
+        {error && (
+          <View style={{ flexDirection: 'row', gap: 10, backgroundColor: theme.danger + '18', borderWidth: 1, borderColor: theme.danger + '40', borderRadius: radii.md, padding: 12 }}>
+            <Icon name="warning" size={16} color={theme.danger} />
+            <Text style={{ flex: 1, fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.text, lineHeight: 17 }}>{error}</Text>
+          </View>
+        )}
 
         <SectionPill active={activeSection} onChange={setActiveSection} theme={theme} />
 
@@ -446,24 +424,14 @@ export default function DashboardScreen() {
                       <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, marginTop: 1 }}>{t.dashboard.feedbackLockedSub}</Text>
                     </View>
                   </View>
-                ) : (
+                ) : weeklySummary ? (
                   <View style={{ backgroundColor: theme.surfaceAlt, borderRadius: radii.md, padding: 12, borderLeftWidth: 3, borderLeftColor: theme.gold400 }}>
-                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, fontStyle: 'italic', color: theme.text, lineHeight: 18, marginBottom: 9 }}>
-                      "{t.dashboard.feedbackAiSummary}"
+                    <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, fontStyle: 'italic', color: theme.text, lineHeight: 18 }}>
+                      "{weeklySummary}"
                     </Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-                      {FEEDBACK_STRENGTHS.map((s) => (
-                        <View key={s} style={{ backgroundColor: theme.driverText + '18', paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill }}>
-                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.driverText }}>{s}</Text>
-                        </View>
-                      ))}
-                      {FEEDBACK_WATCHOUTS.map((w) => (
-                        <View key={w} style={{ backgroundColor: theme.gold400 + '20', paddingHorizontal: 9, paddingVertical: 3, borderRadius: radii.pill }}>
-                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.gold500 }}>{w}</Text>
-                        </View>
-                      ))}
-                    </View>
                   </View>
+                ) : (
+                  <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12.5, color: theme.muted }}>{t.dashboard.feedbackNoneYet}</Text>
                 )}
               </SectionCard>
 
@@ -531,27 +499,6 @@ export default function DashboardScreen() {
                   </View>
                 )}
               </SectionCard>
-
-              <SectionCard title={t.dashboard.milestonesTitle} theme={theme}>
-                <View style={{ gap: 14 }}>
-                  {MILESTONES.map((m) => (
-                    <View key={m.label} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surfaceAlt, alignItems: 'center', justifyContent: 'center' }}>
-                        <Icon name={m.icon} size={17} color={m.progress >= 1 ? theme.driverText : theme.muted} />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 3 }}>
-                          <Text numberOfLines={1} style={{ fontFamily: fonts.bodySemibold, fontSize: 12.5, color: theme.text, flexShrink: 1 }}>{m.label}</Text>
-                          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.muted }}>{m.goal}</Text>
-                        </View>
-                        <View style={{ height: 6, borderRadius: 3, backgroundColor: theme.surfaceAlt, overflow: 'hidden' }}>
-                          <View style={{ width: `${m.progress * 100}%`, height: '100%', backgroundColor: m.progress >= 1 ? theme.driverText : theme.gold400, borderRadius: 3 }} />
-                        </View>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </SectionCard>
             </View>
           ) : activeSection === 'activity' ? (
             <View style={{ gap: 12 }}>
@@ -606,23 +553,25 @@ export default function DashboardScreen() {
                 </View>
               </SectionCard>
 
-              <SectionCard theme={theme} title={t.dashboard.bidWinTitle} subtitle={t.dashboard.bidWinSub} onInfo={() => setInfoText(t.dashboard.infoBidWin)}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                  <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 6, borderColor: theme.driverText, alignItems: 'center', justifyContent: 'center' }}>
-                    <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: theme.text }}>{BID_WIN_RATE}%</Text>
+              {BID_WIN_RATE != null && (
+                <SectionCard theme={theme} title={t.dashboard.bidWinTitle} subtitle={t.dashboard.bidWinSub} onInfo={() => setInfoText(t.dashboard.infoBidWin)}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                    <View style={{ width: 64, height: 64, borderRadius: 32, borderWidth: 6, borderColor: theme.driverText, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 16, color: theme.text }}>{BID_WIN_RATE}%</Text>
+                    </View>
+                    <View style={{ flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 40 }}>
+                      {BID_HISTORY.map((won, i) => (
+                        <View key={i} style={{ flex: 1, height: won ? 40 : 18, borderRadius: 3, backgroundColor: won ? theme.driverText : theme.surfaceAlt }} />
+                      ))}
+                    </View>
                   </View>
-                  <View style={{ flex: 1, flexDirection: 'row', gap: 4, alignItems: 'flex-end', height: 40 }}>
-                    {BID_HISTORY.map((won, i) => (
-                      <View key={i} style={{ flex: 1, height: won ? 40 : 18, borderRadius: 3, backgroundColor: won ? theme.driverText : theme.surfaceAlt }} />
-                    ))}
-                  </View>
-                </View>
-              </SectionCard>
+                </SectionCard>
+              )}
 
               <SectionCard theme={theme} title={t.dashboard.routesTitle}>
                 <View style={{ gap: 12 }}>
                   {TOP_ROUTES.map((r) => {
-                    const pct = Math.round((r.count / ROUTES_COMPLETED_TOTAL) * 100);
+                    const pct = Math.round((r.count / Math.max(1, ROUTES_COMPLETED_TOTAL)) * 100);
                     return (
                       <View key={`${r.origin}-${r.destination}`}>
                         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -643,7 +592,7 @@ export default function DashboardScreen() {
               <SectionCard theme={theme} title={t.dashboard.earningsTitle} subtitle={t.dashboard.earningsSub}>
                 <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 24, color: theme.text, marginBottom: 12 }}>${EARNINGS_TOTAL}</Text>
                 <View style={{ flexDirection: 'row', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 12 }}>
-                  {EARNINGS.map((e) => <View key={e.label} style={{ width: `${(e.amount / EARNINGS_TOTAL) * 100}%`, backgroundColor: e.color }} />)}
+                  {EARNINGS.map((e) => <View key={e.label} style={{ width: `${(e.amount / Math.max(1, EARNINGS_TOTAL)) * 100}%`, backgroundColor: e.color }} />)}
                 </View>
                 <View style={{ gap: 8 }}>
                   {EARNINGS.map((e) => (
@@ -657,7 +606,7 @@ export default function DashboardScreen() {
               </SectionCard>
 
               <SectionCard theme={theme} title={t.dashboard.rpmTitle} subtitle={t.dashboard.rpmSub} onInfo={() => setInfoText(t.dashboard.infoRpm)}>
-                <RpmTrendChart />
+                <RpmTrendChart trips={stats.rpmTrips} />
               </SectionCard>
 
               <SectionCard theme={theme} title={t.dashboard.expensesTitle}>

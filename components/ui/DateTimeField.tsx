@@ -51,6 +51,7 @@ export function DateTimeField({ mode, value, onChange, icon, placeholder, doneLa
           value={pickerValue}
           mode={mode}
           display="default"
+          minimumDate={mode === 'date' ? new Date() : undefined}
           onChange={(e, selected) => {
             setShow(false);
             if (e.type === 'set' && selected) applyPicked(selected);
@@ -63,6 +64,7 @@ export function DateTimeField({ mode, value, onChange, icon, placeholder, doneLa
             value={pickerValue}
             mode={mode}
             display="spinner"
+            minimumDate={mode === 'date' ? new Date() : undefined}
             onChange={(e, selected) => { if (selected) applyPicked(selected); }}
           />
         </PickerSheet>

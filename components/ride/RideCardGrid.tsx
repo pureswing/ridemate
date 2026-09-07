@@ -9,10 +9,15 @@ import { ExtrasSheet } from './ExtrasSheet';
 import { RidePost, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useRides } from '@/hooks/useRides';
+import { usePriceAnalysisGate } from '@/hooks/usePriceAnalysisGate';
+import { useAuthStore } from '@/store/authStore';
+import { useSeenPostsStore } from '@/store/seenPostsStore';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { IconName } from '@/constants/icons';
 import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
 import { buildPriceAnalysis, PriceAnalysis } from '@/utils/priceAnalysis';
+import { getPostFreshness } from '@/utils/postFreshness';
 import { buildExtrasGroups } from '@/utils/postExtras';
 
 interface Props {
@@ -43,6 +48,21 @@ export function RideCardGrid({ post, style }: Props) {
   const date = new Date(post.scheduled_at);
   const [priceAnalysis, setPriceAnalysis] = useState<PriceAnalysis | null>(null);
   const [extrasOpen, setExtrasOpen] = useState(false);
+  const { getRoutePriceStats } = useRides();
+  const priceAnalysisEnabled = usePriceAnalysisGate() && post.kind === 'ride';
+  const { session } = useAuthStore();
+  const seenVersion = useSeenPostsStore((s) => s.seen[post.id]);
+  const isOwnPost = session?.user?.id === post.user_id;
+  const freshness = isOwnPost ? null : getPostFreshness(post, seenVersion);
+
+  async function openPriceAnalysis() {
+    try {
+      const stats = await getRoutePriceStats(post.origin_city, post.destination_city);
+      setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, stats.avg_donation, Number(stats.sample_size)));
+    } catch {
+      setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, null, 0));
+    }
+  }
 
   type Tone = 'driver' | 'passenger' | 'courier' | 'hauling';
   const kindConfig: Record<RidePost['kind'], { accent: string; tone: Tone; icon: IconName; label: string; pathname: '/ride/[id]' | '/package/[id]' | '/hauling/[id]' }> = {
@@ -130,14 +150,17 @@ export function RideCardGrid({ post, style }: Props) {
             </Text>
 
             {post.suggested_donation != null && (
-              <Pressable
-                onPress={() => setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, post.distance_text))}
-                style={{ alignSelf: 'flex-end' }}
-              >
-                <Badge tone="warning" size="sm">
+              priceAnalysisEnabled ? (
+                <Pressable onPress={openPriceAnalysis} style={{ alignSelf: 'flex-end' }}>
+                  <Badge tone="warning" size="sm">
+                    {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
+                  </Badge>
+                </Pressable>
+              ) : (
+                <Badge tone="warning" size="sm" style={{ alignSelf: 'flex-end' }}>
                   {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
                 </Badge>
-              </Pressable>
+              )
             )}
           </View>
         </Pressable>
@@ -155,6 +178,21 @@ export function RideCardGrid({ post, style }: Props) {
           {formatCount(post.views_count)}
         </Text>
       </View>
+
+      {/* NEW/EDITED — mirrors the views badge above, opposite corner. See
+          RideCard.tsx's comment; per-viewer, not a global one-time flag. */}
+      {freshness && (
+        <View style={{
+          position: 'absolute', top: -10, left: 10, height: 22,
+          alignItems: 'center', justifyContent: 'center',
+          paddingHorizontal: 7, borderRadius: radii.pill,
+          backgroundColor: freshness === 'new' ? theme.driverSoft : theme.gold400, ...shadows.sm,
+        }}>
+          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 9.5, lineHeight: 9.5, color: freshness === 'new' ? theme.driverText : theme.textOnPrimary }}>
+            {freshness === 'new' ? t.feed.newPostBadge : t.feed.editedPostBadge}
+          </Text>
+        </View>
+      )}
 
       <PriceAnalysisSheet visible={!!priceAnalysis} analysis={priceAnalysis} onClose={() => setPriceAnalysis(null)} />
       {hasExtras && <ExtrasSheet visible={extrasOpen} onClose={() => setExtrasOpen(false)} groups={extrasGroups} />}

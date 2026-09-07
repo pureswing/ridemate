@@ -282,7 +282,7 @@ export default function EditProfileScreen() {
         <KeyboardWrapper>
           <ScrollView
             style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
+            contentContainerStyle={{ padding: 20, paddingBottom: insets.bottom + 40 }}
             keyboardShouldPersistTaps="handled"
           >
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 18, color: theme.text, marginBottom: 16 }}>

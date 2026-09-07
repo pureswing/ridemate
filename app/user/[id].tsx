@@ -17,9 +17,7 @@ import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { useBadges } from '@/hooks/useBadges';
 import { useRides } from '@/hooks/useRides';
 import { useUserReports } from '@/hooks/useUserReports';
-import { useCommunitySummary } from '@/hooks/useCommunitySummary';
 import { useDonorStatus } from '@/hooks/useDonorStatus';
-import { useSubscription } from '@/hooks/useSubscription';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -48,13 +46,7 @@ export default function UserProfileScreen() {
   const { getBadgeCounts } = useBadges();
   const { getPostsByUser } = useRides();
   const { createReport, loading: reporting } = useUserReports();
-  const { getCommunitySummary } = useCommunitySummary();
   const { getDonorStatuses } = useDonorStatus();
-  // Gates the AI community-feedback summary below — a donor perk for the
-  // VIEWER, same model as RouteIntelligenceCard, not a property of whose
-  // profile is being viewed (that's the separate `isDonor` state below,
-  // which drives the profile OWNER's Avatar badge).
-  const { isDonor: viewerIsDonor } = useSubscription();
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -69,7 +61,6 @@ export default function UserProfileScreen() {
   const [posts, setPosts] = useState<RidePost[]>([]);
   const [isDonor, setIsDonor] = useState(false);
   const [tripCount, setTripCount] = useState<number | null>(null);
-  const [summary, setSummary] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
   // Same wrap-avoidance trick as the tabs Profile screen's own header — see
   // that file's comment: once the city+"Member since" line wraps to 2 lines
@@ -109,9 +100,6 @@ export default function UserProfileScreen() {
       setPosts(ps);
       setTripCount(trips);
       setIsDonor(donorStatuses.get(id) ?? false);
-      // Donor-only — skips the paid OpenAI call entirely for non-donor
-      // viewers rather than fetching it and just hiding the result.
-      if (p && viewerIsDonor) getCommunitySummary(p.full_name, b).then(setSummary);
     } catch {
       setErrorMsg(t.userProfile.loadError);
     } finally {
@@ -246,26 +234,6 @@ export default function UserProfileScreen() {
               {t.profile.communityBadgesCaption}
             </Text>
           </View>
-        )}
-
-        {summary && (
-          <Card padding={16} radius={radii.lg} elevation="sm" borderColor={theme.borderGold}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <View style={{ width: 26, height: 26, borderRadius: 8, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                <LinearGradient colors={theme.gradientGold as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} />
-                <Icon name="brain" size={14} color={theme.textOnPrimary} />
-              </View>
-              <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.6, color: theme.textFaint }}>
-                {t.userProfile.communitySummaryTitle}
-              </Text>
-            </View>
-            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 13.5, color: theme.textSecondary, lineHeight: 20 }}>
-              {summary}
-            </Text>
-            <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 8 }}>
-              {t.userProfile.communitySummaryDisclaimer}
-            </Text>
-          </Card>
         )}
 
         {posts.length > 0 && (

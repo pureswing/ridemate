@@ -14,13 +14,31 @@ interface Props {
 }
 
 // Tapping a post's price badge in the feed opens this — matches the design
-// system's Feed.jsx price-analysis bottom sheet. See utils/priceAnalysis.ts
-// for why the underlying numbers are a placeholder reference, not a real
-// computed community average, yet.
+// system's Feed.jsx price-analysis bottom sheet. Backed by the real
+// per-route historical average (get_route_price_stats) — see
+// utils/priceAnalysis.ts. Only reachable at all once the platform-wide gate
+// in hooks/usePriceAnalysisGate.ts passes; below that this sheet never
+// opens. `analysis.tier` is still null here when this specific route hasn't
+// hit its own per-route sample floor yet, even with the gate open.
 export function PriceAnalysisSheet({ visible, onClose, analysis }: Props) {
   const theme = useTheme();
   const t = useTranslation();
   if (!analysis) return null;
+
+  if (analysis.tier == null) {
+    return (
+      <BottomSheet visible={visible} onClose={onClose} style={{ paddingHorizontal: 20, paddingBottom: 24 }}>
+        <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center', marginBottom: 14 }}>
+          <View style={{ width: 38, height: 38, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.textFaint + '22' }}>
+            <Icon name="brain" size={20} color={theme.textFaint} />
+          </View>
+          <Text style={{ flex: 1, fontFamily: fonts.displayBold, fontSize: 16, color: theme.text }}>
+            {t.feed.priceAnalysisNotEnoughData}
+          </Text>
+        </View>
+      </BottomSheet>
+    );
+  }
 
   const tone =
     analysis.tier === 'above' ? { color: theme.driverText, label: t.feed.priceTierAbove }

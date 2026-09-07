@@ -311,12 +311,13 @@ export interface RideAgreement {
   driver_confirmed_at?: string;
   rider_confirmed_at?: string;
   status: AgreementStatus;
+  cancelled_by?: string;
   created_at: string;
   updated_at: string;
   post?: Pick<RidePost,
     | 'origin_city' | 'destination_city' | 'origin_address' | 'destination_address'
     | 'scheduled_at' | 'type' | 'kind' | 'suggested_donation' | 'duration_seconds'
-    | 'distance_text' | 'duration_text' | 'details'
+    | 'distance_text' | 'duration_text' | 'details' | 'price_mode'
   >;
   driver?: Pick<Profile, 'full_name' | 'avatar_url' | 'username' | 'home_city'>;
   rider?: Pick<Profile, 'full_name' | 'avatar_url' | 'username'>;

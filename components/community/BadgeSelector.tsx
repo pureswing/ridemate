@@ -75,7 +75,7 @@ export function BadgeSelector({
 }: Props) {
   const t = useTranslation();
   const theme = useTheme();
-  const { giveBadges, loading } = useBadges();
+  const { giveBadges, giveFeedbackNote, loading } = useBadges();
   const { saveFavorite } = useFavorites();
   const { blockUser } = useBlockedUsers();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -117,6 +117,7 @@ export function BadgeSelector({
 
       const realBadges = Array.from(selected).filter((b) => b !== OTHER) as BadgeType[];
       if (realBadges.length > 0) await giveBadges(agreementId, receiverId, realBadges);
+      if (isOtherActive && feedback.trim()) await giveFeedbackNote(agreementId, receiverId, feedback);
 
       if (saveDriver && otherIsDriver) {
         try {

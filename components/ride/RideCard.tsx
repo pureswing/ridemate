@@ -15,11 +15,16 @@ import { ExtrasSheet } from './ExtrasSheet';
 import { RidePost, RidePostDetailsPackage, RidePostDetailsHauling, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useRides } from '@/hooks/useRides';
+import { usePriceAnalysisGate } from '@/hooks/usePriceAnalysisGate';
+import { useAuthStore } from '@/store/authStore';
+import { useSeenPostsStore } from '@/store/seenPostsStore';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { leading } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
 import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
 import { buildPriceAnalysis, PriceAnalysis } from '@/utils/priceAnalysis';
+import { getPostFreshness } from '@/utils/postFreshness';
 import { buildExtrasGroups } from '@/utils/postExtras';
 
 interface Props {
@@ -58,6 +63,21 @@ export function RideCard({ post, style }: Props) {
   const [airportOpen, setAirportOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [priceAnalysis, setPriceAnalysis] = useState<PriceAnalysis | null>(null);
+  const { getRoutePriceStats } = useRides();
+  const priceAnalysisEnabled = usePriceAnalysisGate() && post.kind === 'ride';
+  const { session } = useAuthStore();
+  const seenVersion = useSeenPostsStore((s) => s.seen[post.id]);
+  const isOwnPost = session?.user?.id === post.user_id;
+  const freshness = isOwnPost ? null : getPostFreshness(post, seenVersion);
+
+  async function openPriceAnalysis() {
+    try {
+      const stats = await getRoutePriceStats(post.origin_city, post.destination_city);
+      setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, stats.avg_donation, Number(stats.sample_size)));
+    } catch {
+      setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, null, 0));
+    }
+  }
 
   const accessibilityNeeds = post.kind === 'ride' ? (post.details as RidePostDetailsRide)?.accessibilityNeeds ?? [] : [];
   const accessOptions = ACCESSIBILITY_OPTIONS.filter((o) => accessibilityNeeds.includes(o.id));
@@ -186,11 +206,17 @@ export function RideCard({ post, style }: Props) {
             </Text>
           </Pressable>
           {post.suggested_donation != null && (
-            <Pressable onPress={() => setPriceAnalysis(buildPriceAnalysis(post.suggested_donation!, post.distance_text))}>
+            priceAnalysisEnabled ? (
+              <Pressable onPress={openPriceAnalysis}>
+                <Badge tone="warning" fontSize={14} style={{ paddingHorizontal: 14, paddingVertical: 7 }}>
+                  {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
+                </Badge>
+              </Pressable>
+            ) : (
               <Badge tone="warning" fontSize={14} style={{ paddingHorizontal: 14, paddingVertical: 7 }}>
                 {post.price_mode === 'firm' ? `$${post.suggested_donation}` : `$${post.suggested_donation} · OBO`}
               </Badge>
-            </Pressable>
+            )
           )}
         </View>
       </Card>
@@ -222,6 +248,31 @@ export function RideCard({ post, style }: Props) {
           {formatCount(post.views_count)}
         </Text>
       </View>
+
+      {/* NEW/EDITED — mirrors the views badge above, opposite corner. Per-
+          viewer (store/seenPostsStore.ts): disappears once THIS viewer opens
+          the post for the first time (or first time since the latest edit),
+          not a global one-time flag. */}
+      {freshness && (
+        <View
+          style={{
+            position: 'absolute',
+            top: -13,
+            left: 20,
+            height: 26,
+            paddingHorizontal: 10,
+            borderRadius: radii.pill,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: freshness === 'new' ? theme.driverSoft : theme.gold400,
+            ...shadows.sm,
+          }}
+        >
+          <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, lineHeight: 11, color: freshness === 'new' ? theme.driverText : theme.textOnPrimary }}>
+            {freshness === 'new' ? t.feed.newPostBadge : t.feed.editedPostBadge}
+          </Text>
+        </View>
+      )}
 
       {hasAccess && (
         <BottomSheet visible={accessOpen} onClose={() => setAccessOpen(false)} style={{ paddingHorizontal: 20, paddingBottom: 20, maxHeight: '72%' }}>

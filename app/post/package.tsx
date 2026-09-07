@@ -174,6 +174,10 @@ export default function PostPackageScreen() {
       setInfoSheet({ title: t.post.invalidDate, message: t.post.dateFormat });
       return;
     }
+    if (scheduledAt.getTime() < Date.now()) {
+      setInfoSheet({ title: t.post.pastDateTitle, message: t.post.pastDateMsg });
+      return;
+    }
 
     const details: RidePostDetailsPackage = {
       qty,

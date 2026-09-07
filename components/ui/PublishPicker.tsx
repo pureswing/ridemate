@@ -55,16 +55,9 @@ export function PublishPicker({ visible, onClose, onPublic, onPrivate, hasSaved,
                   <Icon name="passenger" size={24} color={hasSaved ? accent : theme.textFaint} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, letterSpacing: letterSpacingFor(16, tracking.tight), color: theme.text }}>
-                      {t.postVisibility.savedDriversTitle}
-                    </Text>
-                    {hasSaved && (
-                      <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 10, textTransform: 'uppercase', letterSpacing: letterSpacingFor(10, tracking.wide), color: accent, backgroundColor: theme.surfaceAlt, paddingHorizontal: 7, paddingVertical: 2, borderRadius: radii.pill }}>
-                        {t.postVisibility.savedDriversBadge}
-                      </Text>
-                    )}
-                  </View>
+                  <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, letterSpacing: letterSpacingFor(16, tracking.tight), color: theme.text }}>
+                    {t.postVisibility.savedDriversTitle}
+                  </Text>
                   <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.muted, marginTop: 3, lineHeight: 18 }}>
                     {hasSaved ? t.postVisibility.savedDriversDescAvailable : t.postVisibility.savedDriversDescEmpty}
                   </Text>

@@ -50,5 +50,23 @@ export function useBadges() {
     }
   }, [session]);
 
-  return { getBadgeCounts, getStrikeLevel, hasGivenBadges, giveBadges, loading };
+  // The optional free-text note from BadgeSelector's "Other" flow — feeds
+  // the weekly AI feedback summary (see 059_feedback_notes.sql). Not tied
+  // to a badge_type; "Other" still gives no badge/count.
+  const giveFeedbackNote = useCallback(async (
+    agreementId: string,
+    receiverId: string,
+    note: string
+  ): Promise<void> => {
+    if (!session?.user || !note.trim()) return;
+    const { error } = await supabase.from('feedback_notes').insert({
+      agreement_id: agreementId,
+      giver_id: session.user.id,
+      receiver_id: receiverId,
+      note: note.trim(),
+    });
+    if (error) throw error;
+  }, [session]);
+
+  return { getBadgeCounts, getStrikeLevel, hasGivenBadges, giveBadges, giveFeedbackNote, loading };
 }

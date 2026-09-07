@@ -386,6 +386,10 @@ export default function EditRideScreen() {
       setInfoSheet({ title: t.post.invalidDate, message: t.post.dateFormat });
       return;
     }
+    if (scheduledAt.getTime() < Date.now()) {
+      setInfoSheet({ title: t.post.pastDateTitle, message: t.post.pastDateMsg });
+      return;
+    }
 
     const stopWaypoints = stops.filter((s, i) => stopsConfirmed[i] && s.trim());
 
