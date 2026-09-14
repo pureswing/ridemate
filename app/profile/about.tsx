@@ -7,6 +7,7 @@ import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Icon } from '@/components/ui/Icon';
 import { IconButton } from '@/components/ui/IconButton';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
+import { Wordmark } from '@/components/ui/Wordmark';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -103,11 +104,9 @@ export default function AboutScreen() {
         <View style={{ alignItems: 'center', marginTop: 16 }}>
           <View style={{ width: 60, height: 60, borderRadius: 18, overflow: 'hidden', alignItems: 'center', justifyContent: 'center', ...shadows.gold }}>
             <LinearGradient colors={theme.gradientGold as [string, string, ...string[]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0 }} />
-            <Icon name="car" size={30} color={theme.textOnPrimary} />
+            <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 28, color: theme.cream }}>B</Text>
           </View>
-          <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, letterSpacing: letterSpacingFor(24, tracking.tight), color: theme.cream, marginTop: 10 }}>
-            BoteGo
-          </Text>
+          <Wordmark variant="onGradient" size={24} style={{ marginTop: 10 }} />
           <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
             v{t.about.appVersion} · Florida, USA
           </Text>

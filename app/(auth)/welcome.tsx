@@ -4,7 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
+import { Wordmark } from '@/components/ui/Wordmark';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, radii, shadows } from '@/constants/themes';
@@ -30,11 +30,9 @@ export default function WelcomeScreen() {
           end={{ x: 1, y: 1 }}
           style={{ width: 72, height: 72, borderRadius: radii.xl, alignItems: 'center', justifyContent: 'center', marginBottom: 24, ...shadows.gold }}
         >
-          <Icon name="car" size={38} color={theme.textOnPrimary} />
+          <Text style={{ fontFamily: fonts.displayExtraBold, fontSize: 34, color: theme.cream }}>B</Text>
         </LinearGradient>
-        <Text style={{ ...textStyles.h1, color: theme.text, marginBottom: 6, textAlign: 'center' }}>
-          BoteGo
-        </Text>
+        <Wordmark variant="onLight" size={30} style={{ marginBottom: 6 }} />
         <Text style={{ ...textStyles.eyebrow, color: theme.primary, marginBottom: 32, textAlign: 'center' }}>
           {t.auth.welcome.tagline}
         </Text>
