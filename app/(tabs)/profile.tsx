@@ -14,6 +14,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useSubscription } from '@/hooks/useSubscription';
+import { useIsAdmin } from '@/hooks/useIsAdmin';
 import { useBadges } from '@/hooks/useBadges';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { VehicleDetailModal } from '@/components/profile/VehicleDetailModal';
@@ -111,6 +112,7 @@ export default function ProfileScreen() {
   const { profile, session } = useAuthStore();
   const { signOut } = useAuth();
   const { tier, isDonor, daysRemaining } = useSubscription();
+  const isAdmin = useIsAdmin();
   const { getBadgeCounts, getStrikeLevel } = useBadges();
   const { getMyVehicles } = useVehicleProfile();
   const t = useTranslation();
@@ -484,6 +486,26 @@ export default function ProfileScreen() {
           subtitle={t.profile.accessibilitySubtitle}
           onPress={() => router.push('/profile/accessibility')}
         />
+        {isAdmin && (
+          <>
+            <SettingRow
+              icon="shield"
+              iconColor={theme.gold500}
+              category={t.profile.adminCategory}
+              title={t.profile.adminTitle}
+              subtitle={t.profile.adminSubtitle}
+              onPress={() => router.push('/profile/admin')}
+            />
+            <SettingRow
+              icon="user_plus"
+              iconColor={theme.gold500}
+              category={t.profile.inviteCategory}
+              title={t.profile.inviteTitle}
+              subtitle={t.profile.inviteSubtitle}
+              onPress={() => router.push('/profile/invite')}
+            />
+          </>
+        )}
         {vehicleLoading && <ActivityIndicator size="small" color={theme.primary} style={{ marginVertical: 12 }} />}
 
         {/* ── Community badges ─────────────────────────────────────────── */}

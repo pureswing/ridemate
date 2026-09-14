@@ -34,7 +34,7 @@ const SIZES: Record<Size, { height: number; paddingHorizontal: number; fontSize:
   lg: { height: controlHeight.lg, paddingHorizontal: 28, fontSize: 18, icon: 15, gap: 10 },
 };
 
-// RideMate Button — pill-shaped, bold uppercase label, colored CTA glow on primary.
+// BoteGo Button — pill-shaped, bold uppercase label, colored CTA glow on primary.
 export function Button({
   children,
   variant = 'primary',

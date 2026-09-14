@@ -14,7 +14,7 @@ export const CHILD_SEAT_OPTIONS = ['No child seat needed', 'Rear-facing infant s
 export const OVERSIZED_ITEMS = ['Walker', 'Stroller', 'Golf clubs', 'Medical equipment', 'Skis or snowboard', 'Musical instrument', 'Folding wheelchair', 'Large equipment case'];
 
 // Added from a granular-preferences review (2026-07-18) — the subset judged
-// compatible with RideMate staying a classified-ads board (self-reported,
+// compatible with BoteGo staying a classified-ads board (self-reported,
 // informational, no matching/dispatch/verification implied). See
 // project_legal_tnc_compliance memory before extending this list further.
 export const ATMOSPHERE_PREFS = ['No preference', 'Conversation welcome', 'Minimal conversation', 'No phone calls from driver', 'No music', 'Soft music', 'Passenger controls music', 'Business-call friendly', 'Sleep-friendly ride'];

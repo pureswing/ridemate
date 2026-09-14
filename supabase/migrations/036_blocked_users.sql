@@ -1,6 +1,6 @@
 -- Lets a user block another after a completed job (JobCompletionReview's
 -- "Block user" toggle, shown alongside the "Other" badge option) —
--- "Neither of you will see each other in RideMate again": the blocked
+-- "Neither of you will see each other in BoteGo again": the blocked
 -- party's posts disappear from the feed/detail for the blocker (and vice
 -- versa, since the check is symmetric), and conversations between the two
 -- become unreachable — both existing threads and starting new ones.

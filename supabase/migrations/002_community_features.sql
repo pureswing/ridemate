@@ -1,5 +1,5 @@
 -- ============================================================
--- RideMate — Community Features Migration
+-- BoteGo — Community Features Migration
 -- ride_agreements, user_favorites, ride_badges, no_show_reports
 -- post visibility (private/public with delayed release)
 -- ============================================================

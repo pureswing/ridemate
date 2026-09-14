@@ -1,4 +1,4 @@
-// Icon set — Lucide (lucide-react-native), per the RideMate Design System.
+// Icon set — Lucide (lucide-react-native), per the BoteGo Design System.
 // Semantic name -> Lucide component. Lucide is a single (stroke) style, so
 // MDI's filled/outline pairs (star/star_outline, person/person_outline, ...)
 // collapse onto the same Lucide icon here — kept as separate keys only so

@@ -17,7 +17,7 @@ import { textStyles } from '@/constants/typography';
 
 const pwOk = (p: string) => p.length >= 8;
 
-// Reached via the ridemate://reset-password link from the reset email — the
+// Reached via the botego://reset-password link from the reset email — the
 // recovery session is set asynchronously by lib/authDeepLink.ts as the app cold
 // boots, which can lose the race with this screen mounting. Wait briefly for it
 // before declaring the link invalid.

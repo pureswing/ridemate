@@ -106,7 +106,7 @@ export default function AboutScreen() {
             <Icon name="car" size={30} color={theme.textOnPrimary} />
           </View>
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 24, letterSpacing: letterSpacingFor(24, tracking.tight), color: theme.cream, marginTop: 10 }}>
-            RideMate
+            BoteGo
           </Text>
           <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>
             v{t.about.appVersion} · Florida, USA
@@ -227,7 +227,7 @@ export default function AboutScreen() {
         </Section>
 
         <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.textFaint, textAlign: 'center', lineHeight: 18 }}>
-          RideMate v{t.about.appVersion} · © 2026 RideMate LLC{'\n'}{t.about.footer}
+          BoteGo v{t.about.appVersion} · © 2026 BoteGo{'\n'}{t.about.footer}
         </Text>
       </ScrollView>
     </View>

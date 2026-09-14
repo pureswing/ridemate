@@ -549,7 +549,7 @@ export default function EditHaulingScreen() {
           <Icon name="shield" size={16} color={theme.gold400} />
           <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
             <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>No liability coverage. </Text>
-            RideMate provides no property or liability insurance of any kind. Hauling work is at the sole risk of the poster and hauler. The platform is not liable for property damage, loss, or injury.
+            BoteGo provides no property or liability insurance of any kind. Hauling work is at the sole risk of the poster and hauler. The platform is not liable for property damage, loss, or injury.
           </Text>
         </View>
 

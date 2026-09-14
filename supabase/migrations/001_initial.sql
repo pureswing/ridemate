@@ -1,5 +1,5 @@
 -- ============================================================
--- RideMate MVP - Supabase Schema
+-- BoteGo MVP - Supabase Schema
 -- Tablón de anuncios de movilidad para Florida
 -- Modelo: directorio de anuncios, sin intermediación de pagos
 -- ============================================================

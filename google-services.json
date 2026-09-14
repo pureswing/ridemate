@@ -7,6 +7,25 @@
   "client": [
     {
       "client_info": {
+        "mobilesdk_app_id": "1:416362850710:android:e821fa48d372c9763cd5b7",
+        "android_client_info": {
+          "package_name": "com.botego.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZ83UQf4s54ow0cBEJu0o16FXfIH7bwQg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:416362850710:android:7ef5692934dda67c3cd5b7",
         "android_client_info": {
           "package_name": "com.ridemate.app"

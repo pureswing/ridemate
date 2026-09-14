@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 
 // Supabase email links (confirm signup, password recovery) redirect to
-// ridemate://verify#access_token=...&refresh_token=...&type=... — the tokens
+// botego://verify#access_token=...&refresh_token=...&type=... — the tokens
 // ride in the URL *fragment* (implicit grant), not the query string, so
 // expo-linking's queryParams won't see them; parse the fragment by hand and
 // hand the tokens to the SDK so `supabase.auth.getSession()` picks them up.

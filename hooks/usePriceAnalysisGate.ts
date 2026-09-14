@@ -3,7 +3,7 @@ import { useRides } from '@/hooks/useRides';
 
 // Platform-wide floor behind the feed's price-analysis pill/modal — see
 // supabase/migrations/062_price_analysis_platform_gate.sql. The whole
-// feature (not just one route's number) stays hidden until RideMate has
+// feature (not just one route's number) stays hidden until BoteGo has
 // ~100 real priced ride posts total. Every RideCard/RideCardGrid instance
 // in a feed would otherwise each fire this RPC on mount — cached at module
 // scope so it only actually runs once per app session, refreshed lazily if

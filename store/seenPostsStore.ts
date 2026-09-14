@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const STORAGE_KEY = '@ridemate_seen_posts';
+const STORAGE_KEY = '@botego_seen_posts';
 
 // Powers the feed's "NEW"/"EDITED" badge (components/ride/RideCard.tsx +
 // RideCardGrid.tsx, see utils/postFreshness.ts) — per-viewer, on-device only

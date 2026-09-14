@@ -210,10 +210,10 @@ export default function RideDetailScreen() {
 
   function handleShare() {
     if (!post) return;
-    // Custom-scheme deep link (app.json's "ridemate" scheme) — opens straight
+    // Custom-scheme deep link (app.json's "botego" scheme) — opens straight
     // to this post if the recipient has the app installed. There's no web
     // fallback (no hosted site to redirect a browser to), so it does nothing
-    // for someone without RideMate — same limitation as any bare custom-
+    // for someone without BoteGo — same limitation as any bare custom-
     // scheme link, just no longer a dead-end text-only message.
     const url = Linking.createURL(`/ride/${post.id}`);
     Share.share({ message: `${post.origin_city} → ${post.destination_city} — ${t.rideDetail.shareMessage}\n${url}` });

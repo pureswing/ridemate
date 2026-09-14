@@ -179,7 +179,7 @@ export function useRides() {
   // supabase/migrations/062_price_analysis_platform_gate.sql — platform-wide
   // floor behind the feed's price-analysis pill (separate from
   // getRoutePriceStats' own per-route floor): the feature stays hidden
-  // everywhere until RideMate has ~100 real priced ride posts total.
+  // everywhere until BoteGo has ~100 real priced ride posts total.
   async function getPlatformPriceSampleSize(): Promise<number> {
     const { data, error } = await supabase.rpc('get_platform_ride_price_sample_size');
     if (error) throw error;

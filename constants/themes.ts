@@ -1,4 +1,4 @@
-// "Miami Sunset" — the single shipped theme (RideMate Design System, tokens/colors.css [data-theme="day"]).
+// "Miami Sunset" — the single shipped theme (BoteGo Design System, tokens/colors.css [data-theme="day"]).
 // The dark "Miami Nights" pass was retired for MVP simplicity — no theme toggle.
 
 export interface AppTheme {
@@ -52,7 +52,7 @@ export interface AppTheme {
   fontDisplay: string;
   fontItalic: string;
   fontBody: string;
-  // Core component tokens (RideMate Design System — tokens/*.css)
+  // Core component tokens (BoteGo Design System — tokens/*.css)
   textOnPrimary: string;
   textFaint: string;
   borderGold: string;

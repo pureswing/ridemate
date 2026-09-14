@@ -67,6 +67,9 @@ export interface Profile {
   notif_reminders: boolean;
   // supabase/migrations/056_trusted_drivers_first_default.sql
   trusted_drivers_first: boolean;
+  // supabase/migrations/063_admin_invites.sql — TRUE only for the app owner's
+  // own account; gates the admin self-toggle and invite screens.
+  is_admin: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -80,6 +83,20 @@ export interface Subscription {
   period_start?: string;
   period_end?: string;
   created_at: string;
+}
+
+// supabase/migrations/063_admin_invites.sql — an admin-sent Donor seeding
+// invite, tracked by email until (if) that email signs up.
+export interface Invite {
+  id: string;
+  email: string;
+  invited_by: string;
+  donor_months: number;
+  status: 'pending' | 'sent' | 'failed' | 'accepted';
+  accepted_by?: string;
+  error?: string;
+  created_at: string;
+  accepted_at?: string;
 }
 
 // Kind-specific fields that don't need SQL-level filtering yet — stored in

@@ -61,7 +61,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 async function reverseGeocodeCity(lat: number, lon: number): Promise<string | undefined> {
   const res = await withTimeout(
     fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=10&addressdetails=1`, {
-      headers: { 'User-Agent': 'RideMate/1.0 (contact: support@ridemate.app)' },
+      headers: { 'User-Agent': 'BoteGo/1.0 (contact: support@botego.app)' },
     }),
     5000
   );

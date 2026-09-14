@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-// Tokens mirror the "Miami Sunset" theme from the RideMate Design System
+// Tokens mirror the "Miami Sunset" theme from the BoteGo Design System
 // (tokens/colors.css [data-theme="day"], spacing.css, effects.css).
 module.exports = {
   content: [

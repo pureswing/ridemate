@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Language } from '@/constants/i18n';
 
-const STORAGE_KEY = '@ridemate_language';
+const STORAGE_KEY = '@botego_language';
 
 interface LanguageState {
   language: Language;

@@ -7,7 +7,7 @@ interface AuthState {
   profile: Profile | null;
   subscription: Subscription | null;
   loading: boolean;
-  // A recovery-link session (ridemate://reset-password) is a real Supabase session,
+  // A recovery-link session (botego://reset-password) is a real Supabase session,
   // but it must NOT be treated as "logged in" — it exists only so the user can set a
   // new password. This flag stops the (auth) layout from redirecting it to (tabs).
   isPasswordRecovery: boolean;

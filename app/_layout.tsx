@@ -67,8 +67,8 @@ export default function RootLayout() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Email-confirmation and password-recovery links open ridemate://verify or
-  // ridemate://reset-password with the session tokens in the URL fragment.
+  // Email-confirmation and password-recovery links open botego://verify or
+  // botego://reset-password with the session tokens in the URL fragment.
   useEffect(() => {
     Linking.getInitialURL().then((url) => { if (url) applyAuthDeepLink(url); });
     const sub = Linking.addEventListener('url', ({ url }) => applyAuthDeepLink(url));

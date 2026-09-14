@@ -66,7 +66,7 @@ export function useAuth() {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        // Linking.createURL resolves to ridemate://verify in a real build, but to
+        // Linking.createURL resolves to botego://verify in a real build, but to
         // exp://<dev-host>:<port>/--/verify in Expo Go — hardcoding the custom scheme
         // would silently break email links while testing in Expo Go.
         options: { data: { full_name: fullName }, emailRedirectTo: Linking.createURL('verify') },

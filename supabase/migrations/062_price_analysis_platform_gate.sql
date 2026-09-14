@@ -2,7 +2,7 @@
 -- to the real per-route average from get_route_price_stats (009_route_price_stats.sql)
 -- instead of the flat IRS-mileage-rate placeholder it used before, and adds a
 -- platform-wide "not enough real data yet" gate: the feature stays hidden
--- everywhere until RideMate has accumulated ~100 real priced ride posts —
+-- everywhere until BoteGo has accumulated ~100 real priced ride posts —
 -- below that, a handful of atypical prices could produce a misleading
 -- comparison, which is worse than showing nothing.
 

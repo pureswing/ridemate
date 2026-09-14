@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "RideMate",
-    "slug": "ridemate",
+    "name": "BoteGo",
+    "slug": "botego",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "ridemate",
+    "scheme": "botego",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
@@ -14,10 +14,10 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.ridemate.app",
+      "bundleIdentifier": "com.botego.app",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "RideMate usa tu ubicación para mostrarte viajes cerca de ti.",
-        "NSLocationAlwaysUsageDescription": "RideMate usa tu ubicación para mostrarte viajes cerca de ti."
+        "NSLocationWhenInUseUsageDescription": "BoteGo usa tu ubicación para mostrarte viajes cerca de ti.",
+        "NSLocationAlwaysUsageDescription": "BoteGo usa tu ubicación para mostrarte viajes cerca de ti."
       }
     },
     "android": {
@@ -25,7 +25,7 @@
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#FFFAF5"
       },
-      "package": "com.ridemate.app",
+      "package": "com.botego.app",
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "ACCESS_FINE_LOCATION",

@@ -492,7 +492,7 @@ export default function EditPackageScreen() {
             <Icon name="shield" size={16} color={theme.gold400} />
             <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
               <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>Zero insurance coverage. </Text>
-              RideMate provides no cargo insurance of any kind. All shipments are at the sole risk of the sender and carrier. The platform is not liable for loss, damage, or theft.
+              BoteGo provides no cargo insurance of any kind. All shipments are at the sole risk of the sender and carrier. The platform is not liable for loss, damage, or theft.
             </Text>
           </View>
           {isHighValue && (
@@ -517,7 +517,7 @@ export default function EditPackageScreen() {
                   High-value shipment — ${Math.round(declaredNum).toLocaleString()} declared
                 </Text>
                 <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 17 }}>
-                  I understand this shipment exceeds $200 and is sent entirely at my own risk. RideMate will not compensate for any loss or damage under any circumstance.
+                  I understand this shipment exceeds $200 and is sent entirely at my own risk. BoteGo will not compensate for any loss or damage under any circumstance.
                 </Text>
               </View>
             </TouchableOpacity>

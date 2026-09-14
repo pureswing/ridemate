@@ -33,7 +33,7 @@ export default function WelcomeScreen() {
           <Icon name="car" size={38} color={theme.textOnPrimary} />
         </LinearGradient>
         <Text style={{ ...textStyles.h1, color: theme.text, marginBottom: 6, textAlign: 'center' }}>
-          RideMate
+          BoteGo
         </Text>
         <Text style={{ ...textStyles.eyebrow, color: theme.primary, marginBottom: 32, textAlign: 'center' }}>
           {t.auth.welcome.tagline}
