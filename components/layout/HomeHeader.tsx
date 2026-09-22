@@ -14,21 +14,27 @@ import { useAuthStore } from '@/store/authStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useWeather } from '@/hooks/useWeather';
 import { useNotifications } from '@/hooks/useNotifications';
-import { PostType } from '@/types';
+import { RidePostKind } from '@/types';
 import { fonts, shadows } from '@/constants/themes';
 import { textStyles, leading } from '@/constants/typography';
 
 type Layout = 'list' | 'grid';
 
 interface Props {
-  filterType: 'all' | PostType;
-  onFilterChange: (v: 'all' | PostType) => void;
+  // Filters by service (ride/package/hauling), not offer-vs-request — kept in
+  // the rideStore (not local state) so this stays in sync with the
+  // FilterDrawer's own Service section, the same selection surfaced twice.
+  filterKind: 'all' | RidePostKind;
+  onFilterKindChange: (v: 'all' | RidePostKind) => void;
   onNotificationsPress?: () => void;
   onFiltersPress?: () => void;
   activeFilterCount?: number;
   layout: Layout;
   onLayoutChange: (v: Layout) => void;
   resultsCount: number;
+  // '' = no city filter active — appended to the results line when set,
+  // e.g. "1 ride found in Lakeland".
+  originCity: string;
 }
 
 function greeting(name: string, t: any): { line1: string; line2: string; accent: string } {
@@ -46,7 +52,7 @@ function greeting(name: string, t: any): { line1: string; line2: string; accent:
 
 // Feed header — the design system's "midnight" gradient hero resolves to the
 // warm gold gradient in the single Miami Sunset theme (see welcome.tsx note).
-export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, onFiltersPress, activeFilterCount = 0, layout, onLayoutChange, resultsCount }: Props) {
+export function HomeHeader({ filterKind, onFilterKindChange, onNotificationsPress, onFiltersPress, activeFilterCount = 0, layout, onLayoutChange, resultsCount, originCity }: Props) {
   const theme = useTheme();
   const { profile, session } = useAuthStore();
   const { getUnreadCount } = useNotifications();
@@ -156,10 +162,14 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
             </View>
           )}
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 6, flex: 1 }}>
-          <Chip size="sm" selected={filterType === 'all'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterChange('all')}>{t.feed.chipAll}</Chip>
-          <Chip size="sm" selected={filterType === 'offer'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterChange('offer')}>{t.feed.chipPooling}</Chip>
-          <Chip size="sm" selected={filterType === 'request'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterChange('request')}>{t.feed.chipRide}</Chip>
+        {/* Icon-only chips — no label means no dependency on how long the
+            word is in the active language (Spanish "Paquetería" was what
+            forced the row to shrink text down to unreadable before). */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, flex: 1 }}>
+          <Chip size="md" icon="rows_3" selected={filterKind === 'all'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterKindChange('all')} accessibilityLabel={t.feed.chipAll}>{''}</Chip>
+          <Chip size="md" icon="car" selected={filterKind === 'ride'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterKindChange('ride')} accessibilityLabel={t.filterDrawer.serviceRides}>{''}</Chip>
+          <Chip size="md" icon="package" selected={filterKind === 'package'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterKindChange('package')} accessibilityLabel={t.filterDrawer.serviceCourier}>{''}</Chip>
+          <Chip size="md" icon="truck" selected={filterKind === 'hauling'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onFilterKindChange('hauling')} accessibilityLabel={t.filterDrawer.serviceHauling}>{''}</Chip>
         </View>
         {/* Single toggle — icon reflects the currently active layout, tap flips to the other. */}
         <IconButton
@@ -173,7 +183,8 @@ export function HomeHeader({ filterType, onFilterChange, onNotificationsPress, o
       </View>
 
       <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 10 }}>
-        {resultsCount} {t.feed.resultsCount}
+        {resultsCount} {resultsCount === 1 ? t.feed.resultsCountOne : t.feed.resultsCountOther}
+        {originCity ? ` ${t.feed.resultsCountIn.replace('{city}', originCity)}` : ''}
       </Text>
     </LinearGradient>
   );

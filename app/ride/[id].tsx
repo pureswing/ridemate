@@ -36,6 +36,7 @@ import { formatEta, formatDurationShort } from '@/utils/dateFormat';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
+import { translatePrefLabel } from '@/constants/rideFormOptions';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
@@ -460,7 +461,7 @@ export default function RideDetailScreen() {
                     </Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {details.comfortPrefs!.map((c) => (
-                        <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
+                        <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{translatePrefLabel(c, t.locale)}</RuleChip>
                       ))}
                     </View>
                   </View>
@@ -472,7 +473,7 @@ export default function RideDetailScreen() {
                     </Text>
                     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                       {details.climatePrefs!.map((c) => (
-                        <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{c}</RuleChip>
+                        <RuleChip key={c} active accent={accent} theme={theme} onPress={() => {}}>{translatePrefLabel(c, t.locale)}</RuleChip>
                       ))}
                       {!!details.tempPref && (
                         <RuleChip active accent={accent} theme={theme} onPress={() => {}}>{`${details.tempPref}°F`}</RuleChip>

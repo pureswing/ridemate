@@ -6,7 +6,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import { OVERSIZED_ITEMS } from '@/constants/rideFormOptions';
+import { OVERSIZED_ITEMS, translatePrefLabel } from '@/constants/rideFormOptions';
 
 // Plain RN Pressable, not the shared gesture-handler-based RuleChip — this
 // renders inside a BottomSheet's Modal, and nesting a gesture-handler
@@ -66,7 +66,7 @@ export function OversizedSheet({ value, onSave, theme, t, accent }: Props) {
       </Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {OVERSIZED_ITEMS.map((item) => (
-          <OversizedChip key={item} active={types.includes(item)} onPress={() => toggle(item)} accent={accent} theme={theme}>{item}</OversizedChip>
+          <OversizedChip key={item} active={types.includes(item)} onPress={() => toggle(item)} accent={accent} theme={theme}>{translatePrefLabel(item, t.locale)}</OversizedChip>
         ))}
       </View>
       <View style={{ marginTop: 16 }}>

@@ -27,7 +27,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Conversation, Message, RideAgreement, TripRecord, VehicleProfile } from '@/types';
 import { fonts, radii, shadows } from '@/constants/themes';
-import { AMENITY_LABELS } from '@/components/profile/VehicleDetailModal';
+import { buildAmenityLabels } from '@/components/profile/VehicleDetailModal';
 import { IconName } from '@/constants/icons';
 
 // Light polling instead of a Supabase Realtime channel — no realtime
@@ -330,6 +330,7 @@ function VehiclePeekCard({
   showPlate?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const AMENITY_LABELS = buildAmenityLabels(t);
 
   const subtitle = vehicle
     ? `${vehicle.year} ${vehicle.make} ${vehicle.model} · ${vehicle.color}`

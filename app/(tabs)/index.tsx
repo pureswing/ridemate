@@ -36,14 +36,32 @@ export default function FeedScreen() {
   const { session } = useAuthStore();
   const theme = useTheme();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
-  // UI only for now — this drawer isn't wired into the actual feed query yet,
-  // except myPostsOnly (applied client-side below).
+  // minSeats, features, airportOnly, verifiedOnly are still UI only. The
+  // rest are real: myPostsOnly/maxPrice client-side below; kind and
+  // originCity live in the rideStore (not local state) so they're shared
+  // with the header's own quick chips / server-side fetchPosts instead of
+  // being independent selections.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
-  const activeAdvancedFilterCount = countActiveFilters(advancedFilters);
+  const activeAdvancedFilterCount = countActiveFilters(advancedFilters, filters.kind, filters.originCity);
   const visiblePosts = useMemo(
-    () => advancedFilters.myPostsOnly ? posts.filter((p) => p.user_id === session?.user?.id) : posts,
-    [posts, advancedFilters.myPostsOnly, session?.user?.id]
+    () => posts
+      .filter((p) => advancedFilters.myPostsOnly ? p.user_id === session?.user?.id : true)
+      .filter((p) => filters.originCity ? p.origin_city === filters.originCity : true)
+      // 0 = "Any" and 150 = the slider's own max ("$150+", open-ended) both
+      // mean no cap — a post with no suggested_donation at all also always
+      // passes rather than being excluded by a filter it has no value for.
+      .filter((p) => (advancedFilters.maxPrice === 0 || advancedFilters.maxPrice === 150)
+        ? true
+        : (p.suggested_donation == null || p.suggested_donation <= advancedFilters.maxPrice)),
+    [posts, advancedFilters.myPostsOnly, advancedFilters.maxPrice, filters.originCity, session?.user?.id]
+  );
+  // `posts` is already fetched scoped to the active kind (useRides), so this
+  // is just its distinct origin cities — the drawer's Origin city list stays
+  // limited to cities that actually have a post under the current selection.
+  const availableCities = useMemo(
+    () => Array.from(new Set(posts.map((p) => p.origin_city))).sort(),
+    [posts]
   );
   // Separate from the store's `loading` (also set by filter-triggered fetches) —
   // this only tracks an explicit user pull, so switching chips doesn't pop the
@@ -67,13 +85,14 @@ export default function FeedScreen() {
 
   const header = (
     <HomeHeader
-      filterType={filters.type}
-      onFilterChange={(v) => setFilters({ type: v })}
+      filterKind={filters.kind}
+      onFilterKindChange={(v) => setFilters({ kind: v })}
       onFiltersPress={() => setFiltersOpen(true)}
       activeFilterCount={activeAdvancedFilterCount}
       layout={layout}
       onLayoutChange={setLayout}
       resultsCount={visiblePosts.length}
+      originCity={filters.originCity}
     />
   );
 
@@ -126,6 +145,11 @@ export default function FeedScreen() {
         onClose={() => setFiltersOpen(false)}
         value={advancedFilters}
         onChange={setAdvancedFilters}
+        kind={filters.kind}
+        onKindChange={(v) => setFilters({ kind: v })}
+        cities={availableCities}
+        originCity={filters.originCity}
+        onOriginCityChange={(v) => setFilters({ originCity: v })}
       />
     </View>
   );

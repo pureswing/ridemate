@@ -49,8 +49,12 @@ export function useRides() {
         .order('created_at', { ascending: false });
 
       if (filters.type !== 'all') query = query.eq('type', filters.type);
-      if (filters.originCity)
-        query = query.ilike('origin_city', `%${filters.originCity}%`);
+      if (filters.kind !== 'all') query = query.eq('kind', filters.kind);
+      // originCity is deliberately NOT applied here (client-side in
+      // app/(tabs)/index.tsx's visiblePosts instead) — the FilterDrawer's
+      // Origin city list is itself derived from this same fetch, so if the
+      // fetch were also narrowed by the selected city, picking one would
+      // collapse the list down to just that city on the next fetch.
       if (filters.destinationCity)
         query = query.ilike('destination_city', `%${filters.destinationCity}%`);
       if (filters.date) {

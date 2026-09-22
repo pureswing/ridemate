@@ -9,30 +9,28 @@ import { RangeSlider } from '@/components/ui/RangeSlider';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, radii, shadows } from '@/constants/themes';
-import { VEHICLE_TYPES, CLIMATE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, COMFORT_PREFS, ATMOSPHERE_PREFS } from '@/constants/rideFormOptions';
+import { VEHICLE_TYPES, CLIMATE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, COMFORT_PREFS, ATMOSPHERE_PREFS, translatePrefLabel } from '@/constants/rideFormOptions';
 import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
+import { RidePostKind } from '@/types';
 
 export interface FilterState {
-  type: 'all' | 'offer' | 'request';
-  kind: 'all' | 'ride' | 'package' | 'hauling';
   minSeats: number; // 0 = any
-  originCity: string; // 'all' = any
   maxPrice: number; // 0 = any
   features: string[];
-  // Real, wired-up filter (unlike the rest of this drawer, still UI-only —
-  // see this file's own header comment) — the post creator's own active
-  // posts, applied client-side against the signed-in user's id in
-  // app/(tabs)/index.tsx.
+  // myPostsOnly is a real, wired-up filter (unlike the rest of this drawer,
+  // still UI-only — see this file's own header comment), applied client-side
+  // in app/(tabs)/index.tsx's visiblePosts. Service (kind) and Origin city
+  // used to live here too, but both are real AND shared with other real
+  // state (the header's own quick chips for kind; the rideStore's own
+  // server-side query for originCity), so they're lifted out and passed in
+  // as their own prop pairs instead of living in this locally-owned bag.
   myPostsOnly: boolean;
   airportOnly: boolean;
   verifiedOnly: boolean;
 }
 
 export const DEFAULT_FILTER_STATE: FilterState = {
-  type: 'all',
-  kind: 'all',
   minSeats: 0,
-  originCity: 'all',
   maxPrice: 0,
   features: [],
   myPostsOnly: false,
@@ -40,12 +38,11 @@ export const DEFAULT_FILTER_STATE: FilterState = {
   verifiedOnly: false,
 };
 
-export function countActiveFilters(f: FilterState): number {
+export function countActiveFilters(f: FilterState, kind: 'all' | RidePostKind, originCity: string): number {
   return [
-    f.type !== 'all',
-    f.kind !== 'all',
+    kind !== 'all',
+    originCity !== '',
     f.minSeats > 0,
-    f.originCity !== 'all',
     f.maxPrice > 0,
     f.features.length > 0,
     f.myPostsOnly,
@@ -54,18 +51,17 @@ export function countActiveFilters(f: FilterState): number {
   ].filter(Boolean).length;
 }
 
-// Placeholder — real logic will source this from actual feed data once the
-// filter is wired up (this pass is UI only).
-const ORIGIN_CITIES = ['Miami', 'Orlando', 'Tampa', 'Jacksonville', 'Fort Lauderdale'];
-
 // Reuses the exact same option catalogs as the ride post form
 // (constants/rideFormOptions.ts) instead of a separate hand-maintained
 // list — "No preference" filtered out since it's meaningless as a filter
 // (an unchecked category already means "no preference"). English-only,
 // matching that file's own established precedent against half-translating
-// ~50 more strings (see its header comment).
-function toFeatureItems(catKey: string, options: string[]): { key: string; label: string }[] {
-  return options.filter((o) => o !== 'No preference').map((label) => ({ key: `${catKey}:${label}`, label }));
+// ~50 more strings (see its header comment) — EXCEPT comfort/climateControl/
+// cleanliness, which pass `translate` (translatePrefLabel) so the option
+// stays the real English value as the storage key, with just the rendered
+// label going through the same lookup app/post/ride.tsx uses.
+function toFeatureItems(catKey: string, options: string[], translate?: (label: string) => string): { key: string; label: string }[] {
+  return options.filter((o) => o !== 'No preference').map((label) => ({ key: `${catKey}:${label}`, label: translate ? translate(label) : label }));
 }
 
 interface Props {
@@ -73,6 +69,18 @@ interface Props {
   onClose: () => void;
   value: FilterState;
   onChange: (v: FilterState) => void;
+  // Real, shared with the header's own quick chips (via the rideStore) —
+  // see FilterState's header comment for why this isn't part of `value`.
+  kind: 'all' | RidePostKind;
+  onKindChange: (v: 'all' | RidePostKind) => void;
+  // Real origin cities present in the feed for the active kind selection —
+  // `posts` is already fetched server-side scoped to `kind` (see useRides),
+  // so this is just the distinct origin_city values from that same result
+  // set, computed by the caller (app/(tabs)/index.tsx).
+  cities: string[];
+  // Real, server-side (useRides' fetchPosts ilike-filters on this) — '' = any.
+  originCity: string;
+  onOriginCityChange: (v: string) => void;
 }
 
 // Right-sliding filter drawer for the home feed — mirrors the Feed.jsx
@@ -81,7 +89,7 @@ interface Props {
 // right at ~82% width. UI only for now: value/onChange are fully controlled
 // by the caller so a later pass can wire real feed filtering without
 // touching this component.
-export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
+export function FilterDrawer({ visible, onClose, value, onChange, kind, onKindChange, cities, originCity, onOriginCityChange }: Props) {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -92,6 +100,16 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
   const backdropOpacity = useRef(new Animated.Value(0)).current;
   const drawerTranslateX = useRef(new Animated.Value(drawerWidth)).current;
   const [openCategory, setOpenCategory] = useState<string | null>(null);
+
+  // A city selected under one service (e.g. Miami hauling) can vanish from
+  // the list after switching kind — fall back to "any" rather than keep a
+  // selection that no longer corresponds to anything in `cities`.
+  useEffect(() => {
+    if (originCity !== '' && !cities.includes(originCity)) {
+      onOriginCityChange('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cities]);
 
   useEffect(() => {
     if (visible) {
@@ -118,7 +136,7 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
 
   if (!mounted) return null;
 
-  const activeCount = countActiveFilters(value);
+  const activeCount = countActiveFilters(value, kind, originCity);
   const accent = theme.gradientJade[0];
 
   function patch(p: Partial<FilterState>) {
@@ -135,7 +153,7 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
     // constants/accessibilityOptions.ts) instead of a separate hand-picked
     // list, so a filter selection actually corresponds to something a post
     // could really declare.
-    { key: 'comfort', label: t.filterDrawer.featureCategories.comfort, items: toFeatureItems('comfort', COMFORT_PREFS) },
+    { key: 'comfort', label: t.filterDrawer.featureCategories.comfort, items: toFeatureItems('comfort', COMFORT_PREFS, (l) => translatePrefLabel(l, t.locale)) },
     { key: 'entertainment', label: t.filterDrawer.featureCategories.entertainment, items: toFeatureItems('entertainment', ATMOSPHERE_PREFS) },
     {
       key: 'accessibility',
@@ -143,8 +161,8 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
       items: ACCESSIBILITY_OPTIONS.map((o) => ({ key: `accessibility:${o.id}`, label: o.label })),
     },
     { key: 'vehicleType', label: t.filterDrawer.featureCategories.vehicleType, items: toFeatureItems('vehicleType', VEHICLE_TYPES) },
-    { key: 'climateControl', label: t.filterDrawer.featureCategories.climateControl, items: toFeatureItems('climateControl', CLIMATE_PREFS) },
-    { key: 'cleanliness', label: t.filterDrawer.featureCategories.cleanliness, items: toFeatureItems('cleanliness', CLEANLINESS_PREFS) },
+    { key: 'climateControl', label: t.filterDrawer.featureCategories.climateControl, items: toFeatureItems('climateControl', CLIMATE_PREFS, (l) => translatePrefLabel(l, t.locale)) },
+    { key: 'cleanliness', label: t.filterDrawer.featureCategories.cleanliness, items: toFeatureItems('cleanliness', CLEANLINESS_PREFS, (l) => translatePrefLabel(l, t.locale)) },
     { key: 'petTransportation', label: t.filterDrawer.featureCategories.petTransportation, items: toFeatureItems('petTransportation', PET_PREFS) },
     { key: 'pickupPreferences', label: t.filterDrawer.featureCategories.pickupPreferences, items: toFeatureItems('pickupPreferences', PICKUP_PREFS) },
     { key: 'driverLanguage', label: t.filterDrawer.featureCategories.driverLanguage, items: toFeatureItems('driverLanguage', DRIVER_LANGUAGE_PREFS) },
@@ -168,7 +186,7 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
             <Text style={{ fontFamily: fonts.displayBold, fontSize: 20, color: theme.text }}>{t.filterDrawer.title}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
               {activeCount > 0 && (
-                <Pressable onPress={() => onChange(DEFAULT_FILTER_STATE)}>
+                <Pressable onPress={() => { onChange(DEFAULT_FILTER_STATE); onKindChange('all'); onOriginCityChange(''); }}>
                   <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: accent }}>{t.filterDrawer.clearAll}</Text>
                 </Pressable>
               )}
@@ -182,21 +200,13 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
           </View>
 
           <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 32, gap: 24 }} showsVerticalScrollIndicator={false}>
-            {/* Type of post */}
-            <Section label={t.filterDrawer.typeOfPost} theme={theme}>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                <Chip size="sm" selected={value.type === 'all'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => patch({ type: 'all' })}>{t.filterDrawer.typeAll}</Chip>
-                <Chip size="sm" selected={value.type === 'offer'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => patch({ type: 'offer' })}>{t.filterDrawer.typePooling}</Chip>
-                <Chip size="sm" selected={value.type === 'request'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => patch({ type: 'request' })}>{t.filterDrawer.typeRide}</Chip>
-              </View>
-            </Section>
-
-            {/* Service */}
+            {/* Service — shared with the header's own quick chips, see Props */}
             <Section label={t.filterDrawer.service} theme={theme}>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                <Chip size="sm" selected={value.kind === 'ride'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => patch({ kind: 'ride' })}>{t.filterDrawer.serviceRides}</Chip>
-                <Chip size="sm" selected={value.kind === 'package'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => patch({ kind: 'package' })}>{t.filterDrawer.serviceCourier}</Chip>
-                <Chip size="sm" selected={value.kind === 'hauling'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => patch({ kind: 'hauling' })}>{t.filterDrawer.serviceHauling}</Chip>
+                <Chip size="sm" selected={kind === 'all'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onKindChange('all')}>{t.filterDrawer.typeAll}</Chip>
+                <Chip size="sm" selected={kind === 'ride'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onKindChange('ride')}>{t.filterDrawer.serviceRides}</Chip>
+                <Chip size="sm" selected={kind === 'package'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onKindChange('package')}>{t.filterDrawer.serviceCourier}</Chip>
+                <Chip size="sm" selected={kind === 'hauling'} color={theme.gradientJade} shadow={shadows.xs} onPress={() => onKindChange('hauling')}>{t.filterDrawer.serviceHauling}</Chip>
               </View>
             </Section>
 
@@ -238,9 +248,9 @@ export function FilterDrawer({ visible, onClose, value, onChange }: Props) {
               <CategoryGroup
                 catKey="originCity"
                 label={t.filterDrawer.originCity}
-                items={[{ key: 'all', label: t.filterDrawer.anyCity }, ...ORIGIN_CITIES.map((c) => ({ key: c, label: c }))]}
-                selectedKeys={[value.originCity]}
-                onToggleItem={(key) => patch({ originCity: key })}
+                items={[{ key: 'all', label: t.filterDrawer.anyCity }, ...cities.map((c) => ({ key: c, label: c }))]}
+                selectedKeys={[originCity === '' ? 'all' : originCity]}
+                onToggleItem={(key) => onOriginCityChange(key === 'all' ? '' : key)}
                 multi={false}
                 openCategory={openCategory}
                 setOpenCategory={setOpenCategory}

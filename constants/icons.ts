@@ -32,7 +32,7 @@ import {
   // weather
   Sun, Cloud, CloudRain,
   // feed layout controls
-  SlidersHorizontal, AlignJustify, LayoutGrid,
+  SlidersHorizontal, AlignJustify, LayoutGrid, Rows3,
   // saved-address icon picker
   MapPinHouse, BriefcaseBusiness, Plane, TrainFront, MapPinCheck,
   Church, School, Factory, Store, TreePine,
@@ -185,6 +185,8 @@ export const icons = {
   accessible: Accessibility,
   pets_ok: PawPrint,
   no_pets: PawPrint,            // ⚠ same glyph as pets_ok — no "off" variant, revisit
+  trunk_space: Luggage,
+  snacks: Candy,
 
   // ── Fuel types ────────────────────────────────────────────────────────
   fuel: Fuel,
@@ -207,6 +209,7 @@ export const icons = {
   sliders: SlidersHorizontal,
   layout_list: AlignJustify,
   layout_grid: LayoutGrid,
+  rows_3: Rows3,
 
   // ── Saved-address icon picker (10 options) ───────────────────────────────
   addr_home: MapPinHouse,

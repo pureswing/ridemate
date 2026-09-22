@@ -385,6 +385,7 @@ export type VehicleAmenity =
   | 'baby_seat'
   | 'ac_unit'
   | 'accessible'
+  | 'trunk_space'
   // Smoke — dual state (select one)
   | 'smoking'
   | 'smoke_free'
@@ -403,7 +404,8 @@ export type VehicleAmenity =
   | 'celebration'
   | 'hand_wash'
   | 'pets_ok'
-  | 'no_pets';
+  | 'no_pets'
+  | 'snacks';
 
 export interface AmenityDetail {
   choices: string[];

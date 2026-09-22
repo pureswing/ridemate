@@ -25,3 +25,23 @@ export const ACCESSIBILITY_OPTIONS: AccessibilityOptionDef[] = [
   { id: 'service-animal', label: 'Traveling with a service animal', desc: 'A service animal will accompany me.', icon: 'pets_ok' },
   { id: 'sensory', label: 'Sensory sensitivity', desc: 'Prefers a quiet, low-stimulation ride.', icon: 'volume_x' },
 ];
+
+// Spanish display text, keyed by AccessibilityNeed id — the id is the real
+// stored value everywhere (accessibility_needs column, details.accessibilityNeeds),
+// only the rendered label/desc changes with locale. See rideFormOptions.ts's
+// translatePrefLabel for the same pattern.
+const ACCESSIBILITY_LABELS_ES: Record<AccessibilityNeed, { label: string; desc: string }> = {
+  'hard-of-hearing': { label: 'Dificultad auditiva', desc: 'Mírame al hablar y confirma la recogida por mensaje de texto, no por llamada.' },
+  'low-vision': { label: 'Baja visión', desc: 'Describe el vehículo y guíame verbalmente en la recogida.' },
+  'limited-mobility': { label: 'Movilidad limitada', desc: 'Puede necesitar ayuda para subir o bajar del vehículo.' },
+  'no-heavy-lift': { label: 'No puede levantar objetos pesados', desc: 'Se agradece ayuda para cargar bolsas o equipaje.' },
+  'wheelchair': { label: 'Usa silla de ruedas', desc: 'Necesita espacio en el maletero para guardar un dispositivo de movilidad.' },
+  'prefers-text': { label: 'Prefiere mensajes de texto', desc: 'Enviar mensaje en vez de llamar para coordinar.' },
+  'service-animal': { label: 'Viaja con animal de servicio', desc: 'Un animal de servicio me acompañará.' },
+  'sensory': { label: 'Sensibilidad sensorial', desc: 'Prefiere un viaje tranquilo, con poca estimulación.' },
+};
+
+export function translateAccessibilityOption(opt: AccessibilityOptionDef, locale: string): { label: string; desc: string } {
+  if (!locale.startsWith('es')) return { label: opt.label, desc: opt.desc };
+  return ACCESSIBILITY_LABELS_ES[opt.id] ?? { label: opt.label, desc: opt.desc };
+}

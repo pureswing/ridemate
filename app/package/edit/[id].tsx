@@ -35,7 +35,7 @@ import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { addressBookSlots } from '@/constants/addressBookSlots';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import { PACKAGE_SIZES, CONTENT_TAGS, HANDLING_OPTIONS, PACKAGE_PROHIBITED_ITEMS } from '@/constants/packageFormOptions';
+import { PACKAGE_SIZES, CONTENT_TAGS, HANDLING_OPTIONS, PACKAGE_PROHIBITED_ITEMS, translatePackageLabel, translatePackageSub } from '@/constants/packageFormOptions';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
@@ -197,7 +197,7 @@ export default function EditPackageScreen() {
   const ready = !!(
     originCity.trim() && destinationCity.trim() && date.trim() && time.trim() &&
     contentTags.length > 0 && allPkgConfirmed && inspectionOk && oathAccepted &&
-    (!isHighValue || highValueOk)
+    (!isHighValue || highValueOk) && donation.trim()
   );
   const routeChanged = !original
     || originLat !== original.origin_lat || originLng !== original.origin_lng
@@ -398,14 +398,14 @@ export default function EditPackageScreen() {
               )
             )}
             <SmartAddressField
-              placeholder="Pickup location…"
+              placeholder={t.post.pickupLocationPlaceholder}
               value={originAddress} onChangeText={setOriginAddress} onSelectPlace={handleOriginPlace}
               onSelectSaved={(v) => setOriginCity(cityFromAddress(v) ?? v)}
               savedAddresses={savedAddresses} emptySlots={emptyAddressSlots} onSaveToSlot={saveAddressToSlot}
               theme={theme} t={t}
             />
             <SmartAddressField
-              placeholder="Drop-off location…"
+              placeholder={t.post.dropoffLocationPlaceholder}
               value={destinationAddress} onChangeText={setDestinationAddress} onSelectPlace={handleDestinationPlace}
               onSelectSaved={(v) => setDestinationCity(cityFromAddress(v) ?? v)}
               savedAddresses={savedAddresses} emptySlots={emptyAddressSlots} onSaveToSlot={saveAddressToSlot}
@@ -425,23 +425,23 @@ export default function EditPackageScreen() {
         </View>
 
         {/* Quantity */}
-        <Field label="Quantity" hint="How many packages?">
+        <Field label={t.post.quantityLabel} hint={t.post.quantityHint}>
           <CardBox>
-            <StepRow icon="package" label="Packages" value={qty} min={1} max={20} onDec={() => setQty((q) => Math.max(1, q - 1))} onInc={() => setQty((q) => Math.min(20, q + 1))} theme={theme} />
+            <StepRow icon="package" label={t.post.packagesLabel} value={qty} min={1} max={20} onDec={() => setQty((q) => Math.max(1, q - 1))} onInc={() => setQty((q) => Math.min(20, q + 1))} theme={theme} />
           </CardBox>
         </Field>
 
         {/* Package size — 2x2 icon+sub cards */}
-        <Field label="Package size">
+        <Field label={t.post.packageSize}>
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {PACKAGE_SIZES.slice(0, 2).map((s) => (
-                <PackageSizeCard key={s.value} active={packageSize === s.value} onPress={() => setPackageSize(s.value)} icon={s.icon} label={s.label} sub={s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
+                <PackageSizeCard key={s.value} active={packageSize === s.value} onPress={() => setPackageSize(s.value)} icon={s.icon} label={translatePackageLabel(s.label, t.locale)} sub={translatePackageSub(s.sub, t.locale) ?? s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
               ))}
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {PACKAGE_SIZES.slice(2, 4).map((s) => (
-                <PackageSizeCard key={s.value} active={packageSize === s.value} onPress={() => setPackageSize(s.value)} icon={s.icon} label={s.label} sub={s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
+                <PackageSizeCard key={s.value} active={packageSize === s.value} onPress={() => setPackageSize(s.value)} icon={s.icon} label={translatePackageLabel(s.label, t.locale)} sub={translatePackageSub(s.sub, t.locale) ?? s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
               ))}
             </View>
           </View>
@@ -451,29 +451,29 @@ export default function EditPackageScreen() {
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
             <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12, textTransform: 'uppercase', letterSpacing: letterSpacingFor(12, tracking.wide), color: theme.text }}>
-              Content declaration
+              {t.post.contentDeclaration}
             </Text>
-            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.danger }}>required</Text>
+            <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, color: theme.danger }}>{t.post.requiredBadge}</Text>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {CONTENT_TAGS.map((c) => (
-              <RuleChip key={c} active={contentTags.includes(c)} onPress={() => toggleTag(contentTags, setContentTags, c)} accent={accent} theme={theme}>{c}</RuleChip>
+              <RuleChip key={c} active={contentTags.includes(c)} onPress={() => toggleTag(contentTags, setContentTags, c)} accent={accent} theme={theme}>{translatePackageLabel(c, t.locale)}</RuleChip>
             ))}
           </View>
           {contentTags.length === 0 && (
             <Text style={{ marginTop: 7, fontFamily: fonts.bodySemibold, fontSize: 11.5, color: theme.danger }}>
-              Select at least one content type to continue.
+              {t.post.selectContentType}
             </Text>
           )}
         </View>
 
         {/* Special handling */}
-        <Field label="Special handling">
+        <Field label={t.post.specialHandling}>
           <CardBox>
             {HANDLING_OPTIONS.map((h, i) => (
               <View key={h.label}>
                 {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                <PlainToggleRow icon={h.icon} label={h.label} sub={h.sub} checked={handling.includes(h.label)} onChange={() => toggleTag(handling, setHandling, h.label)} accent={accent} theme={theme} />
+                <PlainToggleRow icon={h.icon} label={translatePackageLabel(h.label, t.locale)} sub={translatePackageSub(h.sub, t.locale)} checked={handling.includes(h.label)} onChange={() => toggleTag(handling, setHandling, h.label)} accent={accent} theme={theme} />
               </View>
             ))}
           </CardBox>
@@ -491,8 +491,8 @@ export default function EditPackageScreen() {
           <View style={{ marginTop: 10, borderRadius: 14, borderWidth: 1.5, borderColor: theme.borderGold, backgroundColor: theme.badgeWarnBg + '33', padding: 13, flexDirection: 'row', gap: 10 }}>
             <Icon name="shield" size={16} color={theme.gold400} />
             <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
-              <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>Zero insurance coverage. </Text>
-              BoteGo provides no cargo insurance of any kind. All shipments are at the sole risk of the sender and carrier. The platform is not liable for loss, damage, or theft.
+              <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.zeroInsuranceCoverage}</Text>
+              {t.post.cargoInsuranceNotice}
             </Text>
           </View>
           {isHighValue && (
@@ -514,10 +514,10 @@ export default function EditPackageScreen() {
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12.5, color: theme.danger, marginBottom: 2 }}>
-                  High-value shipment — ${Math.round(declaredNum).toLocaleString()} declared
+                  {t.post.highValueShipmentPrefix}{Math.round(declaredNum).toLocaleString()}{t.post.highValueShipmentSuffix}
                 </Text>
                 <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 17 }}>
-                  I understand this shipment exceeds $200 and is sent entirely at my own risk. BoteGo will not compensate for any loss or damage under any circumstance.
+                  {t.post.highValueAckText}
                 </Text>
               </View>
             </TouchableOpacity>
@@ -545,7 +545,7 @@ export default function EditPackageScreen() {
               }
             />
             {priceMode === 'open' && (
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, lineHeight: 16 }}>Carriers can counter-offer your price.</Text>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, lineHeight: 16 }}>{t.post.counterOfferNoticePackage}</Text>
             )}
           </View>
         </Field>
@@ -555,13 +555,13 @@ export default function EditPackageScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <Icon name="ban" size={16} color={theme.danger} />
             <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12, textTransform: 'uppercase', letterSpacing: letterSpacingFor(12, tracking.wide), color: theme.danger }}>
-              Prohibited contents
+              {t.post.prohibitedContents}
             </Text>
           </View>
           <View style={{ borderRadius: radii.lg, borderWidth: 2, borderColor: theme.danger, backgroundColor: theme.surface, overflow: 'hidden' }}>
             <View style={{ padding: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.danger + '0F' }}>
               <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 18 }}>
-                The following items are <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>strictly prohibited</Text> and may result in legal action. Confirm your package does <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>not</Text> contain any of these.
+                {t.post.prohibitedIntroPrefix}<Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.prohibitedStrict}</Text>{t.post.prohibitedIntroMiddlePackage}<Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.prohibitedNot}</Text>{t.post.prohibitedIntroSuffixPackage}
               </Text>
             </View>
             {PACKAGE_PROHIBITED_ITEMS.map((p, i) => {
@@ -572,9 +572,9 @@ export default function EditPackageScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, backgroundColor: ok ? theme.success + '0F' : 'transparent' }}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: ok ? theme.success : theme.text, textDecorationLine: ok ? 'line-through' : 'none' }}>
-                        {p.label}
+                        {translatePackageLabel(p.label, t.locale)}
                       </Text>
-                      {p.sub && <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 2, lineHeight: 15 }}>{p.sub}</Text>}
+                      {p.sub && <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 2, lineHeight: 15 }}>{translatePackageSub(p.sub, t.locale)}</Text>}
                     </View>
                     <TouchableOpacity
                       onPress={() => setPkgConfirmed((c) => c.includes(p.label) ? c.filter((x) => x !== p.label) : [...c, p.label])}
@@ -585,7 +585,7 @@ export default function EditPackageScreen() {
                       }}
                     >
                       {ok && <Icon name="check" size={14} color={theme.success} strokeWidth={2.6} />}
-                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: ok ? theme.success : theme.danger }}>{ok ? 'None' : 'Confirm'}</Text>
+                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: ok ? theme.success : theme.danger }}>{ok ? t.post.confirmNoneLabel : t.post.confirmLabel}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -595,7 +595,7 @@ export default function EditPackageScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 16, paddingVertical: 11, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.danger + '0D' }}>
                 <Icon name="ban" size={14} color={theme.danger} />
                 <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: theme.danger }}>
-                  Confirm {PACKAGE_PROHIBITED_ITEMS.length - pkgConfirmed.length} remaining item{PACKAGE_PROHIBITED_ITEMS.length - pkgConfirmed.length !== 1 ? 's' : ''} to continue
+                  {t.post.confirmMoreToContinue.replace('{count}', String(PACKAGE_PROHIBITED_ITEMS.length - pkgConfirmed.length))}
                 </Text>
               </View>
             )}
@@ -607,15 +607,15 @@ export default function EditPackageScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.surfaceAlt }}>
             <Icon name="shield" size={16} color={theme.primary} />
             <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.primary }}>
-              Community rule<Text style={{ color: theme.danger }}> *</Text>
+              {t.post.communityRuleLabel}<Text style={{ color: theme.danger }}> *</Text>
             </Text>
           </View>
           <View style={{ padding: 16 }}>
             <Text style={{ fontFamily: fonts.displayBold, fontSize: 16, letterSpacing: letterSpacingFor(16, tracking.tight), color: theme.text, marginBottom: 8 }}>
-              Derecho de Inspección en la Entrega
+              {t.post.inspectionRightTitle}
             </Text>
             <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.textSecondary, lineHeight: 20, marginBottom: 14 }}>
-              The carrier has the right to ask you to <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>show the contents of the package</Text> before loading it into their vehicle, to verify it matches what was declared. If you refuse the inspection, the carrier may <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>cancel without penalty</Text>.
+              {t.post.inspectionBodyPrefix}<Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.inspectionBodyBold1}</Text>{t.post.inspectionBodyMiddle}<Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.inspectionBodyBold2}</Text>.
             </Text>
             <TouchableOpacity
               onPress={() => setInspectionOk((v) => !v)}
@@ -634,7 +634,7 @@ export default function EditPackageScreen() {
                 {inspectionOk && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}
               </View>
               <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.textSecondary, lineHeight: 18 }}>
-                I understand and agree that the carrier may inspect my package at pickup. I will not refuse a reasonable inspection request.
+                {t.post.inspectionAgreeText}
               </Text>
             </TouchableOpacity>
           </View>
@@ -659,7 +659,7 @@ export default function EditPackageScreen() {
               {oathAccepted && <Icon name="check" size={14} color="#fff" strokeWidth={3} />}
             </View>
             <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 17 }}>
-              <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>I declare under penalty of law</Text> that the contents of this package are accurately described above, contain no prohibited items, and comply with all applicable federal, state and local regulations.
+              <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.oathBold}</Text>{t.post.oathSuffix}
             </Text>
           </TouchableOpacity>
         )}
@@ -671,7 +671,7 @@ export default function EditPackageScreen() {
             onChangeText={setNote}
             multiline
             numberOfLines={4}
-            placeholder="Access instructions, fragile contents, anything the carrier should know…"
+            placeholder={t.post.packageNotePlaceholder}
           />
         </Field>
       </ScrollView>

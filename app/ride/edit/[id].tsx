@@ -46,8 +46,8 @@ import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { addressBookSlots } from '@/constants/addressBookSlots';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import { VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS, ATMOSPHERE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS } from '@/constants/rideFormOptions';
-import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
+import { VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS, ATMOSPHERE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, translatePrefLabel } from '@/constants/rideFormOptions';
+import { ACCESSIBILITY_OPTIONS, translateAccessibilityOption } from '@/constants/accessibilityOptions';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
@@ -343,7 +343,7 @@ export default function EditRideScreen() {
     setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
   }
 
-  const ready = !!(originCity.trim() && destinationCity.trim() && date.trim() && time.trim());
+  const ready = !!(originCity.trim() && destinationCity.trim() && date.trim() && time.trim() && donation.trim());
   const originalStops = ((original?.details as RidePostDetailsRide | undefined)?.stops ?? []).join('|');
   const currentStopsKey = stops.filter((s, i) => stopsConfirmed[i] && s.trim()).join('|');
   const routeChanged = !original
@@ -740,12 +740,12 @@ export default function EditRideScreen() {
               </CardBox>
             </Field>
             {children > 0 && (
-              <CollapsibleField label={t.post.childSeat} hint={t.post.selectAllApplied}>
+              <CollapsibleField label={t.post.childSeat}>
                 <CardBox>
                   {CHILD_SEAT_OPTIONS.map((c, i) => (
                     <View key={c}>
                       {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                      <PlainToggleRow label={c} checked={childSeatPrefs.includes(c)} onChange={() => toggleExclusive(childSeatPrefs, setChildSeatPrefs, c, 'No child seat needed')} accent={accent} theme={theme} />
+                      <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={childSeatPrefs.includes(c)} onChange={() => toggleExclusive(childSeatPrefs, setChildSeatPrefs, c, 'No child seat needed')} accent={accent} theme={theme} />
                     </View>
                   ))}
                 </CardBox>
@@ -821,12 +821,12 @@ export default function EditRideScreen() {
 
         {/* Vehicle type / rules / comfort / climate (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label={t.post.vehicleTypeLabel} hint="Select one">
+          <CollapsibleField label={t.post.vehicleTypeLabel} hint={t.post.selectOne}>
             <CardBox>
               {VEHICLE_TYPES.map((v, i) => (
                 <View key={v}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={v} checked={vehicleType === v} onChange={() => setVehicleType(v)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(v, t.locale)} checked={vehicleType === v} onChange={() => setVehicleType(v)} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -834,30 +834,30 @@ export default function EditRideScreen() {
         )}
 
         {!isDriver && (
-          <CollapsibleField label={t.post.comfortSeating} hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.post.comfortSeating}>
             <CardBox>
               {COMFORT_PREFS.map((c, i) => (
                 <View key={c}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={c} checked={comfortPrefs.includes(c)} onChange={() => toggleExclusive(comfortPrefs, setComfortPrefs, c, 'No preference')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={comfortPrefs.includes(c)} onChange={() => toggleExclusive(comfortPrefs, setComfortPrefs, c, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
           </CollapsibleField>
         )}
         {!isDriver && (
-          <CollapsibleField label={t.post.climateControl} hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.post.climateControl}>
             <CardBox>
               {CLIMATE_PREFS.map((c, i) => (
                 <View key={c}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={c} checked={climatePrefs.includes(c)} onChange={() => toggleExclusive(climatePrefs, setClimatePrefs, c, 'No preference')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={climatePrefs.includes(c)} onChange={() => toggleExclusive(climatePrefs, setClimatePrefs, c, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
               <View style={{ height: 1, backgroundColor: theme.border }} />
               <PlainToggleRow
                 icon="thermometer"
-                label={SPECIFIC_TEMP}
+                label={translatePrefLabel(SPECIFIC_TEMP, t.locale)}
                 checked={climatePrefs.includes(SPECIFIC_TEMP)}
                 onChange={() => setClimatePrefs((prev) => { const w = prev.filter((x) => x !== 'No preference'); return w.includes(SPECIFIC_TEMP) ? w.filter((x) => x !== SPECIFIC_TEMP) : [...w, SPECIFIC_TEMP]; })}
                 accent={accent}
@@ -874,15 +874,17 @@ export default function EditRideScreen() {
 
         {/* Accessibility (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Accessibility" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.accessibility}>
             <CardBox>
-              {ACCESSIBILITY_OPTIONS.map((opt, i) => (
+              {ACCESSIBILITY_OPTIONS.map((opt, i) => {
+                const tr = translateAccessibilityOption(opt, t.locale);
+                return (
                 <View key={opt.id}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
                   <PlainToggleRow
                     icon={opt.icon}
-                    label={opt.label}
-                    sub={opt.desc}
+                    label={tr.label}
+                    sub={tr.desc}
                     checked={accessibilityNeeds.includes(opt.id)}
                     onChange={() => setAccessibilityNeeds((prev) =>
                       prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id]
@@ -891,19 +893,20 @@ export default function EditRideScreen() {
                     theme={theme}
                   />
                 </View>
-              ))}
+                );
+              })}
             </CardBox>
           </CollapsibleField>
         )}
 
         {/* Ride atmosphere (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Ride atmosphere" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.entertainment}>
             <CardBox>
               {ATMOSPHERE_PREFS.map((a, i) => (
                 <View key={a}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={a} checked={atmospherePrefs.includes(a)} onChange={() => toggleExclusive(atmospherePrefs, setAtmospherePrefs, a, 'No preference')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(a, t.locale)} checked={atmospherePrefs.includes(a)} onChange={() => toggleExclusive(atmospherePrefs, setAtmospherePrefs, a, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -912,12 +915,12 @@ export default function EditRideScreen() {
 
         {/* Cleanliness & sensitivities (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Cleanliness">
+          <CollapsibleField label={t.filterDrawer.featureCategories.cleanliness}>
             <CardBox>
               {CLEANLINESS_PREFS.map((c, i) => (
                 <View key={c}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={c} checked={cleanlinessPrefs.includes(c)} onChange={() => toggleTagPlain(cleanlinessPrefs, setCleanlinessPrefs, c)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={cleanlinessPrefs.includes(c)} onChange={() => toggleTagPlain(cleanlinessPrefs, setCleanlinessPrefs, c)} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -926,12 +929,12 @@ export default function EditRideScreen() {
 
         {/* Pet transportation (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Pet transportation" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.petTransportation}>
             <CardBox>
               {PET_PREFS.map((p, i) => (
                 <View key={p}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={p} checked={petPrefs.includes(p)} onChange={() => toggleExclusive(petPrefs, setPetPrefs, p, 'No pet')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(p, t.locale)} checked={petPrefs.includes(p)} onChange={() => toggleExclusive(petPrefs, setPetPrefs, p, 'No pet')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -940,12 +943,12 @@ export default function EditRideScreen() {
 
         {/* Pickup preferences (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Pickup preferences" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.pickupPreferences}>
             <CardBox>
               {PICKUP_PREFS.map((p, i) => (
                 <View key={p}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={p} checked={pickupPrefs.includes(p)} onChange={() => toggleExclusive(pickupPrefs, setPickupPrefs, p, 'Standard curbside pickup')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(p, t.locale)} checked={pickupPrefs.includes(p)} onChange={() => toggleExclusive(pickupPrefs, setPickupPrefs, p, 'Standard curbside pickup')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -954,12 +957,12 @@ export default function EditRideScreen() {
 
         {/* Preferred driver language (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Preferred driver language" hint={t.post.optional}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.driverLanguage} hint={t.post.optional}>
             <CardBox>
               {DRIVER_LANGUAGE_PREFS.map((l, i) => (
                 <View key={l}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={l} checked={driverLanguage === l} onChange={() => setDriverLanguage(l)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(l, t.locale)} checked={driverLanguage === l} onChange={() => setDriverLanguage(l)} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>

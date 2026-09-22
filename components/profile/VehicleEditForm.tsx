@@ -22,9 +22,13 @@ import { IconName } from '@/constants/icons';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { VEHICLE_TYPES } from '@/constants/rideFormOptions';
 
+// Sub-choices shown in the amenity detail sheet (e.g. tapping "Bluetooth"
+// offers "Car Speakers"/"Aux Cable") — left English-only like VEHICLE_CLASSES/
+// FUEL_TYPE_VALUES above: the picked string IS the stored amenity_details
+// value, not a translatable label over a separate enum key.
 const AMENITY_CHOICES: Partial<Record<VehicleAmenity, string[]>> = {
   ev_station:    ['USB-C', 'Lightning', 'Wireless', 'USB-B', 'USB-A', 'AC Output'],
-  bluetooth:     ['Car Speakers', 'Aux Cable'],
+  bluetooth:     ['Bluetooth', 'Aux Cable'],
   wifi:          ['Hotspot', 'Mobile Data'],
   seat_heater:   ['Front', 'Rear', 'All Seats'],
   baby_seat:     ['Infant', 'Convertible', 'Booster'],
@@ -33,76 +37,101 @@ const AMENITY_CHOICES: Partial<Record<VehicleAmenity, string[]>> = {
   ac_unit:       ['Front Only', 'Front & Rear', 'Individual Controls'],
   glass_cocktail:['Water', 'Soda', 'Juice', 'Alcoholic'],
   dashcam:       ['Exterior', 'Interior', 'Video Only', 'Video + Audio'],
+  celebration:   ['Karaoke', 'DJ Lights'],
+  hand_wash:     ['Disposable Wipes', 'Hand Sanitizer'],
+  snacks:        ['Gum', 'Candy', 'Chocolate'],
 };
 
-const AMENITY_GROUPS: { label: string; items: { key: VehicleAmenity; label: string }[] }[] = [
-  {
-    label: 'Charging & Tech',
-    items: [
-      { key: 'ev_station',    label: 'Charger' },
-      { key: 'bluetooth',     label: 'Bluetooth' },
-      { key: 'wifi',          label: 'WiFi' },
-      { key: 'dashcam',       label: 'Dashcam' },
-    ],
-  },
-  {
-    label: 'Comfort',
-    items: [
-      { key: 'seat_recline',  label: 'Comfort Seat' },
-      { key: 'seat_heater',   label: 'Seat Heater' },
-      { key: 'baby_seat',     label: 'Baby Seat' },
-      { key: 'ac_unit',       label: 'A/C' },
-      { key: 'accessible',    label: 'Accessible' },
-    ],
-  },
-  {
-    label: 'Vibe',
-    items: [
-      { key: 'music_ok',      label: 'Music' },
-      { key: 'quiet_ride',    label: 'Quiet Ride' },
-      { key: 'celebration',   label: 'Celebration' },
-      { key: 'glass_cocktail',label: 'Bar' },
-      { key: 'hand_wash',     label: 'Clean Hands' },
-    ],
-  },
-];
+// Labels come from useTranslation() — built inside the component (below) as
+// AMENITY_GROUPS/RULE_ITEMS aren't module-level constants anymore, since they
+// need `t`. Kept the same shape/keys so everything downstream (AMENITY_LABELS,
+// toggle handlers, etc.) is unchanged.
+function buildAmenityGroups(t: ReturnType<typeof useTranslation>): { label: string; items: { key: VehicleAmenity; label: string }[] }[] {
+  return [
+    {
+      label: t.profile.vehicleGroupCharging,
+      items: [
+        { key: 'ev_station',    label: t.profile.amenityCharger },
+        { key: 'bluetooth',     label: t.profile.amenityVehicleConnection },
+        { key: 'wifi',          label: t.profile.amenityWifi },
+        { key: 'dashcam',       label: t.profile.amenityDashcam },
+      ],
+    },
+    {
+      label: t.profile.vehicleGroupComfort,
+      items: [
+        { key: 'seat_recline',  label: t.profile.amenityComfortSeat },
+        { key: 'seat_heater',   label: t.profile.amenitySeatHeater },
+        { key: 'baby_seat',     label: t.profile.amenityBabySeat },
+        { key: 'ac_unit',       label: t.profile.amenityAc },
+        { key: 'accessible',    label: t.profile.amenityAccessible },
+        { key: 'trunk_space',   label: t.profile.amenityTrunkSpace },
+      ],
+    },
+    {
+      label: t.profile.vehicleGroupVibe,
+      items: [
+        { key: 'music_ok',      label: t.profile.amenityMusic },
+        { key: 'quiet_ride',    label: t.profile.amenityQuietRide },
+        { key: 'celebration',   label: t.profile.amenityCelebration },
+        { key: 'glass_cocktail',label: t.profile.amenityBar },
+        { key: 'hand_wash',     label: t.profile.amenityCleanHands },
+        { key: 'snacks',        label: t.profile.amenitySnacks },
+      ],
+    },
+  ];
+}
 
 // Kept as its own picker/section (VehicleEditForm's own Field, not folded
 // into the amenities chip groups above) — same VehicleAmenity[]/amenity_details
 // storage as the rest, just grouped separately in the UI per the design.
-const RULE_ITEMS: { key: VehicleAmenity; label: string }[] = [
-  { key: 'smoke_free',    label: 'No Smoking' },
-  { key: 'smoking',       label: 'Smoking OK' },
-  { key: 'vape_free',     label: 'No Vaping' },
-  { key: 'cannabis_free', label: 'No Cannabis' },
-  { key: 'cannabis_ok',   label: 'Cannabis OK' },
-  { key: 'food_off',      label: 'No Fast Food' },
-  { key: 'no_pets',       label: 'No Pets' },
-  { key: 'pets_ok',       label: 'Pets OK' },
-];
-
-// Label lookup for the detail-sheet modal, shared by both the Features &
-// extras chips and the Rules chips.
-const AMENITY_LABELS: Partial<Record<VehicleAmenity, string>> = Object.fromEntries(
-  [...AMENITY_GROUPS.flatMap((g) => g.items), ...RULE_ITEMS].map(({ key, label }) => [key, label])
-);
+function buildRuleItems(t: ReturnType<typeof useTranslation>): { key: VehicleAmenity; label: string }[] {
+  return [
+    { key: 'smoke_free',    label: t.profile.ruleNoSmoking },
+    { key: 'smoking',       label: t.profile.ruleSmokingOk },
+    { key: 'vape_free',     label: t.profile.ruleNoVaping },
+    { key: 'cannabis_free', label: t.profile.ruleNoCannabis },
+    { key: 'cannabis_ok',   label: t.profile.ruleCannabisOk },
+    { key: 'food_off',      label: t.profile.ruleNoFastFood },
+    { key: 'no_pets',       label: t.profile.ruleNoPets },
+    { key: 'pets_ok',       label: t.profile.rulePetsOk },
+  ];
+}
 
 // Same catalog the ride post form's Vehicle Type field uses
 // (constants/rideFormOptions.ts) — minus "No preference", which only makes
 // sense for a passenger's request, not for describing your own vehicle.
 // Sorted shortest-to-longest label so the flexWrap chip row packs tightly
 // instead of orphaning short chips onto their own line — same fix as
-// OVERSIZED_ITEMS in the same constants file.
+// OVERSIZED_ITEMS in the same constants file. Left English-only, same
+// established precedent as VEHICLE_TYPES itself (constants/rideFormOptions.ts) —
+// the stored value IS this literal string, unlike the amenity/rule labels
+// above (those store an enum key, so translating the display label is safe).
 const VEHICLE_CLASSES = VEHICLE_TYPES.filter((v) => v !== 'No preference').sort((a, b) => a.length - b.length);
 
-const FUEL_TYPES: { label: string; icon: IconName }[] = [
-  { label: 'Gas',            icon: 'fuel' },
-  { label: 'Electric',       icon: 'ev_station' },
-  { label: 'Hybrid',         icon: 'hybrid' },
-  { label: 'Plug-in Hybrid', icon: 'ev_station' },
-  { label: 'Diesel',         icon: 'oil_barrel' },
-  { label: 'Flex-Fuel',      icon: 'loop' },
+// The stored fuel_type value is this literal English string (no separate
+// enum key exists for it) — same constraint as VEHICLE_CLASSES above, so the
+// value itself stays English while FUEL_TYPE_LABELS (below, built from `t`)
+// supplies the translated display text for each one.
+const FUEL_TYPE_VALUES: { value: string; icon: IconName }[] = [
+  { value: 'Gas',            icon: 'fuel' },
+  { value: 'Electric',       icon: 'ev_station' },
+  { value: 'Hybrid',         icon: 'hybrid' },
+  { value: 'Plug-in Hybrid', icon: 'ev_station' },
+  { value: 'Diesel',         icon: 'oil_barrel' },
+  { value: 'Flex-Fuel',      icon: 'loop' },
 ];
+
+function buildFuelTypeLabels(t: ReturnType<typeof useTranslation>): Record<string, string> {
+  return {
+    Gas: t.profile.fuelGas,
+    Electric: t.profile.fuelElectric,
+    Hybrid: t.profile.fuelHybrid,
+    'Plug-in Hybrid': t.profile.fuelPlugInHybrid,
+    Diesel: t.profile.fuelDiesel,
+    'Flex-Fuel': t.profile.fuelFlexFuel,
+  };
+}
 
 function mapFuelType(raw: string): string {
   if (!raw) return '';
@@ -148,6 +177,14 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
   const t = useTranslation();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const AMENITY_GROUPS = buildAmenityGroups(t);
+  const RULE_ITEMS = buildRuleItems(t);
+  // Label lookup for the detail-sheet modal, shared by both the Features &
+  // extras chips and the Rules chips.
+  const AMENITY_LABELS: Partial<Record<VehicleAmenity, string>> = Object.fromEntries(
+    [...AMENITY_GROUPS.flatMap((g) => g.items), ...RULE_ITEMS].map(({ key, label }) => [key, label])
+  );
+  const FUEL_TYPE_LABELS = buildFuelTypeLabels(t);
   const { upsertVehicle, deleteVehicle, uploadVehiclePhoto, loading } = useVehicleProfile();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [importDone, setImportDone] = useState(false);
@@ -219,7 +256,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
       const decodedFuel = get('Fuel Type - Primary');
 
       if (!decodedMake || decodedMake === 'null') {
-        setInfoSheet({ title: 'VIN not found', message: 'Could not decode this VIN. You can fill in the details manually.' });
+        setInfoSheet({ title: t.profile.vinNotFoundTitle, message: t.profile.vinNotFoundMsg });
         return;
       }
 
@@ -234,7 +271,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
 
       setVinDecoded(true);
     } catch {
-      setInfoSheet({ title: t.rideDetail.errorTitle, message: 'Could not reach the vehicle database. Check your connection.' });
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: t.profile.vinDbErrorMsg });
     } finally {
       setVinDecoding(false);
     }
@@ -294,7 +331,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
   async function pickPhoto() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      setInfoSheet({ title: t.common.photoPermissionTitle, message: 'Please grant photo library access to add a vehicle photo.' });
+      setInfoSheet({ title: t.common.photoPermissionTitle, message: t.profile.vehiclePhotoPermissionMsg });
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -310,12 +347,12 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
 
   async function handleSave() {
     if (!make.trim() || !model.trim() || !year.trim() || !color.trim()) {
-      setInfoSheet({ title: 'Required fields', message: 'Please fill in make, model, year, and color.' });
+      setInfoSheet({ title: t.profile.vehicleRequiredFieldsTitle, message: t.profile.vehicleRequiredFieldsMsg });
       return;
     }
     const yearNum = parseInt(year, 10);
     if (isNaN(yearNum) || yearNum < 1980 || yearNum > 2030) {
-      setInfoSheet({ title: 'Invalid year', message: 'Enter a valid year between 1980 and 2030.' });
+      setInfoSheet({ title: t.profile.vehicleInvalidYearTitle, message: t.profile.vehicleInvalidYearMsg });
       return;
     }
     try {
@@ -418,18 +455,18 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
       )}
 
       {/* VIN decode */}
-      <Field label="VIN" hint={t.post.optional}>
+      <Field label={t.profile.vinLabel} hint={t.post.optional}>
         <Input
           icon="search"
           value={vin}
           onChangeText={handleVinChange}
-          placeholder="17-character VIN"
+          placeholder={t.profile.vinPlaceholder}
           autoCapitalize="characters"
           maxLength={17}
           rightElement={vinDecoding ? <ActivityIndicator size="small" color={theme.primary} /> : vinDecoded ? <Icon name="check_circle" size={20} color={theme.driverText} /> : undefined}
         />
         <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: vinDecoded ? theme.driverText : theme.textFaint, marginTop: 7 }}>
-          {vinDecoded ? '✓ Auto-filled from VIN — you can still edit any field below.' : 'Enter your 17-digit VIN to auto-fill make, model, year, trim and fuel type.'}
+          {vinDecoded ? t.profile.vinHintDecoded : t.profile.vinHintPrompt}
         </Text>
         <Text style={{ fontFamily: fonts.bodyRegular, fontStyle: 'italic', fontSize: 10.5, color: theme.textFaint, marginTop: 4, lineHeight: 15 }}>
           {t.profile.vinDisclaimer}
@@ -451,7 +488,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
         <Field label={t.profile.vehicleYear} style={{ flex: 1 }}>
           <Input icon="event" value={year} onChangeText={setYear} placeholder="2022" keyboardType="numeric" maxLength={4} />
         </Field>
-        <Field label="Trim"  style={{ flex: 1 }}>
+        <Field label={t.profile.vehicleTrim}  style={{ flex: 1 }}>
           <Input icon="sparkles" value={trim} onChangeText={setTrim} placeholder="XSE" />
         </Field>
       </View>
@@ -467,11 +504,11 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
       </View>
 
       {/* Seats */}
-      <Field label="Passenger seats">
+      <Field label={t.profile.vehicleSeats}>
         <CardBox>
           <StepRow
             icon="passenger"
-            label="Seats for riders"
+            label={t.profile.vehicleSeatsLabel}
             value={seats}
             min={1}
             max={7}
@@ -487,25 +524,25 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {VEHICLE_CLASSES.map((vt) => (
             <RuleChip key={vt} active={vehicleType === vt} onPress={() => setVehicleType(vehicleType === vt ? '' : vt)} accent={theme.primary} theme={theme}>
-              {vt === 'Wheelchair-Accessible Vehicle' ? 'Wheelchair-Accessible' : vt}
+              {vt === 'Wheelchair-Accessible Vehicle' ? t.profile.vehicleTypeWheelchairShort : vt}
             </RuleChip>
           ))}
         </View>
       </Field>
 
       {/* Fuel type */}
-      <Field label="Fuel type">
+      <Field label={t.profile.vehicleFuelType}>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-          {FUEL_TYPES.map((ft) => (
-            <RuleChip key={ft.label} active={fuelType === ft.label} onPress={() => setFuelType(fuelType === ft.label ? '' : ft.label)} accent={theme.primary} theme={theme} icon={ft.icon}>
-              {ft.label}
+          {FUEL_TYPE_VALUES.map((ft) => (
+            <RuleChip key={ft.value} active={fuelType === ft.value} onPress={() => setFuelType(fuelType === ft.value ? '' : ft.value)} accent={theme.primary} theme={theme} icon={ft.icon}>
+              {FUEL_TYPE_LABELS[ft.value]}
             </RuleChip>
           ))}
         </View>
       </Field>
 
       {/* Photo */}
-      <Field label="Side photo" hint={t.post.optional}>
+      <Field label={t.profile.vehiclePhotoLabel} hint={t.post.optional}>
         <TouchableOpacity onPress={pickPhoto}>
           {photoUri ? (
             <View style={{ borderRadius: radii.lg, overflow: 'hidden', borderWidth: 1, borderColor: theme.cardBorder, backgroundColor: theme.surface, ...shadows.sm }}>
@@ -533,7 +570,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
               <Text style={{ color: theme.primary, fontSize: 14, fontFamily: fonts.bodyBold }}>
                 {t.profile.addPhoto}
               </Text>
-              <Text style={{ color: theme.muted, fontSize: 12, fontFamily: fonts.bodyRegular }}>Full side view — 16:7 ratio</Text>
+              <Text style={{ color: theme.muted, fontSize: 12, fontFamily: fonts.bodyRegular }}>{t.profile.vehiclePhotoHint}</Text>
             </View>
           )}
         </TouchableOpacity>
@@ -629,9 +666,16 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
             <Icon name="delete" size={20} color={theme.danger} />
           </TouchableOpacity>
         )}
-        <Button variant="ghost" size="lg" onPress={onCancel}>
-          {t.profile.cancel}
-        </Button>
+        {/* Both flex:1 (not just Save) — a ghost Button sized to its own text
+            let "Cancelar" (longer than "Cancel") eat into Save's share of the
+            row, squeezing "Guardar" down via Button's adjustsFontSizeToFit
+            in Spanish specifically. Splitting the row evenly keeps both
+            buttons' text at full size regardless of language. */}
+        <View style={{ flex: 1 }}>
+          <Button variant="ghost" size="lg" fullWidth onPress={onCancel}>
+            {t.profile.cancel}
+          </Button>
+        </View>
         <View style={{ flex: 1 }}>
           <Button variant="primary" size="lg" fullWidth disabled={isBusy} onPress={handleSave}>
             {isBusy ? t.profile.saving : t.profile.saveVehicle}
@@ -724,7 +768,7 @@ export function VehicleEditForm({ userId, kind, existing, onSaved, onCancel, onD
                       onChangeText={(v) => setAmenityNote(key, v)}
                       multiline
                       numberOfLines={3}
-                      placeholder="Add a note for passengers…"
+                      placeholder={t.profile.amenityNotePlaceholder}
                     />
                     <Button variant="primary" size="lg" fullWidth style={{ marginTop: 18 }} onPress={() => setDetailAmenity(null)}>
                       {t.post.save}

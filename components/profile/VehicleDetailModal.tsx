@@ -14,30 +14,52 @@ import { IconName } from '@/constants/icons';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 
-export const AMENITY_LABELS: Record<VehicleAmenity, string> = {
-  ev_station:    'Charger',
-  bluetooth:     'Bluetooth',
-  wifi:          'WiFi',
-  dashcam:       'Dashcam',
-  seat_recline:  'Comfort Seat',
-  seat_heater:   'Seat Heater',
-  baby_seat:     'Baby Seat',
-  ac_unit:       'A/C',
-  accessible:    'Accessible',
-  smoking:       'Smoking OK',
-  smoke_free:    'No Smoking',
-  vape_free:     'No Vaping',
-  cannabis_ok:   'Cannabis OK',
-  cannabis_free: 'No Cannabis',
-  glass_cocktail:'Bar',
-  food_off:      'No Fast Food',
-  music_ok:      'Music',
-  quiet_ride:    'Quiet Ride',
-  celebration:   'Celebration',
-  hand_wash:     'Clean Hands',
-  pets_ok:       'Pets OK',
-  no_pets:       'No Pets',
-};
+// Same VehicleAmenity keys as VehicleEditForm.tsx's own AMENITY_GROUPS/
+// RULE_ITEMS builders, reusing the exact same t.profile.* translation keys —
+// kept as its own function here (rather than importing theirs) since this
+// component is also used standalone (app/messages/[id].tsx's VehiclePeekCard).
+export function buildAmenityLabels(t: ReturnType<typeof useTranslation>): Record<VehicleAmenity, string> {
+  return {
+    ev_station:    t.profile.amenityCharger,
+    bluetooth:     t.profile.amenityVehicleConnection,
+    wifi:          t.profile.amenityWifi,
+    dashcam:       t.profile.amenityDashcam,
+    seat_recline:  t.profile.amenityComfortSeat,
+    seat_heater:   t.profile.amenitySeatHeater,
+    baby_seat:     t.profile.amenityBabySeat,
+    ac_unit:       t.profile.amenityAc,
+    accessible:    t.profile.amenityAccessible,
+    trunk_space:   t.profile.amenityTrunkSpace,
+    smoking:       t.profile.ruleSmokingOk,
+    smoke_free:    t.profile.ruleNoSmoking,
+    vape_free:     t.profile.ruleNoVaping,
+    cannabis_ok:   t.profile.ruleCannabisOk,
+    cannabis_free: t.profile.ruleNoCannabis,
+    glass_cocktail:t.profile.amenityBar,
+    food_off:      t.profile.ruleNoFastFood,
+    music_ok:      t.profile.amenityMusic,
+    quiet_ride:    t.profile.amenityQuietRide,
+    celebration:   t.profile.amenityCelebration,
+    hand_wash:     t.profile.amenityCleanHands,
+    pets_ok:       t.profile.rulePetsOk,
+    no_pets:       t.profile.ruleNoPets,
+    snacks:        t.profile.amenitySnacks,
+  };
+}
+
+// The stored fuel_type value is a literal English string (see
+// VehicleEditForm.tsx's FUEL_TYPE_VALUES comment) — this maps it to a
+// translated display string without touching the stored value.
+function buildFuelTypeLabels(t: ReturnType<typeof useTranslation>): Record<string, string> {
+  return {
+    Gas: t.profile.fuelGas,
+    Electric: t.profile.fuelElectric,
+    Hybrid: t.profile.fuelHybrid,
+    'Plug-in Hybrid': t.profile.fuelPlugInHybrid,
+    Diesel: t.profile.fuelDiesel,
+    'Flex-Fuel': t.profile.fuelFlexFuel,
+  };
+}
 
 function fuelIcon(fuel?: string): IconName {
   if (fuel === 'Electric') return 'bolt';
@@ -73,16 +95,18 @@ export function VehicleDetailModal({ visible, vehicle, onClose, onEdit, showPlat
   // Own vehicle (onEdit present) always shows it; anyone else only sees it
   // when the caller explicitly vouches for the relationship (showPlate).
   const canSeePlate = !!onEdit || !!showPlate;
+  const AMENITY_LABELS = buildAmenityLabels(t);
+  const FUEL_TYPE_LABELS = buildFuelTypeLabels(t);
   const title = [vehicle.year, vehicle.make, vehicle.model].filter(Boolean).join(' ') || t.profile.addVehicle;
   const kindLabel = vehicle.kind === 'hauling' ? t.profile.haulingCategory : t.profile.ridesCourierCategory;
   const specs: { icon: IconName; label: string; value: string }[] = [
     { icon: 'car', label: t.profile.vehicleMake, value: vehicle.make || '—' },
     { icon: 'verified', label: t.profile.vehicleModel, value: vehicle.model || '—' },
-    { icon: 'sparkles', label: 'Trim', value: vehicle.trim || '—' },
+    { icon: 'sparkles', label: t.profile.vehicleTrim, value: vehicle.trim || '—' },
     { icon: 'event', label: t.profile.vehicleYear, value: String(vehicle.year) },
     { icon: 'palette', label: t.profile.vehicleColor, value: vehicle.color || '—' },
-    { icon: fuelIcon(vehicle.fuel_type), label: 'Fuel', value: vehicle.fuel_type || '—' },
-    { icon: 'passenger', label: 'Seats', value: vehicle.seats != null ? String(vehicle.seats) : '—' },
+    { icon: fuelIcon(vehicle.fuel_type), label: t.profile.vehicleFuelType, value: (vehicle.fuel_type && FUEL_TYPE_LABELS[vehicle.fuel_type]) || vehicle.fuel_type || '—' },
+    { icon: 'passenger', label: t.profile.vehicleSeats, value: vehicle.seats != null ? String(vehicle.seats) : '—' },
     ...(vehicle.plate && canSeePlate ? [{ icon: 'tag' as IconName, label: t.profile.vehiclePlate, value: vehicle.plate }] : []),
   ];
   const RULE_KEYS: VehicleAmenity[] = ['smoke_free', 'smoking', 'vape_free', 'cannabis_free', 'cannabis_ok', 'food_off', 'no_pets', 'pets_ok'];

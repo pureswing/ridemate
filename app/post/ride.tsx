@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { View, ActivityIndicator, Image } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
@@ -48,8 +48,8 @@ import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { addressBookSlots } from '@/constants/addressBookSlots';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
-import { VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS, ATMOSPHERE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS } from '@/constants/rideFormOptions';
-import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
+import { VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS, ATMOSPHERE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, translatePrefLabel } from '@/constants/rideFormOptions';
+import { ACCESSIBILITY_OPTIONS, translateAccessibilityOption } from '@/constants/accessibilityOptions';
 
 export default function PostRideScreen() {
   const theme = useTheme();
@@ -60,18 +60,18 @@ export default function PostRideScreen() {
   const { getMyVehicle } = useVehicleProfile();
   const { countFavoritesInCity } = useFavorites();
 
-  // â”€â”€ I'm offering / looking for â”€â”€
+  // ── I'm offering / looking for ──
   const [type, setType] = useState<PostType>('offer');
   const isDriver = type === 'offer';
   const accent = isDriver ? theme.driverText : theme.primary;
   const accentSoft = isDriver ? theme.driverSoft : theme.passengerSoft;
 
-  // â”€â”€ Trip type (passenger only): regular vs event â”€â”€
+  // ── Trip type (passenger only): regular vs event ──
   const [isEvent, setIsEvent] = useState(false);
   const [eventName, setEventName] = useState('');
   const [vehiclesNeeded, setVehiclesNeeded] = useState(3);
 
-  // â”€â”€ Route â”€â”€
+  // ── Route ──
   const [originCity, setOriginCity] = useState('');
   const [originAddress, setOriginAddress] = useState('');
   const [destinationCity, setDestinationCity] = useState('');
@@ -88,11 +88,11 @@ export default function PostRideScreen() {
   const [stops, setStops] = useState<string[]>([]);
   const [stopsConfirmed, setStopsConfirmed] = useState<boolean[]>([]);
 
-  // â”€â”€ Address book (origin/destination "saved address" picker) â€” backed by
+  // ── Address book (origin/destination "saved address" picker) — backed by
   // supabase.saved_addresses (see hooks/useSavedAddresses.ts), shared with
   // profile/edit.tsx's Address Book screen. Shared between the origin and
   // destination fields below, matching the single address-book concept in
-  // the design system. â”€â”€
+  // the design system. ──
   const ADDRESS_BOOK_SLOTS = addressBookSlots(t);
   const { getSavedAddresses, saveAddress } = useSavedAddresses();
   const [addressBook, setAddressBook] = useState<Record<string, string>>({});
@@ -108,7 +108,7 @@ export default function PostRideScreen() {
     saveAddress(slotId, value).catch(() => {});
   }
 
-  // â”€â”€ Airport mode â”€â”€
+  // ── Airport mode ──
   const [isOriginAirport, setIsOriginAirport] = useState(false);
   const [isDestinationAirport, setIsDestinationAirport] = useState(false);
   const [selectedOriginAirport, setSelectedOriginAirport] = useState<Airport | null>(null);
@@ -116,31 +116,31 @@ export default function PostRideScreen() {
   const airport = isOriginAirport || isDestinationAirport;
   const airportLeg: 'to' | 'from' = isDestinationAirport ? 'to' : 'from';
 
-  // â”€â”€ Flight â”€â”€
+  // ── Flight ──
   const [flightNumber, setFlightNumber] = useState('');
   const [flightInfo, setFlightInfo] = useState<FlightInfo | null>(null);
   const [flightLoading, setFlightLoading] = useState(false);
   const [flightError, setFlightError] = useState<string | null>(null);
   const flightDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // â”€â”€ Schedule â”€â”€
+  // ── Schedule ──
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
 
-  // â”€â”€ Who's riding â”€â”€
+  // ── Who's riding ──
   const [seats, setSeats] = useState(2);
   const [vehicleSeats, setVehicleSeats] = useState<number | null>(null);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
   const [childSeatPrefs, setChildSeatPrefs] = useState<string[]>(['No child seat needed']);
 
-  // â”€â”€ Luggage â”€â”€
+  // ── Luggage ──
   const [bags, setBags] = useState(0);
   const [bagTypes, setBagTypes] = useState<string[]>([]);
   const [oversizedInfo, setOversizedInfo] = useState<Record<number, { types: string[]; other: string }>>({});
   const [pickingOversized, setPickingOversized] = useState<number | null>(null);
 
-  // â”€â”€ Price â”€â”€
+  // ── Price ──
   const [donation, setDonation] = useState('');
   const [routeStats, setRouteStats] = useState<RouteStats | null>(null);
   const routeStatsDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,29 +152,29 @@ export default function PostRideScreen() {
   const [rateBasis, setRateBasis] = useState<'trip' | 'hourly'>('trip');
   const [priceMode, setPriceMode] = useState<'firm' | 'open'>('firm');
 
-  // â”€â”€ Live route map preview â€” real Directions+Static Maps call, debounced,
+  // ── Live route map preview — real Directions+Static Maps call, debounced,
   // once both coords settle (user-approved cost, see [[feedback-api-efficiency]];
   // reused at submit time via `previewRoute` so it isn't fetched twice for the
-  // same pair). â”€â”€
+  // same pair). ──
   const [previewMapUrl, setPreviewMapUrl] = useState<string | null>(null);
   const [previewRoute, setPreviewRoute] = useState<RouteDetails | null>(null);
   const [previewedFor, setPreviewedFor] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
   const routeMapDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // â”€â”€ Vehicle (driver, free text) â€” visual only, no schema field; the app's
-  // real vehicle data lives in the separate Vehicle Profile system. â”€â”€
+  // ── Vehicle (driver, free text) — visual only, no schema field; the app's
+  // real vehicle data lives in the separate Vehicle Profile system. ──
   const [vehicle, setVehicle] = useState('');
 
-  // â”€â”€ Passenger vehicle/comfort/climate prefs â”€â”€
+  // ── Passenger vehicle/comfort/climate prefs ──
   const [vehicleType, setVehicleType] = useState('No preference');
   const [comfortPrefs, setComfortPrefs] = useState<string[]>(['No preference']);
   const [climatePrefs, setClimatePrefs] = useState<string[]>(['No preference']);
   const [tempPref, setTempPref] = useState(72);
 
-  // â”€â”€ Accessibility + other granular passenger prefs â”€â”€ Accessibility
-  // defaults from the profile's own saved needs, once, at mount â€” editing it
-  // here never writes back to the profile (see app/profile/edit.tsx). â”€â”€
+  // ── Accessibility + other granular passenger prefs ── Accessibility
+  // defaults from the profile's own saved needs, once, at mount — editing it
+  // here never writes back to the profile (see app/profile/edit.tsx). ──
   const [accessibilityNeeds, setAccessibilityNeeds] = useState<AccessibilityNeed[]>(profile?.accessibility_needs ?? []);
   const [atmospherePrefs, setAtmospherePrefs] = useState<string[]>(['No preference']);
   const [cleanlinessPrefs, setCleanlinessPrefs] = useState<string[]>([]);
@@ -182,11 +182,11 @@ export default function PostRideScreen() {
   const [pickupPrefs, setPickupPrefs] = useState<string[]>(['Standard curbside pickup']);
   const [driverLanguage, setDriverLanguage] = useState('No preference');
 
-  // â”€â”€ Rules / note â”€â”€
+  // ── Rules / note ──
   const [rules, setRules] = useState<Record<string, boolean>>({});
   const [note, setNote] = useState('');
 
-  // â”€â”€ Visibility â”€â”€
+  // ── Visibility ──
   const [privateDelayHours, setPrivateDelayHours] = useState(6);
   const [showPublish, setShowPublish] = useState(false);
   const [hasSaved, setHasSaved] = useState(false);
@@ -235,7 +235,7 @@ export default function PostRideScreen() {
     if (parsed) { setDate(parsed.date); setTime(parsed.time); }
   }
 
-  // Real historical average for this route (supabase/migrations/009) â€” fetched
+  // Real historical average for this route (supabase/migrations/009) — fetched
   // once both cities have settled (debounced), not on every keystroke.
   useEffect(() => {
     if (routeStatsDebounce.current) clearTimeout(routeStatsDebounce.current);
@@ -246,9 +246,9 @@ export default function PostRideScreen() {
     }, 500);
   }, [originCity, destinationCity]);
 
-  // Live route map preview â€” once both coords settle (debounced), fetch the
+  // Live route map preview — once both coords settle (debounced), fetch the
   // real driving route + build a Static Maps URL directly (no bytes downloaded
-  // here â€” the <Image> below fetches the URL itself). Skips entirely without
+  // here — the <Image> below fetches the URL itself). Skips entirely without
   // both lat/lng pairs, matching the create form's "map is a nice-to-have"
   // pattern rather than blocking on it.
   useEffect(() => {
@@ -316,7 +316,7 @@ export default function PostRideScreen() {
     setList(list.includes(value) ? list.filter((x) => x !== value) : [...list, value]);
   }
 
-  const ready = !!(originCity.trim() && destinationCity.trim() && date.trim() && time.trim());
+  const ready = !!(originCity.trim() && destinationCity.trim() && date.trim() && time.trim() && donation.trim());
 
   async function handleSubmit(chosenVisibility: PostVisibility) {
     if (!ready) {
@@ -368,7 +368,7 @@ export default function PostRideScreen() {
         ? new Date(Date.now() + privateDelayHours * 60 * 60 * 1000).toISOString()
         : undefined;
 
-      // Generated once here, at creation â€” RouteMap.tsx just displays this
+      // Generated once here, at creation — RouteMap.tsx just displays this
       // stored image, it never re-fetches from Google on its own.
       let routeMapUrl: string | undefined;
       let durationText: string | undefined;
@@ -376,7 +376,7 @@ export default function PostRideScreen() {
       let distanceText: string | undefined;
       if (originLat != null && originLng != null && destinationLat != null && destinationLng != null) {
         // Reuse the live preview's already-fetched Directions result if it's
-        // still for this exact origin/destination pair â€” avoids a duplicate
+        // still for this exact origin/destination pair — avoids a duplicate
         // Directions call for the map the user already saw while filling the form.
         const cached = previewedFor === `${originLat},${originLng}|${destinationLat},${destinationLng}|${stopWaypoints.join('|')}` ? previewRoute ?? undefined : undefined;
         const route = await generateRouteMapImage({ lat: originLat, lng: originLng }, { lat: destinationLat, lng: destinationLng }, cached, stopWaypoints);
@@ -613,7 +613,7 @@ export default function PostRideScreen() {
           </View>
         )}
 
-        {/* Route map â€” only once both origin/destination are actually
+        {/* Route map — only once both origin/destination are actually
             selected (real coords); real live preview once both coords settle
             (debounced Directions + Static Maps call, see the effect above),
             decorative placeholder while it's loading. */}
@@ -629,7 +629,7 @@ export default function PostRideScreen() {
           </Field>
         )}
 
-        {/* Date + time â€” tap opens the device's own calendar / clock picker */}
+        {/* Date + time — tap opens the device's own calendar / clock picker */}
         <View style={{ flexDirection: 'row', gap: 12 }}>
           <Field label={t.post.date} style={{ flex: 1 }}>
             <DateTimeField mode="date" value={date} onChange={setDate} icon="event" placeholder={t.post.selectDate} doneLabel={t.post.save} locale={t.locale} />
@@ -662,12 +662,12 @@ export default function PostRideScreen() {
               </CardBox>
             </Field>
             {children > 0 && (
-              <CollapsibleField label={t.post.childSeat} hint={t.post.selectAllApplied}>
+              <CollapsibleField label={t.post.childSeat}>
                 <CardBox>
                   {CHILD_SEAT_OPTIONS.map((c, i) => (
                     <View key={c}>
                       {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                      <PlainToggleRow label={c} checked={childSeatPrefs.includes(c)} onChange={() => toggleExclusive(childSeatPrefs, setChildSeatPrefs, c, 'No child seat needed')} accent={accent} theme={theme} />
+                      <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={childSeatPrefs.includes(c)} onChange={() => toggleExclusive(childSeatPrefs, setChildSeatPrefs, c, 'No child seat needed')} accent={accent} theme={theme} />
                     </View>
                   ))}
                 </CardBox>
@@ -755,12 +755,12 @@ export default function PostRideScreen() {
 
         {/* Vehicle type / rules / comfort / climate (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label={t.post.vehicleTypeLabel} hint="Select one">
+          <CollapsibleField label={t.post.vehicleTypeLabel} hint={t.post.selectOne}>
             <CardBox>
               {VEHICLE_TYPES.map((v, i) => (
                 <View key={v}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={v} checked={vehicleType === v} onChange={() => setVehicleType(v)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(v, t.locale)} checked={vehicleType === v} onChange={() => setVehicleType(v)} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -768,30 +768,30 @@ export default function PostRideScreen() {
         )}
 
         {!isDriver && (
-          <CollapsibleField label={t.post.comfortSeating} hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.post.comfortSeating}>
             <CardBox>
               {COMFORT_PREFS.map((c, i) => (
                 <View key={c}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={c} checked={comfortPrefs.includes(c)} onChange={() => toggleExclusive(comfortPrefs, setComfortPrefs, c, 'No preference')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={comfortPrefs.includes(c)} onChange={() => toggleExclusive(comfortPrefs, setComfortPrefs, c, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
           </CollapsibleField>
         )}
         {!isDriver && (
-          <CollapsibleField label={t.post.climateControl} hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.post.climateControl}>
             <CardBox>
               {CLIMATE_PREFS.map((c, i) => (
                 <View key={c}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={c} checked={climatePrefs.includes(c)} onChange={() => toggleExclusive(climatePrefs, setClimatePrefs, c, 'No preference')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={climatePrefs.includes(c)} onChange={() => toggleExclusive(climatePrefs, setClimatePrefs, c, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
               <View style={{ height: 1, backgroundColor: theme.border }} />
               <PlainToggleRow
                 icon="thermometer"
-                label={SPECIFIC_TEMP}
+                label={translatePrefLabel(SPECIFIC_TEMP, t.locale)}
                 checked={climatePrefs.includes(SPECIFIC_TEMP)}
                 onChange={() => setClimatePrefs((prev) => { const w = prev.filter((x) => x !== 'No preference'); return w.includes(SPECIFIC_TEMP) ? w.filter((x) => x !== SPECIFIC_TEMP) : [...w, SPECIFIC_TEMP]; })}
                 accent={accent}
@@ -800,7 +800,7 @@ export default function PostRideScreen() {
             </CardBox>
             {climatePrefs.includes(SPECIFIC_TEMP) && (
               <CardBox style={{ marginTop: 10 }}>
-                <StepRow icon="thermometer" label={t.post.targetTemp} sub="Â°F" value={tempPref} min={60} max={80} onDec={() => setTempPref((v) => Math.max(60, v - 1))} onInc={() => setTempPref((v) => Math.min(80, v + 1))} theme={theme} />
+                <StepRow icon="thermometer" label={t.post.targetTemp} sub="°F" value={tempPref} min={60} max={80} onDec={() => setTempPref((v) => Math.max(60, v - 1))} onInc={() => setTempPref((v) => Math.min(80, v + 1))} theme={theme} />
               </CardBox>
             )}
           </CollapsibleField>
@@ -809,15 +809,17 @@ export default function PostRideScreen() {
         {/* Accessibility (passenger only) — defaults from the profile's own
             saved needs; editing it here doesn't change the profile. */}
         {!isDriver && (
-          <CollapsibleField label="Accessibility" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.accessibility}>
             <CardBox>
-              {ACCESSIBILITY_OPTIONS.map((opt, i) => (
+              {ACCESSIBILITY_OPTIONS.map((opt, i) => {
+                const tr = translateAccessibilityOption(opt, t.locale);
+                return (
                 <View key={opt.id}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
                   <PlainToggleRow
                     icon={opt.icon}
-                    label={opt.label}
-                    sub={opt.desc}
+                    label={tr.label}
+                    sub={tr.desc}
                     checked={accessibilityNeeds.includes(opt.id)}
                     onChange={() => setAccessibilityNeeds((prev) =>
                       prev.includes(opt.id) ? prev.filter((x) => x !== opt.id) : [...prev, opt.id]
@@ -826,19 +828,20 @@ export default function PostRideScreen() {
                     theme={theme}
                   />
                 </View>
-              ))}
+                );
+              })}
             </CardBox>
           </CollapsibleField>
         )}
 
         {/* Ride atmosphere (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Ride atmosphere" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.entertainment}>
             <CardBox>
               {ATMOSPHERE_PREFS.map((a, i) => (
                 <View key={a}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={a} checked={atmospherePrefs.includes(a)} onChange={() => toggleExclusive(atmospherePrefs, setAtmospherePrefs, a, 'No preference')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(a, t.locale)} checked={atmospherePrefs.includes(a)} onChange={() => toggleExclusive(atmospherePrefs, setAtmospherePrefs, a, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -847,12 +850,12 @@ export default function PostRideScreen() {
 
         {/* Cleanliness & sensitivities (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Cleanliness">
+          <CollapsibleField label={t.filterDrawer.featureCategories.cleanliness}>
             <CardBox>
               {CLEANLINESS_PREFS.map((c, i) => (
                 <View key={c}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={c} checked={cleanlinessPrefs.includes(c)} onChange={() => toggleTagPlain(cleanlinessPrefs, setCleanlinessPrefs, c)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(c, t.locale)} checked={cleanlinessPrefs.includes(c)} onChange={() => toggleTagPlain(cleanlinessPrefs, setCleanlinessPrefs, c)} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -861,12 +864,12 @@ export default function PostRideScreen() {
 
         {/* Pet transportation (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Pet transportation" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.petTransportation}>
             <CardBox>
               {PET_PREFS.map((p, i) => (
                 <View key={p}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={p} checked={petPrefs.includes(p)} onChange={() => toggleExclusive(petPrefs, setPetPrefs, p, 'No pet')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(p, t.locale)} checked={petPrefs.includes(p)} onChange={() => toggleExclusive(petPrefs, setPetPrefs, p, 'No pet')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -875,12 +878,12 @@ export default function PostRideScreen() {
 
         {/* Pickup preferences (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Pickup preferences" hint={t.post.selectAllApplied}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.pickupPreferences}>
             <CardBox>
               {PICKUP_PREFS.map((p, i) => (
                 <View key={p}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={p} checked={pickupPrefs.includes(p)} onChange={() => toggleExclusive(pickupPrefs, setPickupPrefs, p, 'Standard curbside pickup')} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(p, t.locale)} checked={pickupPrefs.includes(p)} onChange={() => toggleExclusive(pickupPrefs, setPickupPrefs, p, 'Standard curbside pickup')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>
@@ -889,12 +892,12 @@ export default function PostRideScreen() {
 
         {/* Preferred driver language (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label="Preferred driver language" hint={t.post.optional}>
+          <CollapsibleField label={t.filterDrawer.featureCategories.driverLanguage} hint={t.post.optional}>
             <CardBox>
               {DRIVER_LANGUAGE_PREFS.map((l, i) => (
                 <View key={l}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={l} checked={driverLanguage === l} onChange={() => setDriverLanguage(l)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(l, t.locale)} checked={driverLanguage === l} onChange={() => setDriverLanguage(l)} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>

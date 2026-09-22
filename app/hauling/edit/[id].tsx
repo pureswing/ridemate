@@ -35,7 +35,7 @@ import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { addressBookSlots } from '@/constants/addressBookSlots';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import { LOAD_TYPES, LOAD_SIZES, ACCESS_OPTIONS, HAULING_PROHIBITED_ITEMS } from '@/constants/haulingFormOptions';
+import { LOAD_TYPES, LOAD_SIZES, ACCESS_OPTIONS, HAULING_PROHIBITED_ITEMS, translateHaulingLabel, translateHaulingSub } from '@/constants/haulingFormOptions';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 const MAX_HAULING_PHOTOS = 4;
@@ -212,7 +212,8 @@ export default function EditHaulingScreen() {
   const ready = !!(
     originCity.trim() && loadTypes.length > 0 && allConfirmed &&
     (flexibleDate || (date.trim() && time.trim())) &&
-    (disposal === 'driver' || destinationCity.trim())
+    (disposal === 'driver' || destinationCity.trim()) &&
+    donation.trim()
   );
   const routeChanged = !original
     || effectiveDestLat !== original.destination_lat || effectiveDestLng !== original.destination_lng
@@ -408,20 +409,20 @@ export default function EditHaulingScreen() {
 
       <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" removeClippedSubviews={false} contentContainerStyle={{ padding: 20, gap: 18, paddingBottom: 40 }}>
         {/* Load type */}
-        <Field label="What needs hauling?" hint={t.post.selectAllApplied}>
+        <Field label={t.post.loadType}>
           <CardBox>
             {LOAD_TYPES.map((l, i) => (
               <View key={l.label}>
                 {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                <PlainToggleRow icon={l.icon} label={l.label} sub={l.sub} checked={loadTypes.includes(l.label)} onChange={() => toggleTag(loadTypes, setLoadTypes, l.label)} accent={accent} theme={theme} />
+                <PlainToggleRow icon={l.icon} label={translateHaulingLabel(l.label, t.locale)} sub={translateHaulingSub(l.sub, t.locale)} checked={loadTypes.includes(l.label)} onChange={() => toggleTag(loadTypes, setLoadTypes, l.label)} accent={accent} theme={theme} />
               </View>
             ))}
           </CardBox>
         </Field>
 
-        <Field label="Pickup location">
+        <Field label={t.post.pickupLocationLabel}>
           <SmartAddressField
-            placeholder="Address or area…"
+            placeholder={t.post.addressOrAreaPlaceholder}
             value={originAddress} onChangeText={setOriginAddress} onSelectPlace={handleOriginPlace}
             onSelectSaved={(v) => setOriginCity(cityFromAddress(v) ?? v)}
             savedAddresses={savedAddresses} emptySlots={emptyAddressSlots} onSaveToSlot={saveAddressToSlot}
@@ -429,15 +430,15 @@ export default function EditHaulingScreen() {
           />
         </Field>
 
-        <Field label="Disposal / dropoff">
+        <Field label={t.post.disposalLabel}>
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <KindCard active={disposal === 'driver'} onPress={() => setDisposal('driver')} icon="truck" title="Driver handles it" sub="Hauler finds a dump site" accent={accent} accentSoft={accentSoft} />
-              <KindCard active={disposal === 'address'} onPress={() => setDisposal('address')} icon="location" title="Specific address" sub="I'll provide dropoff" accent={accent} accentSoft={accentSoft} />
+              <KindCard active={disposal === 'driver'} onPress={() => setDisposal('driver')} icon="truck" title={t.post.disposalDriverTitle} sub={t.post.disposalDriverSub} accent={accent} accentSoft={accentSoft} />
+              <KindCard active={disposal === 'address'} onPress={() => setDisposal('address')} icon="location" title={t.post.disposalAddressTitle} sub={t.post.disposalAddressSub} accent={accent} accentSoft={accentSoft} />
             </View>
             {disposal === 'address' && (
               <SmartAddressField
-                placeholder="Drop-off address…"
+                placeholder={t.post.dropoffAddressPlaceholder}
                 value={destinationAddress} onChangeText={setDestinationAddress} onSelectPlace={handleDestinationPlace}
                 onSelectSaved={(v) => setDestinationCity(cityFromAddress(v) ?? v)}
                 savedAddresses={savedAddresses} emptySlots={emptyAddressSlots} onSaveToSlot={saveAddressToSlot}
@@ -458,10 +459,10 @@ export default function EditHaulingScreen() {
           </Field>
         )}
 
-        <Field label="Schedule">
+        <Field label={t.post.scheduleLabel}>
           <View style={{ gap: 10 }}>
             <Segmented
-              options={[{ value: 'fixed' as const, label: 'Fixed date/time' }, { value: 'flexible' as const, label: 'Anytime this week' }]}
+              options={[{ value: 'fixed' as const, label: t.post.fixedDateTime }, { value: 'flexible' as const, label: t.post.anytimeThisWeek }]}
               value={flexibleDate ? 'flexible' : 'fixed'}
               onChange={(v) => setFlexibleDate(v === 'flexible')}
               theme={theme}
@@ -470,7 +471,7 @@ export default function EditHaulingScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 14, borderWidth: 1.5, borderColor: theme.border, backgroundColor: theme.surfaceAlt, padding: 13 }}>
                 <Icon name="event" size={16} color={theme.muted} />
                 <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 17 }}>
-                  Haulers will see this as flexible — any day works for you this week.
+                  {t.post.flexibleDateNotice}
                 </Text>
               </View>
             ) : (
@@ -488,38 +489,38 @@ export default function EditHaulingScreen() {
           </View>
         </Field>
 
-        <Field label="Load size">
+        <Field label={t.post.loadSize}>
           <View style={{ gap: 10 }}>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {LOAD_SIZES.slice(0, 2).map((s) => (
-                <LoadSizeCard key={s.value} active={loadSize === s.value} onPress={() => setLoadSize(s.value)} label={s.label} sub={s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
+                <LoadSizeCard key={s.value} active={loadSize === s.value} onPress={() => setLoadSize(s.value)} label={translateHaulingLabel(s.label, t.locale)} sub={translateHaulingSub(s.sub, t.locale) ?? s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
               ))}
             </View>
             <View style={{ flexDirection: 'row', gap: 10 }}>
               {LOAD_SIZES.slice(2, 4).map((s) => (
-                <LoadSizeCard key={s.value} active={loadSize === s.value} onPress={() => setLoadSize(s.value)} label={s.label} sub={s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
+                <LoadSizeCard key={s.value} active={loadSize === s.value} onPress={() => setLoadSize(s.value)} label={translateHaulingLabel(s.label, t.locale)} sub={translateHaulingSub(s.sub, t.locale) ?? s.sub} accent={accent} accentSoft={accentSoft} theme={theme} />
               ))}
             </View>
           </View>
         </Field>
 
-        <Field label="Site access">
+        <Field label={t.post.siteAccess}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
             {ACCESS_OPTIONS.map((a) => (
-              <RuleChip key={a} active={access.includes(a)} onPress={() => toggleTag(access, setAccess, a)} accent={accent} theme={theme}>{a}</RuleChip>
+              <RuleChip key={a} active={access.includes(a)} onPress={() => toggleTag(access, setAccess, a)} accent={accent} theme={theme}>{translateHaulingLabel(a, t.locale)}</RuleChip>
             ))}
           </View>
         </Field>
 
-        <Field label="Extra options">
+        <Field label={t.post.extraOptionsLabel}>
           <CardBox>
-            <PlainToggleRow icon="passenger" label="Help carrying" sub="Need muscle on-site" checked={helpNeeded} onChange={setHelpNeeded} accent={accent} theme={theme} />
+            <PlainToggleRow icon="passenger" label={t.post.helpCarryingLabel} sub={t.post.helpCarryingSub} checked={helpNeeded} onChange={setHelpNeeded} accent={accent} theme={theme} />
             <View style={{ height: 1, backgroundColor: theme.border }} />
-            <PlainToggleRow icon="ban" label="No hazardous materials" sub="No asbestos, sharp metals or chemicals" checked={hazardous} onChange={setHazardous} accent={accent} theme={theme} />
+            <PlainToggleRow icon="ban" label={t.post.noHazmatLabel} sub={t.post.noHazmatSub} checked={hazardous} onChange={setHazardous} accent={accent} theme={theme} />
           </CardBox>
         </Field>
 
-        <Field label="Budget / offer">
+        <Field label={t.post.budgetOfferLabel}>
           <View style={{ gap: 10 }}>
             <Segmented
               options={[{ value: 'firm' as const, label: t.post.firmPrice }, { value: 'open' as const, label: t.post.openToOffers }]}
@@ -539,7 +540,7 @@ export default function EditHaulingScreen() {
               }
             />
             {priceMode === 'open' && (
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, lineHeight: 16 }}>Haulers can send counter-offers.</Text>
+              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11.5, color: theme.textFaint, lineHeight: 16 }}>{t.post.counterOfferNoticeHauling}</Text>
             )}
           </View>
         </Field>
@@ -548,22 +549,22 @@ export default function EditHaulingScreen() {
         <View style={{ borderRadius: 14, borderWidth: 1.5, borderColor: theme.borderGold, backgroundColor: theme.badgeWarnBg + '33', padding: 13, flexDirection: 'row', gap: 10 }}>
           <Icon name="shield" size={16} color={theme.gold400} />
           <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12, color: theme.textSecondary, lineHeight: 17 }}>
-            <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>No liability coverage. </Text>
-            BoteGo provides no property or liability insurance of any kind. Hauling work is at the sole risk of the poster and hauler. The platform is not liable for property damage, loss, or injury.
+            <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.noLiabilityCoverage}</Text>
+            {t.post.haulingLiabilityNotice}
           </Text>
         </View>
 
-        <Field label="Notes" hint={t.post.optional}>
+        <Field label={t.post.note} hint={t.post.optional}>
           <Input
             value={note}
             onChangeText={setNote}
             multiline
             numberOfLines={4}
-            placeholder="Photos of the load, special instructions, parking info, anything the hauler should know…"
+            placeholder={t.post.haulingNotePlaceholder}
           />
         </Field>
 
-        <Field label="Photos of load" hint={`${t.post.optional} · ${photoUris.length}/${MAX_HAULING_PHOTOS}`}>
+        <Field label={t.post.photosOfLoadLabel} hint={`${t.post.optional} · ${photoUris.length}/${MAX_HAULING_PHOTOS}`}>
           {photoUris.length === 0 ? (
             <TouchableOpacity
               onPress={pickPhoto}
@@ -577,8 +578,8 @@ export default function EditHaulingScreen() {
                 <Icon name="camera" size={22} color={theme.textFaint} />
               </View>
               <View style={{ alignItems: 'center' }}>
-                <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.muted, textAlign: 'center' }}>Tap to add a photo</Text>
-                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 2 }}>JPG, PNG — helps haulers assess the job</Text>
+                <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 13, color: theme.muted, textAlign: 'center' }}>{t.post.tapToAddPhoto}</Text>
+                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 2 }}>{t.post.photoFormatHint}</Text>
               </View>
             </TouchableOpacity>
           ) : (
@@ -613,13 +614,13 @@ export default function EditHaulingScreen() {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
             <Icon name="ban" size={16} color={theme.danger} />
             <Text style={{ fontFamily: fonts.bodyExtraBold, fontSize: 12, textTransform: 'uppercase', letterSpacing: letterSpacingFor(12, tracking.wide), color: theme.danger }}>
-              Prohibited items
+              {t.post.prohibitedItems}
             </Text>
           </View>
           <View style={{ borderRadius: radii.lg, borderWidth: 2, borderColor: theme.danger, backgroundColor: theme.surface, overflow: 'hidden' }}>
             <View style={{ padding: 14, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: theme.border, backgroundColor: theme.danger + '0F' }}>
               <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 18 }}>
-                Florida law prohibits hauling these without special permits. Confirm your load does <Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>not</Text> include any of the following to enable posting.
+                {t.post.prohibitedIntroMiddleHauling}<Text style={{ fontFamily: fonts.bodyBold, color: theme.text }}>{t.post.prohibitedNot}</Text>{t.post.prohibitedIntroSuffixHauling}
               </Text>
             </View>
             {HAULING_PROHIBITED_ITEMS.map((p, i) => {
@@ -630,9 +631,9 @@ export default function EditHaulingScreen() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 13, backgroundColor: ok ? theme.success + '0F' : 'transparent' }}>
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={{ fontFamily: fonts.bodyBold, fontSize: 14, color: ok ? theme.success : theme.text, textDecorationLine: ok ? 'line-through' : 'none' }}>
-                        {p.label}
+                        {translateHaulingLabel(p.label, t.locale)}
                       </Text>
-                      {p.sub && <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 2, lineHeight: 15 }}>{p.sub}</Text>}
+                      {p.sub && <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 11, color: theme.textFaint, marginTop: 2, lineHeight: 15 }}>{translateHaulingSub(p.sub, t.locale)}</Text>}
                     </View>
                     <TouchableOpacity
                       onPress={() => setConfirmed((c) => c.includes(p.label) ? c.filter((x) => x !== p.label) : [...c, p.label])}
@@ -643,7 +644,7 @@ export default function EditHaulingScreen() {
                       }}
                     >
                       {ok && <Icon name="check" size={14} color={theme.success} strokeWidth={2.6} />}
-                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: ok ? theme.success : theme.danger }}>{ok ? 'None' : 'Confirm'}</Text>
+                      <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: ok ? theme.success : theme.danger }}>{ok ? t.post.confirmNoneLabel : t.post.confirmLabel}</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -653,7 +654,7 @@ export default function EditHaulingScreen() {
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 16, paddingVertical: 11, borderTopWidth: 1, borderTopColor: theme.border, backgroundColor: theme.danger + '0D' }}>
                 <Icon name="ban" size={14} color={theme.danger} />
                 <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12, color: theme.danger }}>
-                  Confirm {HAULING_PROHIBITED_ITEMS.length - confirmed.length} remaining item{HAULING_PROHIBITED_ITEMS.length - confirmed.length !== 1 ? 's' : ''} to enable posting
+                  {t.post.confirmMoreToEnable.replace('{count}', String(HAULING_PROHIBITED_ITEMS.length - confirmed.length))}
                 </Text>
               </View>
             )}
