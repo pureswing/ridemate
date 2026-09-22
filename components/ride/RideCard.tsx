@@ -32,6 +32,14 @@ interface Props {
   style?: StyleProp<ViewStyle>;
 }
 
+// Real drag-to-scroll inside a plain RN Modal is unreliable on some Android
+// devices/firmwares (confirmed on the Armor 34 test device: taps work,
+// drags inside the Modal silently don't, even though the exact same
+// ScrollView scrolls fine when driven programmatically — a device/OS touch
+// quirk, not a bug in the ScrollView setup itself). Tap-to-reveal pagination
+// sidesteps needing any drag gesture at all inside the sheet.
+const ACCESS_PAGE_SIZE = 4;
+
 // 0-999 as-is, 1000+ compact to "1K".."999K".
 function formatCount(n: number): string {
   if (n < 1000) return String(n);
@@ -60,6 +68,7 @@ export function RideCard({ post, style }: Props) {
   const date = new Date(post.scheduled_at);
   const verified = post.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false;
   const [accessOpen, setAccessOpen] = useState(false);
+  const [accessShown, setAccessShown] = useState(ACCESS_PAGE_SIZE);
   const [airportOpen, setAirportOpen] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [priceAnalysis, setPriceAnalysis] = useState<PriceAnalysis | null>(null);
@@ -275,15 +284,17 @@ export function RideCard({ post, style }: Props) {
       )}
 
       {hasAccess && (
-        <BottomSheet visible={accessOpen} onClose={() => setAccessOpen(false)} style={{ paddingHorizontal: 20, paddingBottom: 20, maxHeight: '72%' }}>
+        <BottomSheet visible={accessOpen} onClose={() => { setAccessOpen(false); setAccessShown(ACCESS_PAGE_SIZE); }} style={{ paddingHorizontal: 20, paddingBottom: 20 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
             <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.gold400 + '24', alignItems: 'center', justifyContent: 'center' }}>
               <Icon name="accessible" size={18} color={theme.gold500} />
             </View>
             <Text style={{ fontFamily: fonts.displayBold, fontSize: 17, color: theme.text }}>{t.feed.accessibilityRequirements}</Text>
           </View>
+          {/* Plain View, no ScrollView — see ACCESS_PAGE_SIZE's comment.
+              Tap-to-reveal instead of drag-to-scroll. */}
           <View style={{ gap: 10 }}>
-            {accessOptions.map((opt) => (
+            {accessOptions.slice(0, accessShown).map((opt) => (
               <View key={opt.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, backgroundColor: theme.surfaceAlt }}>
                 <View style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' }}>
                   <Icon name={opt.icon} size={17} color={theme.text} />
@@ -294,6 +305,16 @@ export function RideCard({ post, style }: Props) {
                 </View>
               </View>
             ))}
+            {accessShown < accessOptions.length && (
+              <Pressable
+                onPress={() => setAccessShown((n) => n + ACCESS_PAGE_SIZE)}
+                style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: radii.md, borderWidth: 1, borderColor: theme.border, borderStyle: 'dashed' }}
+              >
+                <Text style={{ fontFamily: fonts.bodyBold, fontSize: 13, color: theme.gold500 }}>
+                  {t.feed.showMoreCount.replace('{count}', String(accessOptions.length - accessShown))}
+                </Text>
+              </Pressable>
+            )}
           </View>
         </BottomSheet>
       )}
