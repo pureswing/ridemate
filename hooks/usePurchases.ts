@@ -119,6 +119,7 @@ export function usePurchases() {
   const [offering, setOffering] = useState<PurchasesOffering | null>(null);
   const [offeringsError, setOfferingsError] = useState<string | null>(null);
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
 
   useEffect(() => {
     if (!configured) return;
@@ -149,5 +150,25 @@ export function usePurchases() {
     }
   }
 
-  return { offering, offeringsError, purchasing, purchase };
+  // For a reinstall or a new device signed into the same Google/Apple store
+  // account — re-links whatever that store account already purchased to
+  // this App User ID. Distinct from cross-platform recognition (Android
+  // purchase → seen on iPhone), which needs no action since it's already
+  // keyed off this same app-level userId; this restores a purchase the
+  // *store account itself* made, when RevenueCat hasn't seen it on this
+  // installation yet. Returns whether an active donor entitlement was
+  // found, so the caller can show "nothing to restore" vs. a real result.
+  async function restore(): Promise<boolean> {
+    setRestoring(true);
+    try {
+      const customerInfo = await Purchases.restorePurchases();
+      const userId = useAuthStore.getState().session?.user?.id;
+      if (userId) syncSubscriptionFromCustomerInfo(userId, customerInfo);
+      return !!customerInfo.entitlements.active[DONOR_ENTITLEMENT];
+    } finally {
+      setRestoring(false);
+    }
+  }
+
+  return { offering, offeringsError, purchasing, purchase, restoring, restore };
 }

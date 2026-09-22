@@ -11,7 +11,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { VEHICLE_TYPES, CLIMATE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, COMFORT_PREFS, ATMOSPHERE_PREFS, translatePrefLabel } from '@/constants/rideFormOptions';
 import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
-import { RidePostKind } from '@/types';
+import { AccessibilityNeed, RidePost, RidePostDetailsRide, RidePostKind } from '@/types';
 
 export interface FilterState {
   minSeats: number; // 0 = any
@@ -37,6 +37,38 @@ export const DEFAULT_FILTER_STATE: FilterState = {
   airportOnly: false,
   verifiedOnly: false,
 };
+
+// A selected chip is stored as "category:value" (see toFeatureItems below) —
+// this decodes one such key and checks it against a post's own details.
+// Only ride posts (RidePostDetailsRide) carry any of these fields, so a
+// package/hauling post never matches a feature filter, same as it wouldn't
+// match a real "ride only" filter.
+function postMatchesFeature(post: RidePost, featureKey: string): boolean {
+  if (post.kind !== 'ride') return false;
+  const sep = featureKey.indexOf(':');
+  const category = featureKey.slice(0, sep);
+  const value = featureKey.slice(sep + 1);
+  const details = post.details as RidePostDetailsRide;
+  switch (category) {
+    case 'comfort': return (details.comfortPrefs ?? []).includes(value);
+    case 'entertainment': return (details.atmospherePrefs ?? []).includes(value);
+    case 'accessibility': return (details.accessibilityNeeds ?? []).includes(value as AccessibilityNeed);
+    case 'vehicleType': return details.vehicleType === value;
+    case 'climateControl': return (details.climatePrefs ?? []).includes(value);
+    case 'cleanliness': return (details.cleanlinessPrefs ?? []).includes(value);
+    case 'petTransportation': return (details.petPrefs ?? []).includes(value);
+    case 'pickupPreferences': return (details.pickupPrefs ?? []).includes(value);
+    case 'driverLanguage': return details.driverLanguage === value;
+    default: return false;
+  }
+}
+
+// A post must match every selected chip (AND across chips, even across
+// different categories) — each one is a "must have" refinement, not an
+// alternative. Empty selection always passes.
+export function postMatchesFeatures(post: RidePost, features: string[]): boolean {
+  return features.every((f) => postMatchesFeature(post, f));
+}
 
 export function countActiveFilters(f: FilterState, kind: 'all' | RidePostKind, originCity: string): number {
   return [
@@ -110,6 +142,17 @@ export function FilterDrawer({ visible, onClose, value, onChange, kind, onKindCh
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cities]);
+
+  // Min-seats only ever matches a ride offer post (see the filter itself,
+  // app/(tabs)/index.tsx) — meaningless once Service is narrowed to
+  // Courier/Hauling, so the section hides there (below) and any active
+  // selection resets rather than silently keep filtering out everything.
+  useEffect(() => {
+    if ((kind === 'package' || kind === 'hauling') && value.minSeats !== 0) {
+      patch({ minSeats: 0 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind]);
 
   useEffect(() => {
     if (visible) {
@@ -210,38 +253,42 @@ export function FilterDrawer({ visible, onClose, value, onChange, kind, onKindCh
               </View>
             </Section>
 
-            {/* Min seats */}
-            <Section label={`${t.filterDrawer.minSeats}: ${value.minSeats === 0 ? t.filterDrawer.any : `${value.minSeats}+`}`} theme={theme}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {[0, 1, 2, 3, 4].map((n) => {
-                  const selected = value.minSeats === n;
-                  return (
-                    <Pressable
-                      key={n}
-                      onPress={() => patch({ minSeats: n })}
-                      style={{
-                        flex: 1, height: 36, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: selected ? accent : theme.surface,
-                        borderWidth: selected ? 0 : 1, borderColor: theme.border,
-                      }}
-                    >
-                      <Text
+            {/* Min seats — only a ride offer (Pooling) post ever has this,
+                so the section hides once Service is narrowed to something
+                that can never match (see the reset effect above too). */}
+            {kind !== 'package' && kind !== 'hauling' && (
+              <Section label={`${t.filterDrawer.minSeats}: ${value.minSeats === 0 ? t.filterDrawer.any : value.minSeats === 4 ? '4+' : `${value.minSeats}`}`} theme={theme}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {[0, 1, 2, 3, 4].map((n) => {
+                    const selected = value.minSeats === n;
+                    return (
+                      <Pressable
+                        key={n}
+                        onPress={() => patch({ minSeats: n })}
                         style={{
-                          fontFamily: fonts.bodyExtraBold, fontSize: 13, color: selected ? '#fff' : theme.muted,
-                          // includeFontPadding:false strips Android's default extra
-                          // vertical padding around custom TTFs — without it this
-                          // bold font sits visibly off-center inside the chip.
-                          includeFontPadding: false,
-                          textAlignVertical: 'center',
+                          flex: 1, height: 36, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center',
+                          backgroundColor: selected ? accent : theme.surface,
+                          borderWidth: selected ? 0 : 1, borderColor: theme.border,
                         }}
                       >
-                        {n === 0 ? t.filterDrawer.any : `${n}+`}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </Section>
+                        <Text
+                          style={{
+                            fontFamily: fonts.bodyExtraBold, fontSize: 13, color: selected ? '#fff' : theme.muted,
+                            // includeFontPadding:false strips Android's default extra
+                            // vertical padding around custom TTFs — without it this
+                            // bold font sits visibly off-center inside the chip.
+                            includeFontPadding: false,
+                            textAlignVertical: 'center',
+                          }}
+                        >
+                          {n === 0 ? t.filterDrawer.any : n === 4 ? '4+' : `${n}`}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </Section>
+            )}
 
             {/* Origin city — same collapsible-category format as Features & extras */}
             <Section label={t.filterDrawer.originCity} theme={theme}>

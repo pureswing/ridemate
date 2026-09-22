@@ -14,6 +14,7 @@ import { Chip } from '@/components/ui/Chip';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { MembershipCheckoutSheet } from '@/components/profile/MembershipCheckoutSheet';
 import { useAuthStore } from '@/store/authStore';
@@ -39,7 +40,19 @@ export default function MembershipScreen() {
   const insets = useSafeAreaInsets();
   const { profile, subscription } = useAuthStore();
   const { tier, isFree, daysRemaining } = useSubscription();
-  const { offering, purchase, purchasing } = usePurchases();
+  const { offering, purchase, purchasing, restore, restoring } = usePurchases();
+  const [restoreResult, setRestoreResult] = useState<{ title: string; message: string } | null>(null);
+
+  async function handleRestorePress() {
+    try {
+      const found = await restore();
+      setRestoreResult(found
+        ? { title: t.membership.restoreFoundTitle, message: t.membership.restoreFoundMsg }
+        : { title: t.membership.restoreNoneTitle, message: t.membership.restoreNoneMsg });
+    } catch (e: any) {
+      setRestoreResult({ title: t.membership.purchaseErrorTitle, message: e?.message || t.membership.purchaseErrorGeneric });
+    }
+  }
 
   const [selectedAmount, setSelectedAmount] = useState<(typeof DONOR_AMOUNTS)[number]>(DONOR_SUGGESTED_AMOUNT);
   // Paid users don't see the amount picker by default (they see BadgeExplainer
@@ -252,9 +265,16 @@ export default function MembershipScreen() {
               {ctaLabel}
             </Button>
             {isFree ? (
-              <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.textFaint, textAlign: 'center', lineHeight: 17 }}>
-                {t.membership.choosePlanFooter}
-              </Text>
+              <>
+                <Text style={{ fontFamily: fonts.bodyRegular, fontSize: 12, color: theme.textFaint, textAlign: 'center', lineHeight: 17 }}>
+                  {t.membership.choosePlanFooter}
+                </Text>
+                <TouchableOpacity onPress={handleRestorePress} disabled={restoring} style={{ alignItems: 'center' }}>
+                  <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: theme.muted }}>
+                    {restoring ? t.membership.restoring : t.membership.restorePurchases}
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <TouchableOpacity onPress={() => setAdjustingAmount(false)} style={{ alignItems: 'center' }}>
                 <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: theme.muted }}>
@@ -288,6 +308,15 @@ export default function MembershipScreen() {
         cancelLabel={t.membership.keepPlan}
         onConfirm={handleCancelDowngrade}
         onCancel={() => setConfirmingCancel(false)}
+      />
+
+      <InfoSheet
+        visible={restoreResult != null}
+        icon="heart_handshake"
+        title={restoreResult?.title ?? ''}
+        message={restoreResult?.message ?? ''}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setRestoreResult(null)}
       />
     </View>
   );

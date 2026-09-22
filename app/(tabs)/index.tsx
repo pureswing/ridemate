@@ -11,7 +11,7 @@ import { useTranslation } from '@/hooks/useTranslation';
 import { RideCard } from '@/components/ride/RideCard';
 import { RideCardGrid } from '@/components/ride/RideCardGrid';
 import { HomeHeader } from '@/components/layout/HomeHeader';
-import { FilterDrawer, DEFAULT_FILTER_STATE, FilterState, countActiveFilters } from '@/components/ride/FilterDrawer';
+import { FilterDrawer, DEFAULT_FILTER_STATE, FilterState, countActiveFilters, postMatchesFeatures } from '@/components/ride/FilterDrawer';
 import { radii } from '@/constants/themes';
 
 function EmptyState() {
@@ -36,11 +36,11 @@ export default function FeedScreen() {
   const { session } = useAuthStore();
   const theme = useTheme();
   const [layout, setLayout] = useState<'list' | 'grid'>('list');
-  // minSeats, features, airportOnly, verifiedOnly are still UI only. The
-  // rest are real: myPostsOnly/maxPrice client-side below; kind and
-  // originCity live in the rideStore (not local state) so they're shared
-  // with the header's own quick chips / server-side fetchPosts instead of
-  // being independent selections.
+  // All of these are real now: myPostsOnly/maxPrice/features/minSeats/
+  // airportOnly/verifiedOnly client-side below; kind and originCity live in
+  // the rideStore (not local state) so they're shared with the header's own
+  // quick chips / server-side fetchPosts instead of being independent
+  // selections.
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<FilterState>(DEFAULT_FILTER_STATE);
   const activeAdvancedFilterCount = countActiveFilters(advancedFilters, filters.kind, filters.originCity);
@@ -53,8 +53,22 @@ export default function FeedScreen() {
       // passes rather than being excluded by a filter it has no value for.
       .filter((p) => (advancedFilters.maxPrice === 0 || advancedFilters.maxPrice === 150)
         ? true
-        : (p.suggested_donation == null || p.suggested_donation <= advancedFilters.maxPrice)),
-    [posts, advancedFilters.myPostsOnly, advancedFilters.maxPrice, filters.originCity, session?.user?.id]
+        : (p.suggested_donation == null || p.suggested_donation <= advancedFilters.maxPrice))
+      .filter((p) => postMatchesFeatures(p, advancedFilters.features))
+      // Only a driver's own offer post ever carries seats_available (a
+      // passenger's request, and every package/hauling post, has none).
+      // 1/2/3 match that exact seat count; 4 means "4 or more" (the chip
+      // shows "4+", the others just the bare number — see FilterDrawer.tsx).
+      .filter((p) => {
+        if (advancedFilters.minSeats === 0) return true;
+        if (p.seats_available == null) return false;
+        return advancedFilters.minSeats === 4
+          ? p.seats_available >= 4
+          : p.seats_available === advancedFilters.minSeats;
+      })
+      .filter((p) => advancedFilters.airportOnly ? p.airport : true)
+      .filter((p) => advancedFilters.verifiedOnly ? (p.profile?.vehicle_profiles?.some((v) => v.insurance_self_certified) ?? false) : true),
+    [posts, advancedFilters.myPostsOnly, advancedFilters.maxPrice, advancedFilters.features, advancedFilters.minSeats, advancedFilters.airportOnly, advancedFilters.verifiedOnly, filters.originCity, session?.user?.id]
   );
   // `posts` is already fetched scoped to the active kind (useRides), so this
   // is just its distinct origin cities — the drawer's Origin city list stays
