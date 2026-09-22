@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useNewPostToasts } from '@/hooks/useNewPostToasts';
+import { useSessionGuard } from '@/hooks/useSessionGuard';
 import { supabase } from '@/lib/supabase';
 import { applyAuthDeepLink } from '@/lib/authDeepLink';
 import { useLanguageStore } from '@/store/languageStore';
@@ -30,6 +31,7 @@ export default function RootLayout() {
 
   usePushNotifications(session?.user?.id);
   useNewPostToasts(session?.user?.id);
+  useSessionGuard(session?.user?.id);
 
   const [fontsLoaded] = useFonts({
     BricolageGrotesque_600SemiBold: require('@expo-google-fonts/bricolage-grotesque/600SemiBold/BricolageGrotesque_600SemiBold.ttf'),

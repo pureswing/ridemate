@@ -7,7 +7,7 @@ import { AccessibilityNeed } from '@/types';
 
 export function useAuth() {
   const [loading, setLoading] = useState(false);
-  const { setProfile, setSubscription, clear } = useAuthStore();
+  const { setProfile, setSubscription, clear, setMySessionId } = useAuthStore();
 
   async function uploadAvatar(userId: string, uri: string): Promise<string> {
     const response = await fetch(uri);
@@ -53,6 +53,16 @@ export function useAuth() {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      // Single-session enforcement (see supabase/migrations/065_single_session.sql
+      // and hooks/useSessionGuard.ts): claim a fresh session id for this device,
+      // then revoke every other device's refresh token. A device with the app
+      // open right now finds out via useSessionGuard's Realtime subscription,
+      // not just whenever its token next fails to refresh.
+      const { data: claimedSessionId } = await supabase.rpc('claim_session');
+      if (claimedSessionId) {
+        setMySessionId(claimedSessionId);
+        await supabase.auth.signOut({ scope: 'others' });
+      }
     } finally {
       setLoading(false);
     }
@@ -113,7 +123,18 @@ export function useAuth() {
       supabase.from('profiles').select('*').eq('id', userId).single(),
       supabase.from('subscriptions').select('*').eq('user_id', userId).single(),
     ]);
-    if (profileRes.data) setProfile(profileRes.data);
+    if (profileRes.data) {
+      setProfile(profileRes.data);
+      // First loadProfile() after restoring an existing session (app cold
+      // start, not a fresh signIn() — that already set this via
+      // claim_session()) — adopt the server's current value as ours. Only
+      // ever set once per app session: a later loadProfile() (e.g. after
+      // editing the profile) must NOT overwrite this with whatever another
+      // device has since claimed, or useSessionGuard could never detect it.
+      if (!useAuthStore.getState().mySessionId) {
+        setMySessionId(profileRes.data.active_session_id ?? null);
+      }
+    }
     if (subRes.data) setSubscription(subRes.data);
   }
 

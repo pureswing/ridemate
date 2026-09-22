@@ -70,6 +70,9 @@ export interface Profile {
   // supabase/migrations/063_admin_invites.sql — TRUE only for the app owner's
   // own account; gates the admin self-toggle and invite screens.
   is_admin: boolean;
+  // supabase/migrations/065_single_session.sql — the device that most
+  // recently logged in holds this value; see hooks/useSessionGuard.ts.
+  active_session_id?: string | null;
   created_at: string;
   updated_at: string;
 }

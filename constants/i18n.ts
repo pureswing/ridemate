@@ -66,6 +66,8 @@ const translations = {
     },
     auth: {
       back: 'Back',
+      loggedOutElsewhereTitle: 'Signed out',
+      loggedOutElsewhereMsg: 'Your account was signed in on another device, so this device was signed out. Sign in again if this wasn’t you.',
       welcome: {
         tagline: "Florida's community ride board",
         body: 'Rides, deliveries and hauling — all peer-to-peer. No dispatch, no surge pricing. Just real people connecting.',
@@ -1457,6 +1459,8 @@ const translations = {
     },
     auth: {
       back: 'Atrás',
+      loggedOutElsewhereTitle: 'Sesión cerrada',
+      loggedOutElsewhereMsg: 'Tu cuenta inició sesión en otro dispositivo, así que se cerró la sesión en este. Si no fuiste tú, vuelve a iniciar sesión.',
       welcome: {
         tagline: 'El tablón comunitario de viajes de Florida',
         body: 'Viajes, entregas y fletes — todo entre pares. Sin despacho, sin tarifas dinámicas. Solo personas reales conectando.',

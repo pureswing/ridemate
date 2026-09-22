@@ -5,8 +5,10 @@ import { router } from 'expo-router';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { Button } from '@/components/ui/Button';
 import { Wordmark } from '@/components/ui/Wordmark';
+import { InfoSheet } from '@/components/ui/InfoSheet';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { useAuthStore } from '@/store/authStore';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { textStyles } from '@/constants/typography';
 
@@ -19,6 +21,7 @@ import { textStyles } from '@/constants/typography';
 export default function WelcomeScreen() {
   const theme = useTheme();
   const t = useTranslation();
+  const { loggedOutElsewhere, setLoggedOutElsewhere } = useAuthStore();
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.background }}>
@@ -59,6 +62,15 @@ export default function WelcomeScreen() {
         </Text>
       </View>
       </ScrollView>
+
+      <InfoSheet
+        visible={loggedOutElsewhere}
+        icon="log_in"
+        title={t.auth.loggedOutElsewhereTitle}
+        message={t.auth.loggedOutElsewhereMsg}
+        confirmLabel={t.common.gotIt}
+        onClose={() => setLoggedOutElsewhere(false)}
+      />
     </SafeAreaView>
   );
 }
