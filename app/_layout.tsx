@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import * as Linking from 'expo-linking';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useNewPostToasts } from '@/hooks/useNewPostToasts';
 import { useSessionGuard } from '@/hooks/useSessionGuard';
+import { useRevenueCatSync } from '@/hooks/usePurchases';
 import { supabase } from '@/lib/supabase';
 import { applyAuthDeepLink } from '@/lib/authDeepLink';
 import { useLanguageStore } from '@/store/languageStore';
@@ -21,6 +23,19 @@ import { CompletionGate } from '@/components/community/CompletionGate';
 import { PostToastHost } from '@/components/ui/PostToastHost';
 
 SplashScreen.preventAutoHideAsync();
+
+// Expected while EXPO_PUBLIC_REVENUECAT_API_KEY_ANDROID is a Test Store key
+// (see hooks/usePurchases.ts) — the persistent LogBox toast for these covers
+// screen content in dev builds. The second one is a known cosmetic bug in
+// this SDK version's Test Store support (an internal analytics event fails
+// to deserialize; the real purchase/entitlement data is unaffected — see
+// syncSubscriptionFromCustomerInfo's loop guard, which is the real fix for
+// what this repeated log used to cascade into). Remove both once the real
+// Google Play key is in.
+LogBox.ignoreLogs([
+  '[RevenueCat] Using a Test Store API key.',
+  '[RevenueCat] Error deserializing subscription information.',
+]);
 
 export default function RootLayout() {
   const { setSession, setLoading, session } = useAuthStore();
@@ -32,6 +47,7 @@ export default function RootLayout() {
   usePushNotifications(session?.user?.id);
   useNewPostToasts(session?.user?.id);
   useSessionGuard(session?.user?.id);
+  useRevenueCatSync(session?.user?.id);
 
   const [fontsLoaded] = useFonts({
     BricolageGrotesque_600SemiBold: require('@expo-google-fonts/bricolage-grotesque/600SemiBold/BricolageGrotesque_600SemiBold.ttf'),

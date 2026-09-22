@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView } from 'react-native';
+import { View, ScrollView, Linking } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -11,7 +11,6 @@ import { Card } from '@/components/ui/Card';
 import { CardBox } from '@/components/ui/CardBox';
 import { RowDivider } from '@/components/ui/RowDivider';
 import { Chip } from '@/components/ui/Chip';
-import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmSheet } from '@/components/ui/ConfirmSheet';
@@ -19,14 +18,12 @@ import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { MembershipCheckoutSheet } from '@/components/profile/MembershipCheckoutSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useSubscription } from '@/hooks/useSubscription';
+import { usePurchases } from '@/hooks/usePurchases';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { fonts, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
-import {
-  TIER_ICON, PLAN_FEATURES,
-  DONOR_AMOUNTS, DONOR_SUGGESTED_AMOUNT, DONOR_AMOUNT_MIN, DONOR_AMOUNT_MAX, DONOR_CONFIRM_THRESHOLD,
-} from '@/constants/membershipPlans';
+import { TIER_ICON, PLAN_FEATURES, DONOR_AMOUNTS, DONOR_SUGGESTED_AMOUNT } from '@/constants/membershipPlans';
 
 // Ported from ui_kits/ridemate-app/Membership.jsx + MembershipShared.jsx —
 // Plan tab only (no Billing/Rewards tab bar; those depend on coupon/referral/
@@ -40,15 +37,15 @@ export default function MembershipScreen() {
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
-  const { profile, subscription, setSubscription } = useAuthStore();
+  const { profile, subscription } = useAuthStore();
   const { tier, isFree, daysRemaining } = useSubscription();
+  const { offering, purchase, purchasing } = usePurchases();
 
-  const [selectedAmount, setSelectedAmount] = useState(DONOR_SUGGESTED_AMOUNT);
+  const [selectedAmount, setSelectedAmount] = useState<(typeof DONOR_AMOUNTS)[number]>(DONOR_SUGGESTED_AMOUNT);
   // Paid users don't see the amount picker by default (they see BadgeExplainer
   // instead) — only after tapping "Change monthly amount" on CurrentPlanCard.
   // Free users always see it; see `pickerVisible` below.
   const [adjustingAmount, setAdjustingAmount] = useState(false);
-  const [confirmingAmount, setConfirmingAmount] = useState(false);
   const [checkout, setCheckout] = useState<'new' | 'adjust' | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
 
@@ -61,47 +58,31 @@ export default function MembershipScreen() {
   const pickerTitle = isFree ? t.membership.choosePlan : t.membership.changeAmount;
   const ctaLabel = `${isFree ? t.membership.becomeDonorTitle : t.membership.changeAmount} — $${selectedAmount}${t.membership.perMonth}`;
 
-  function applySubscription(status: 'active' | 'free', amountDonated?: number) {
-    const now = new Date();
-    setSubscription({
-      id: subscription?.id ?? 'local-mock',
-      user_id: subscription?.user_id ?? profile?.id ?? 'local-mock',
-      status,
-      plan: status === 'active' ? 'donor' : undefined,
-      amount_donated: amountDonated,
-      period_start: status === 'active' ? now.toISOString() : undefined,
-      period_end: status === 'active' ? new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString() : undefined,
-      created_at: subscription?.created_at ?? now.toISOString(),
-    });
-  }
-
-  function handleCtaPress() {
-    if (selectedAmount > DONOR_CONFIRM_THRESHOLD) {
-      setConfirmingAmount(true);
-    } else {
-      openCheckout();
-    }
-  }
-
   function openCheckout() {
-    setConfirmingAmount(false);
     setCheckout(isFree ? 'new' : 'adjust');
   }
 
   function handleChangeAmountPress() {
-    setSelectedAmount(currentAmount);
+    setSelectedAmount(currentAmount as (typeof DONOR_AMOUNTS)[number]);
     setAdjustingAmount(true);
   }
 
-  function handleConfirm(confirmedAmount: number) {
-    applySubscription('active', confirmedAmount);
+  // MembershipCheckoutSheet already ran the real purchase (native Google
+  // Play Billing sheet) before calling this — store/authStore.ts's
+  // `subscription` is already up to date via usePurchases' own sync, this
+  // just closes the sheet and collapses the picker back down.
+  function handleConfirm() {
     setCheckout(null);
     setAdjustingAmount(false);
   }
 
+  // RevenueCat/store subscriptions can't be cancelled via API call — only
+  // through the platform's own subscription-management screen. This just
+  // routes there; store/authStore.ts's `subscription` updates on its own
+  // once the cancellation takes effect (useRevenueCatSync's listener).
   function handleCancelDowngrade() {
-    applySubscription('free');
     setConfirmingCancel(false);
+    Linking.openURL('https://play.google.com/store/account/subscriptions');
   }
 
   // Only worth showing where free and paid actually diverge — rows where
@@ -267,15 +248,7 @@ export default function MembershipScreen() {
                 </Chip>
               ))}
             </View>
-            <Input
-              placeholder={t.membership.donorAmountCustom}
-              hint={t.membership.amountHint}
-              prefix="$"
-              keyboardType="number-pad"
-              value={String(selectedAmount)}
-              onChangeText={(v) => setSelectedAmount(Math.min(DONOR_AMOUNT_MAX, Number(v.replace(/[^0-9]/g, '')) || 0))}
-            />
-            <Button variant="primary" size="lg" fullWidth onPress={handleCtaPress} disabled={selectedAmount < DONOR_AMOUNT_MIN}>
+            <Button variant="primary" size="lg" fullWidth onPress={openCheckout}>
               {ctaLabel}
             </Button>
             {isFree ? (
@@ -298,20 +271,11 @@ export default function MembershipScreen() {
         visible={checkout != null}
         amount={selectedAmount}
         mode={checkout ?? 'new'}
+        offering={offering}
+        purchase={purchase}
+        purchasing={purchasing}
         onClose={() => setCheckout(null)}
         onConfirm={handleConfirm}
-      />
-
-      <ConfirmSheet
-        visible={confirmingAmount}
-        tone="success"
-        icon="heart"
-        title={t.membership.confirmAmountTitle}
-        message={`${t.membership.confirmAmountPrefix} $${selectedAmount} ${t.membership.confirmAmountSuffix}`}
-        confirmLabel={t.membership.confirmAmountConfirm}
-        cancelLabel={t.membership.confirmAmountEdit}
-        onConfirm={openCheckout}
-        onCancel={() => setConfirmingAmount(false)}
       />
 
       <ConfirmSheet
