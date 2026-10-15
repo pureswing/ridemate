@@ -4,6 +4,16 @@
 // stored comfortPrefs/climatePrefs/.../rules values and the FilterDrawer's
 // selection keys — but the rendered chip text is translated via
 // translatePrefLabel() below (2026-09-21) for the current t.locale.
+// Passenger caps per vehicle. A regular request is one vehicle; an event
+// request scales both caps by vehiclesNeeded (3 vehicles → up to 21
+// adults), so a big group isn't capped at a single car's worth of riders.
+export const ADULTS_PER_VEHICLE = 7;
+export const CHILDREN_PER_VEHICLE = 6;
+export function passengerCaps(isEvent: boolean, vehiclesNeeded: number) {
+  const vehicles = isEvent ? vehiclesNeeded : 1;
+  return { maxAdults: ADULTS_PER_VEHICLE * vehicles, maxChildren: CHILDREN_PER_VEHICLE * vehicles };
+}
+
 export const RULES = ['No smoking', 'No food', 'Pets OK', 'Music OK', 'A/C on', 'Quiet ride', 'Luggage OK'];
 export const VEHICLE_TYPES = ['No preference', 'Sedan', 'Large Sedan', 'SUV', 'Large SUV', 'Minivan', 'Passenger Van', 'Luxury Sedan', 'Luxury SUV', 'Electric', 'Hybrid', 'Wheelchair-Accessible Vehicle'];
 export const COMFORT_PREFS = ['No preference', 'Extra legroom', 'Front passenger seat', "Captain's chairs", 'Reclining seat', 'Easy-entry seat', 'Minimal climbing or bending', 'Leather interior', 'Executive-class interior', 'Rear passenger controls', 'Privacy partition'];

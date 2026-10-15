@@ -108,6 +108,10 @@ export interface Invite {
 // airport, airport_leg, flight_number) are real RidePost columns instead.
 export interface RidePostDetailsRide {
   rules?: Record<string, boolean>;
+  // Multi-select since 2026-10-15. Posts saved before that carry the single
+  // legacy `vehicleType` string instead — read both through
+  // vehicleTypesOf() (utils/postExtras.ts), never directly.
+  vehicleTypes?: string[];
   vehicleType?: string;
   comfortPrefs?: string[];
   climatePrefs?: string[];

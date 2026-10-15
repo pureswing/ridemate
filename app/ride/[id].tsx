@@ -37,6 +37,7 @@ import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { IconName } from '@/constants/icons';
 import { translatePrefLabel } from '@/constants/rideFormOptions';
+import { vehicleTypesOf } from '@/utils/postExtras';
 
 const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
@@ -293,7 +294,8 @@ export default function RideDetailScreen() {
     else if (type === t.post.bagChecked) checkedCount++;
     else carryOnCount++;
   }
-  const hasVehicleInfo = isOffer && (details.vehicleType || (details.comfortPrefs?.length ?? 0) > 0 || (details.climatePrefs?.length ?? 0) > 0);
+  const vehicleTypes = vehicleTypesOf(details);
+  const hasVehicleInfo = isOffer && (vehicleTypes.length > 0 || (details.comfortPrefs?.length ?? 0) > 0 || (details.climatePrefs?.length ?? 0) > 0);
   const hasChildSeatInfo = !isOffer && (details.childSeatPrefs?.length ?? 0) > 0;
 
   return (
@@ -449,9 +451,9 @@ export default function RideDetailScreen() {
           {hasVehicleInfo && (
             <Field label={t.post.vehicle}>
               <View style={{ gap: 12 }}>
-                {!!details.vehicleType && (
+                {vehicleTypes.length > 0 && (
                   <CardBox style={{ paddingVertical: 2 }}>
-                    <DetailRow theme={theme} label={t.post.vehicleTypeLabel} value={details.vehicleType} last />
+                    <DetailRow theme={theme} label={t.post.vehicleTypeLabel} value={vehicleTypes.map((v) => translatePrefLabel(v, t.locale)).join(', ')} last />
                   </CardBox>
                 )}
                 {(details.comfortPrefs?.length ?? 0) > 0 && (

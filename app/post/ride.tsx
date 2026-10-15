@@ -48,7 +48,7 @@ import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { addressBookSlots } from '@/constants/addressBookSlots';
 import { fonts, radii, shadows } from '@/constants/themes';
 import { tracking, leading, letterSpacingFor } from '@/constants/typography';
-import { VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS, ATMOSPHERE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, translatePrefLabel } from '@/constants/rideFormOptions';
+import { VEHICLE_TYPES, COMFORT_PREFS, CLIMATE_PREFS, SPECIFIC_TEMP, CHILD_SEAT_OPTIONS, ATMOSPHERE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, translatePrefLabel, passengerCaps } from '@/constants/rideFormOptions';
 import { ACCESSIBILITY_OPTIONS, translateAccessibilityOption } from '@/constants/accessibilityOptions';
 
 export default function PostRideScreen() {
@@ -132,6 +132,13 @@ export default function PostRideScreen() {
   const [vehicleSeats, setVehicleSeats] = useState<number | null>(null);
   const [adults, setAdults] = useState(1);
   const [children, setChildren] = useState(0);
+  const { maxAdults, maxChildren } = passengerCaps(isEvent, vehiclesNeeded);
+  // Fewer vehicles (or switching back to a regular trip) lowers the caps —
+  // pull the counts down with them instead of leaving e.g. 30 adults on 2.
+  useEffect(() => {
+    setAdults((a) => Math.min(a, maxAdults));
+    setChildren((c) => Math.min(c, maxChildren));
+  }, [maxAdults, maxChildren]);
   const [childSeatPrefs, setChildSeatPrefs] = useState<string[]>(['No child seat needed']);
 
   // ── Luggage ──
@@ -167,7 +174,7 @@ export default function PostRideScreen() {
   const [vehicle, setVehicle] = useState('');
 
   // ── Passenger vehicle/comfort/climate prefs ──
-  const [vehicleType, setVehicleType] = useState('No preference');
+  const [vehicleTypes, setVehicleTypes] = useState<string[]>(['No preference']);
   const [comfortPrefs, setComfortPrefs] = useState<string[]>(['No preference']);
   const [climatePrefs, setClimatePrefs] = useState<string[]>(['No preference']);
   const [tempPref, setTempPref] = useState(72);
@@ -344,7 +351,7 @@ export default function PostRideScreen() {
       oversizedInfo: Object.values(oversizedInfo),
       ...(stopWaypoints.length > 0 ? { stops: stopWaypoints } : {}),
       ...(isDriver ? {} : {
-        vehicleType,
+        vehicleTypes,
         comfortPrefs,
         climatePrefs,
         ...(climatePrefs.includes(SPECIFIC_TEMP) ? { tempPref } : {}),
@@ -658,9 +665,9 @@ export default function PostRideScreen() {
           <>
             <Field label={t.post.whosRiding}>
               <CardBox>
-                <StepRow icon="passenger" label={t.post.adults} value={adults} min={1} max={7} onDec={() => setAdults((a) => Math.max(1, a - 1))} onInc={() => setAdults((a) => Math.min(7, a + 1))} theme={theme} />
+                <StepRow icon="passenger" label={t.post.adults} value={adults} min={1} max={maxAdults} onDec={() => setAdults((a) => Math.max(1, a - 1))} onInc={() => setAdults((a) => Math.min(maxAdults, a + 1))} theme={theme} />
                 <RowDivider theme={theme} />
-                <StepRow icon="baby_seat" label={t.post.children} sub={t.post.childrenSub} value={children} min={0} max={6} onDec={() => setChildren((c) => Math.max(0, c - 1))} onInc={() => setChildren((c) => Math.min(6, c + 1))} theme={theme} />
+                <StepRow icon="baby_seat" label={t.post.children} sub={t.post.childrenSub} value={children} min={0} max={maxChildren} onDec={() => setChildren((c) => Math.max(0, c - 1))} onInc={() => setChildren((c) => Math.min(maxChildren, c + 1))} theme={theme} />
               </CardBox>
             </Field>
             {children > 0 && (
@@ -757,12 +764,12 @@ export default function PostRideScreen() {
 
         {/* Vehicle type / rules / comfort / climate (passenger only) */}
         {!isDriver && (
-          <CollapsibleField label={t.post.vehicleTypeLabel} hint={t.post.selectOne}>
+          <CollapsibleField label={t.post.vehicleTypeLabel} hint={t.post.selectAllThatApply}>
             <CardBox>
               {VEHICLE_TYPES.map((v, i) => (
                 <View key={v}>
                   {i > 0 && <View style={{ height: 1, backgroundColor: theme.border }} />}
-                  <PlainToggleRow label={translatePrefLabel(v, t.locale)} checked={vehicleType === v} onChange={() => setVehicleType(v)} accent={accent} theme={theme} />
+                  <PlainToggleRow label={translatePrefLabel(v, t.locale)} checked={vehicleTypes.includes(v)} onChange={() => toggleExclusive(vehicleTypes, setVehicleTypes, v, 'No preference')} accent={accent} theme={theme} />
                 </View>
               ))}
             </CardBox>

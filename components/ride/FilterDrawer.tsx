@@ -9,6 +9,7 @@ import { RangeSlider } from '@/components/ui/RangeSlider';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { fonts, radii, shadows } from '@/constants/themes';
+import { vehicleTypesOf } from '@/utils/postExtras';
 import { VEHICLE_TYPES, CLIMATE_PREFS, CLEANLINESS_PREFS, PET_PREFS, PICKUP_PREFS, DRIVER_LANGUAGE_PREFS, COMFORT_PREFS, ATMOSPHERE_PREFS, translatePrefLabel } from '@/constants/rideFormOptions';
 import { ACCESSIBILITY_OPTIONS } from '@/constants/accessibilityOptions';
 import { AccessibilityNeed, RidePost, RidePostDetailsRide, RidePostKind } from '@/types';
@@ -53,7 +54,7 @@ function postMatchesFeature(post: RidePost, featureKey: string): boolean {
     case 'comfort': return (details.comfortPrefs ?? []).includes(value);
     case 'entertainment': return (details.atmospherePrefs ?? []).includes(value);
     case 'accessibility': return (details.accessibilityNeeds ?? []).includes(value as AccessibilityNeed);
-    case 'vehicleType': return details.vehicleType === value;
+    case 'vehicleType': return vehicleTypesOf(details).includes(value);
     case 'climateControl': return (details.climatePrefs ?? []).includes(value);
     case 'cleanliness': return (details.cleanlinessPrefs ?? []).includes(value);
     case 'petTransportation': return (details.petPrefs ?? []).includes(value);
