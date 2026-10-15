@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pressable, View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { Platform, Pressable, View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemedText as Text } from './ThemedText';
 import { Icon } from './Icon';
@@ -55,7 +55,8 @@ export function Chip({ children, selected = false, icon, count, size = 'md', onP
           alignSelf: 'flex-start',
           // Lets the chip compress instead of overflowing when several sit in a
           // flex:1 row narrower than their combined natural width (e.g. longer
-          // Spanish labels) — paired with adjustsFontSizeToFit below.
+          // Spanish labels) — paired with adjustsFontSizeToFit (iOS) / the
+          // ellipsis (Android) below.
           flexShrink: 1,
           borderRadius: radii.pill,
           // A transparent/undefined background under an elevated (Android) View
@@ -84,7 +85,11 @@ export function Chip({ children, selected = false, icon, count, size = 'md', onP
         {!iconOnly && (
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
+            // iOS only: Android's adjustsFontSizeToFit can break a label at its
+            // space even with room to spare, and the clipped second line
+            // silently drops the last word ("This week" → "This"). Android
+            // falls back to an ellipsis when a label truly doesn't fit.
+            adjustsFontSizeToFit={Platform.OS === 'ios'}
             minimumFontScale={0.85}
             maxFontSizeMultiplier={chromeMaxFontSizeMultiplier}
             style={{

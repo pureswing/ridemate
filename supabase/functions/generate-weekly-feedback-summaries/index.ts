@@ -13,6 +13,29 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 const BATCH_SIZE = 100; // caps one run's cost/runtime — the next Sunday picks up any overflow
 const NOTES_PER_USER = 10;
 
+// gpt-6-luna replaced gpt-4o-mini (shut down 2027-01-14). 'none' effort:
+// this is pure rewording of the counts/notes given, nothing to reason out,
+// and it runs for up to BATCH_SIZE users per Sunday. With reasoning off,
+// Luna still rejects max_tokens (needs max_completion_tokens).
+const AI_MODEL = 'gpt-6-luna';
+const AI_REASONING_EFFORT = 'none';
+const AI_MAX_COMPLETION_TOKENS = 400; // two 2-3 sentence copies
+
+// Both languages from one call — see 067_ai_text_spanish.sql for why.
+const BILINGUAL_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'feedback_summary',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: { en: { type: 'string' }, es: { type: 'string' } },
+      required: ['en', 'es'],
+      additionalProperties: false,
+    },
+  },
+};
+
 // Full 18-value catalog from 035_badge_catalog_expansion.sql — the old
 // summarize-feedback function's map was stale (only had the original 10).
 const BADGE_LABELS: Record<string, string> = {
@@ -74,26 +97,34 @@ Deno.serve(async () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: AI_MODEL,
+          reasoning_effort: AI_REASONING_EFFORT,
           messages: [
             {
               role: 'system',
-              content: 'You summarize a week of community feedback (badge tag counts, and any free-text notes left by other users) for a rideshare app dashboard into 2-3 warm, natural sentences. Never invent specifics beyond what is given. No markdown.',
+              content: 'You summarize a week of community feedback (badge tag counts, and any free-text notes left by other users) for a rideshare app dashboard into 2-3 warm, natural sentences. Never invent specifics beyond what is given. No markdown. Return the same summary twice: "en" in English, and "es" in natural, neutral Latin American Spanish (translate English notes, keep the person\'s name as given).',
             },
             { role: 'user', content: userContent },
           ],
-          max_tokens: 150,
-          temperature: 0.6,
+          response_format: BILINGUAL_FORMAT,
+          max_completion_tokens: AI_MAX_COMPLETION_TOKENS,
         }),
       });
-      if (!aiRes.ok) { errors.push(`user ${row.user_id}: OpenAI ${aiRes.status}`); continue; }
+      if (!aiRes.ok) { errors.push(`user ${row.user_id}: OpenAI ${aiRes.status} ${(await aiRes.json().catch(() => null))?.error?.message ?? ''}`); continue; }
       const aiJson = await aiRes.json();
-      const summary: string | null = aiJson?.choices?.[0]?.message?.content?.trim() ?? null;
-      if (!summary) { errors.push(`user ${row.user_id}: empty summary`); continue; }
+      let summary: string | null = null;
+      let summaryEs: string | null = null;
+      try {
+        const parsed = JSON.parse(aiJson?.choices?.[0]?.message?.content ?? '');
+        summary = parsed?.en?.trim() || null;
+        summaryEs = parsed?.es?.trim() || null;
+      } catch {}
+      if (!summary) { errors.push(`user ${row.user_id}: empty summary (finish_reason ${aiJson?.choices?.[0]?.finish_reason})`); continue; }
 
       await supabase.from('community_summary_cache').upsert({
         user_id: row.user_id,
         summary,
+        summary_es: summaryEs,
         badge_count_at_gen: row.badge_count,
         note_count_at_gen: row.note_count,
         generated_at: new Date().toISOString(),

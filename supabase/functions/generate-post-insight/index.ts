@@ -19,6 +19,32 @@ import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const BATCH_SIZE = 25; // caps one run's cost/runtime — the next tick picks up any overflow
 
+// gpt-6-luna replaced gpt-4o-mini (shut down 2027-01-14). 'low' effort, not
+// 'none': the note has to weigh traffic vs. construction vs. weather vs.
+// listing kind into one timing call, which a little reasoning helps — but
+// it's still a 2-3 sentence note, so nothing higher. Luna rejects max_tokens
+// and any non-default temperature once reasoning is on, and reasoning tokens
+// count against max_completion_tokens — hence the headroom over the ~100
+// tokens the visible note itself needs.
+const AI_MODEL = 'gpt-6-luna';
+const AI_REASONING_EFFORT = 'low';
+const AI_MAX_COMPLETION_TOKENS = 1000;
+
+// Both languages from one call — see 067_ai_text_spanish.sql for why.
+const BILINGUAL_FORMAT = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'route_insight',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: { en: { type: 'string' }, es: { type: 'string' } },
+      required: ['en', 'es'],
+      additionalProperties: false,
+    },
+  },
+};
+
 interface DuePost {
   post_id: string;
   origin_lat: number | null;
@@ -254,17 +280,29 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${openaiKey}` },
         body: JSON.stringify({
-          model: 'gpt-4o-mini',
+          model: AI_MODEL,
+          reasoning_effort: AI_REASONING_EFFORT,
           messages: [
-            { role: 'system', content: 'You write a short, helpful 2-3 sentence "route intelligence" note for a rideshare listing app, combining traffic/weather/nearby-event/road-construction facts given to you. If active construction is reported, weigh it alongside traffic when advising on timing — it is a real factor in the recommendation, not just a footnote. The facts also tell you what kind of listing this is (ride, package/courier, or hauling) and its own details (load type, package contents/handling, or flight status) — tailor the advice to that listing type instead of writing something generic, e.g. covering a load, weatherproofing a package, or noting a flight delay, whenever those facts and the weather/timing call for it. Never invent specifics beyond what is given. Plain text, no markdown, no greeting.' },
+            { role: 'system', content: 'You write a short, helpful 2-3 sentence "route intelligence" note for a rideshare listing app, combining traffic/weather/nearby-event/road-construction facts given to you. If active construction is reported, weigh it alongside traffic when advising on timing — it is a real factor in the recommendation, not just a footnote. The facts also tell you what kind of listing this is (ride, package/courier, or hauling) and its own details (load type, package contents/handling, or flight status) — tailor the advice to that listing type instead of writing something generic, e.g. covering a load, weatherproofing a package, or noting a flight delay, whenever those facts and the weather/timing call for it. Never invent specifics beyond what is given. Plain text, no markdown, no greeting. Return the same note twice: "en" in English, and "es" in natural, neutral Latin American Spanish (keep °F and place/venue/event names as given). Refer to construction projects by a short plain-language description, never by copying their full official all-caps titles.' },
             { role: 'user', content: promptFacts },
           ],
-          max_tokens: 150,
-          temperature: 0.5,
+          response_format: BILINGUAL_FORMAT,
+          max_completion_tokens: AI_MAX_COMPLETION_TOKENS,
         }),
       });
       const aiJson = await aiRes.json();
-      const insightText: string | null = aiJson?.choices?.[0]?.message?.content?.trim() ?? null;
+      let insightText: string | null = null;
+      let insightTextEs: string | null = null;
+      try {
+        const parsed = JSON.parse(aiJson?.choices?.[0]?.message?.content ?? '');
+        insightText = parsed?.en?.trim() || null;
+        insightTextEs = parsed?.es?.trim() || null;
+      } catch {}
+      // Still saves the traffic/weather/events below (and pushes next_refresh_at
+      // out 24h) so a failed AI call doesn't re-bill the Maps calls every tick —
+      // just surfaces why the note is missing.
+      if (!aiRes.ok) errors.push(`post ${post_id}: OpenAI ${aiRes.status} ${aiJson?.error?.message ?? ''}`);
+      else if (!insightText) errors.push(`post ${post_id}: empty insight (finish_reason ${aiJson?.choices?.[0]?.finish_reason})`);
 
       const isPrepickupRun = row.driver_prepickup_refresh_at && !row.driver_prepickup_refreshed && new Date(row.driver_prepickup_refresh_at) <= new Date();
 
@@ -276,6 +314,7 @@ Deno.serve(async (req) => {
         nearby_events: events ?? [],
         road_construction: construction ?? [],
         insight_text: insightText,
+        insight_text_es: insightTextEs,
         generated_at: new Date().toISOString(),
         next_refresh_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
         ...(isPrepickupRun ? { driver_prepickup_refreshed: true } : {}),

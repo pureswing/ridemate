@@ -254,6 +254,7 @@ export interface RidePostInsight {
   nearby_events: { name: string; venue_name: string | null; venue_city: string | null; event_date: string | null }[];
   road_construction: { description: string | null; county: string | null; start_date: string | null; end_date: string | null }[];
   insight_text: string | null;
+  insight_text_es: string | null;
   generated_at: string | null;
   next_refresh_at: string;
 }

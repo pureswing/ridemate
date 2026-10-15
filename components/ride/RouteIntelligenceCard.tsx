@@ -5,6 +5,7 @@ import { Icon } from '@/components/ui/Icon';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useRouteIntelligence } from '@/hooks/useRouteIntelligence';
+import { useLanguageStore } from '@/store/languageStore';
 import { fonts, radii } from '@/constants/themes';
 import { RidePostInsight } from '@/types';
 import { formatRelativeTime } from '@/utils/dateFormat';
@@ -37,6 +38,7 @@ function weatherIcon(code: number): 'weather_sun' | 'weather_rain' | 'weather_cl
 export function RouteIntelligenceCard({ postId, visible }: Props) {
   const theme = useTheme();
   const t = useTranslation();
+  const language = useLanguageStore((s) => s.language);
   const { getInsight } = useRouteIntelligence();
   const [insight, setInsight] = useState<RidePostInsight | null | undefined>(undefined);
 
@@ -62,6 +64,9 @@ export function RouteIntelligenceCard({ postId, visible }: Props) {
   }
 
   const analyzing = insight === undefined || !insight.insight_text;
+  // Rows generated before 067_ai_text_spanish.sql have no Spanish copy until
+  // their next refresh — show the English one meanwhile.
+  const insightText = (language === 'es' && insight?.insight_text_es) || insight?.insight_text;
   const delayMinutes =
     insight?.traffic_duration_seconds != null && insight?.baseline_duration_seconds != null
       ? Math.round((insight.traffic_duration_seconds - insight.baseline_duration_seconds) / 60)
@@ -137,7 +142,7 @@ export function RouteIntelligenceCard({ postId, visible }: Props) {
               </View>
             ))}
 
-            {insight!.insight_text && (
+            {insightText && (
               <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, paddingTop: 12, flexDirection: 'row', gap: 8 }}>
                 <Icon name="brain" size={14} color={theme.gold400} />
                 <View style={{ flex: 1 }}>
@@ -145,7 +150,7 @@ export function RouteIntelligenceCard({ postId, visible }: Props) {
                     {t.post.routeIntelRecommendation}
                   </Text>
                   <Text style={{ fontFamily: fonts.bodyItalic, fontStyle: 'italic', fontSize: 13, color: theme.textSecondary, lineHeight: 20 }}>
-                    {insight!.insight_text}
+                    {insightText}
                   </Text>
                 </View>
               </View>

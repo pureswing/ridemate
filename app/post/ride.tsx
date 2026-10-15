@@ -178,7 +178,9 @@ export default function PostRideScreen() {
   const [accessibilityNeeds, setAccessibilityNeeds] = useState<AccessibilityNeed[]>(profile?.accessibility_needs ?? []);
   const [atmospherePrefs, setAtmospherePrefs] = useState<string[]>(['No preference']);
   const [cleanlinessPrefs, setCleanlinessPrefs] = useState<string[]>([]);
-  const [petPrefs, setPetPrefs] = useState<string[]>(['No pet']);
+  // Empty, not ['No pet']: unlike pickup's curbside default, "No pet" is a
+  // real declared preference — pre-checking it published it on every post.
+  const [petPrefs, setPetPrefs] = useState<string[]>([]);
   const [pickupPrefs, setPickupPrefs] = useState<string[]>(['Standard curbside pickup']);
   const [driverLanguage, setDriverLanguage] = useState('No preference');
 
@@ -465,8 +467,8 @@ export default function PostRideScreen() {
         </View>
         <View style={{ paddingHorizontal: 20, paddingTop: 10, alignItems: 'center' }}>
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, letterSpacing: letterSpacingFor(26, tracking.tight), color: theme.cream, textAlign: 'center' }}>
-            {isDriver ? 'Offer a ' : 'Find a '}
-            <Text style={{ fontFamily: fonts.bodyItalic, color: theme.driverText }}>ride</Text>
+            {isDriver ? t.post.rideHeaderTitleOfferPrefix : t.post.rideHeaderTitleFindPrefix}{' '}
+            <Text style={{ fontFamily: fonts.bodyItalic, color: theme.driverText }}>{t.post.rideHeaderTitleItalic}</Text>
           </Text>
         </View>
       </LinearGradient>

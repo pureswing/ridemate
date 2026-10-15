@@ -172,7 +172,7 @@ export default function EditRideScreen() {
   const [accessibilityNeeds, setAccessibilityNeeds] = useState<AccessibilityNeed[]>([]);
   const [atmospherePrefs, setAtmospherePrefs] = useState<string[]>(['No preference']);
   const [cleanlinessPrefs, setCleanlinessPrefs] = useState<string[]>([]);
-  const [petPrefs, setPetPrefs] = useState<string[]>(['No pet']);
+  const [petPrefs, setPetPrefs] = useState<string[]>([]); // see app/post/ride.tsx
   const [pickupPrefs, setPickupPrefs] = useState<string[]>(['Standard curbside pickup']);
   const [driverLanguage, setDriverLanguage] = useState('No preference');
 
@@ -266,7 +266,7 @@ export default function EditRideScreen() {
     setAccessibilityNeeds(details.accessibilityNeeds ?? []);
     setAtmospherePrefs(details.atmospherePrefs ?? ['No preference']);
     setCleanlinessPrefs(details.cleanlinessPrefs ?? []);
-    setPetPrefs(details.petPrefs ?? ['No pet']);
+    setPetPrefs(details.petPrefs ?? []);
     setPickupPrefs(details.pickupPrefs ?? ['Standard curbside pickup']);
     if (details.driverLanguage) setDriverLanguage(details.driverLanguage);
     setStops(details.stops ?? []);
