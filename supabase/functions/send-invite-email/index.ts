@@ -11,6 +11,7 @@
 // not to real invitees.
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { createClient } from 'jsr:@supabase/supabase-js@2';
+import { inviteHtml, inviteSubject, inviteText } from './template.ts';
 
 const DONOR_MONTHS = 3;
 
@@ -76,12 +77,9 @@ Deno.serve(async (req) => {
     body: JSON.stringify({
       from: Deno.env.get('RESEND_FROM') ?? 'BoteGo <onboarding@resend.dev>',
       to: [email],
-      subject: "You're invited to BoteGo — 3 months of Donor included",
-      html: `
-        <p>You've been invited to try BoteGo.</p>
-        <p><a href="${downloadUrl}">Download the app here</a>.</p>
-        <p>Sign up with this same email address (${email}) and you'll automatically get ${DONOR_MONTHS} months of Donor access, on us.</p>
-      `,
+      subject: inviteSubject(DONOR_MONTHS),
+      html: inviteHtml(email, downloadUrl, DONOR_MONTHS),
+      text: inviteText(email, downloadUrl, DONOR_MONTHS),
     }),
   });
 
