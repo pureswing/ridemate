@@ -234,7 +234,8 @@ export default function DashboardScreen() {
   const t = useTranslation();
   const insets = useSafeAreaInsets();
   const { isDonor } = useSubscription();
-  const { stats, loading, error } = useDashboardStats();
+  const { stats, loading, error, updatedAt, irsRate } = useDashboardStats();
+  const withRate = (s: string) => s.replace('{rate}', `$${irsRate.ratePerMile.toFixed(3).replace(/0$/, '')}`);
   const { summary: weeklySummary } = useWeeklyFeedbackSummary();
   const [infoText, setInfoText] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SectionKey>('overview');
@@ -380,7 +381,7 @@ export default function DashboardScreen() {
                 onInfo={() => setInfoText(t.dashboard.infoEarned)}
                 sub={EARNINGS.map((e) => ({ icon: (e.label === 'Rides' ? 'car' : e.label === 'Courier' ? 'package' : 'truck') as IconName, label: e.label === 'Rides' ? t.dashboard.kindRides : e.label === 'Courier' ? t.dashboard.kindCourier : t.dashboard.kindHauling, value: `$${e.amount}`, color: e.color }))} />
               <KpiCard theme={theme} icon="banknote_arrow_down" label={t.dashboard.kpiSpentLabel} value={`$${TOTAL_SPENT}`} accent={theme.muted}
-                onInfo={() => setInfoText(t.dashboard.infoSpent)} />
+                onInfo={() => setInfoText(withRate(t.dashboard.infoSpent))} />
             </View>
           ) : activeSection === 'community' ? (
             <View style={{ gap: 12 }}>
@@ -605,8 +606,16 @@ export default function DashboardScreen() {
                 </View>
               </SectionCard>
 
-              <SectionCard theme={theme} title={t.dashboard.rpmTitle} subtitle={t.dashboard.rpmSub} onInfo={() => setInfoText(t.dashboard.infoRpm)}>
+              <SectionCard theme={theme} title={t.dashboard.rpmTitle} subtitle={withRate(t.dashboard.rpmSub)} onInfo={() => setInfoText(withRate(t.dashboard.infoRpm))}>
                 <RpmTrendChart trips={stats.rpmTrips} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 }}>
+                  <Icon name="schedule" size={13} color={theme.textFaint} />
+                  <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 11, color: theme.textFaint }}>
+                    {t.dashboard.rpmUpdatedPrefix} {(updatedAt ?? new Date()).toLocaleString(t.locale, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    {' · '}{t.dashboard.rpmIrsEffectivePrefix} {new Date(`${irsRate.effectiveDate}T00:00:00`).toLocaleDateString(t.locale, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    {irsRate.checkedAt && ` (${t.dashboard.rpmIrsCheckedPrefix} ${new Date(irsRate.checkedAt).toLocaleDateString(t.locale, { month: 'short', day: 'numeric', year: 'numeric' })})`}
+                  </Text>
+                </View>
               </SectionCard>
 
               <SectionCard theme={theme} title={t.dashboard.expensesTitle}>

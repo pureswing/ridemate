@@ -48,6 +48,7 @@ export interface DashboardStatsInput {
   communityAvgCancelHours: number;
   resolvedBids: ResolvedBid[]; // oldest -> newest
   locale: string;
+  irsRatePerMile?: number; // live rate from irs_mileage_rate; falls back to IRS_MILEAGE_RATE
 }
 
 function parseMiles(distanceText?: string): number {
@@ -66,7 +67,7 @@ function byKind<T>(zero: T): Record<RidePostKind, T> {
 }
 
 export function buildDashboardStats(input: DashboardStatsInput) {
-  const { myId, agreements, badgeCounts, communityAvgCancelHours, resolvedBids, locale } = input;
+  const { myId, agreements, badgeCounts, communityAvgCancelHours, resolvedBids, locale, irsRatePerMile = IRS_MILEAGE_RATE } = input;
 
   const completed = agreements.filter((a) => a.status === 'completed' && a.post);
   const asDriver = completed.filter((a) => a.driver_id === myId);
@@ -94,7 +95,7 @@ export function buildDashboardStats(input: DashboardStatsInput) {
   // Estimated driving cost (fuel+wear, IRS mileage rate) when I was the
   // driver — "Total spent" combines what I paid as a rider plus what my own
   // driving cost me, per the app's existing infoSpent copy.
-  const drivingCostEstimate = Math.round(IRS_MILEAGE_RATE * milesTotal);
+  const drivingCostEstimate = Math.round(irsRatePerMile * milesTotal);
   const totalSpent = riderFares + drivingCostEstimate;
 
   // ---- Community ----
@@ -162,7 +163,7 @@ export function buildDashboardStats(input: DashboardStatsInput) {
   ];
 
   const expenses = (['ride', 'package', 'hauling'] as RidePostKind[]).map((kind) => {
-    const estimate = Math.round(IRS_MILEAGE_RATE * milesByKind[kind]);
+    const estimate = Math.round(irsRatePerMile * milesByKind[kind]);
     return {
       kind,
       fare: Math.round(earnedByKind[kind]),

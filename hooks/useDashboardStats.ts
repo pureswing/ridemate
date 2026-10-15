@@ -4,6 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useTranslation } from '@/hooks/useTranslation';
 import { buildDashboardStats, DashboardStats, DashboardAgreement, ResolvedBid } from '@/utils/dashboardStats';
 import { BadgeType } from '@/types';
+import { IRS_MILEAGE_RATE_FALLBACK, IrsMileageRate } from '@/constants/mileage';
 
 const POST_FIELDS = 'kind, origin_city, destination_city, scheduled_at, suggested_donation, distance_text, duration_seconds, price_mode';
 
@@ -13,6 +14,8 @@ export function useDashboardStats() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [irsRate, setIrsRate] = useState<IrsMileageRate>(IRS_MILEAGE_RATE_FALLBACK);
   const myId = session?.user?.id;
 
   const load = useCallback(async () => {
@@ -53,7 +56,17 @@ export function useDashboardStats() {
         .eq('requester_id', myId);
       if (bidPostsRes.error) throw bidPostsRes.error;
 
-      const wonPostIds = new Set((wonPostsRes.data as { post_id: string }[]).map((r) => r.post_id));
+      // Non-fatal: a failed read just keeps the bundled fallback rate.
+      const irsRes = await supabase
+        .from('irs_mileage_rate')
+        .select('rate_per_mile, effective_date, checked_at')
+        .eq('id', 1)
+        .maybeSingle();
+      const irs: IrsMileageRate = irsRes.data
+        ? { ratePerMile: Number(irsRes.data.rate_per_mile), effectiveDate: irsRes.data.effective_date, checkedAt: irsRes.data.checked_at }
+        : IRS_MILEAGE_RATE_FALLBACK;
+
+      const wonPostIds =new Set((wonPostsRes.data as { post_id: string }[]).map((r) => r.post_id));
       const resolvedBids: ResolvedBid[] = (bidPostsRes.data as unknown as { post_id: string; created_at: string; post: { price_mode?: string; status: string } | null }[])
         .filter((c) => c.post?.price_mode === 'open' && c.post.status !== 'active')
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -66,8 +79,11 @@ export function useDashboardStats() {
         communityAvgCancelHours: (communityAvgRes.data as number) ?? 0,
         resolvedBids,
         locale: t.locale,
+        irsRatePerMile: irs.ratePerMile,
       });
       setStats(built);
+      setIrsRate(irs);
+      setUpdatedAt(new Date());
     } catch (e: any) {
       setError(e.message ?? 'Failed to load dashboard stats');
     } finally {
@@ -77,5 +93,5 @@ export function useDashboardStats() {
 
   useEffect(() => { load(); }, [load]);
 
-  return { stats, loading, error, reload: load };
+  return { stats, loading, error, updatedAt, irsRate, reload: load };
 }
