@@ -8,6 +8,7 @@ import { ConfirmSheet } from './ConfirmSheet';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
 import { IconName } from '@/constants/icons';
+import { isInFlorida } from '@/constants/floridaBounds';
 import { controlHeight, fonts, radii, shadows } from '@/constants/themes';
 import { tracking, letterSpacingFor } from '@/constants/typography';
 import { PlaceDetail, geocodeAddress } from '@/services/googlePlaces';
@@ -58,6 +59,9 @@ export function SmartAddressField({
   // either from 'idle' (after a value already settled) or from 'type' (the
   // save icon next to the live-typing field), so it can't just hardcode 'idle'.
   const [savePromptFrom, setSavePromptFrom] = useState<'idle' | 'type'>('idle');
+  // A saved slot geocoded outside Florida (e.g. saved before the FL-only
+  // check existed) — rejected like an out-of-state autocomplete pick.
+  const [savedOutsideFlorida, setSavedOutsideFlorida] = useState(false);
 
   const sourceValue = sourceSlotId ? savedAddresses.find((s) => s.id === sourceSlotId)?.value : undefined;
   const isDirty = sourceSlotId !== null && value !== sourceValue;
@@ -68,8 +72,13 @@ export function SmartAddressField({
     onChangeText(slot.value);
     setSourceSlotId(slot.id);
     setPhase('idle');
+    setSavedOutsideFlorida(false);
     const geocoded = await geocodeAddress(slot.value);
-    if (geocoded) {
+    if (geocoded && !isInFlorida(geocoded.lat, geocoded.lng)) {
+      onChangeText('');
+      setSourceSlotId(null);
+      setSavedOutsideFlorida(true);
+    } else if (geocoded) {
       // No address_components available from a plain saved-address string
       // (geocodeAddress only returns coordinates) — city: null lets callers'
       // existing cityFromAddress(formattedAddress) string-split fallback
@@ -107,7 +116,7 @@ export function SmartAddressField({
         {label && <Text style={{ marginBottom: 7, fontSize: 14, fontFamily: fonts.bodySemibold, color: theme.text }}>{label}</Text>}
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => setPhase('choose')}
+          onPress={() => { setSavedOutsideFlorida(false); setPhase('choose'); }}
           style={{
             flexDirection: 'row', alignItems: 'center',
             height: controlHeight.lg, paddingHorizontal: 16,
@@ -119,6 +128,11 @@ export function SmartAddressField({
             {value || placeholder}
           </Text>
         </TouchableOpacity>
+        {savedOutsideFlorida && (
+          <Text style={{ marginTop: 6, fontSize: 12, fontFamily: fonts.bodyMedium, color: theme.danger }}>
+            {t.post.addressOutsideFlorida}
+          </Text>
+        )}
         {showSaveAction && (
           <TouchableOpacity
             onPress={() => {

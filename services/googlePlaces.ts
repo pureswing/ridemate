@@ -5,13 +5,13 @@
 
 const API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_KEY;
 
-// Florida launch-market restriction — center shifted northwest of the
-// peninsula's geographic middle so a single circle can reach both Key West
-// and the far end of the panhandle (Pensacola), the two points a
-// peninsula-centered circle would otherwise miss. Paired with
-// `strictbounds` below, this is a hard filter, not just a bias — some
-// bleed into southern Georgia/Alabama at the edges is an accepted
-// trade-off of using a circle for a non-circular state.
+// Jobs must happen in Florida (see constants/floridaBounds.ts) — center
+// shifted northwest of the peninsula's geographic middle so a single circle
+// can reach both Key West and the far end of the panhandle (Pensacola).
+// Paired with `strictbounds` below this narrows the search area, but a
+// circle also covers south Georgia/Alabama, so getPlacePredictions drops
+// any prediction Google doesn't tag as FL, and the picked place's
+// coordinates are re-checked against the real outline on selection.
 const FLORIDA_CENTER = { lat: 28.5, lng: -83.5 };
 const FLORIDA_RADIUS  = 550_000; // meters (~340 miles) — covers the whole state with margin
 
@@ -80,7 +80,9 @@ export async function getPlacePredictions(input: string, sessionToken?: string):
     );
     const data = await res.json();
     if (data.status !== 'OK') return [];
-    return data.predictions.map((p: any) => ({
+    return data.predictions
+      .filter((p: any) => (p.terms ?? []).some((term: { value: string }) => term.value === 'FL' || term.value === 'Florida'))
+      .map((p: any) => ({
       placeId: p.place_id,
       description: p.description,
       mainText: p.structured_formatting.main_text,

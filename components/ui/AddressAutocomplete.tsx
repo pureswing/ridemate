@@ -4,6 +4,8 @@ import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { useTheme } from '@/hooks/useTheme';
 import { controlHeight, radii, fonts, shadows } from '@/constants/themes';
 import { getPlacePredictions, getPlaceDetail, newPlacesSessionToken, PlacePrediction, PlaceDetail } from '@/services/googlePlaces';
+import { isInFlorida } from '@/constants/floridaBounds';
+import { useTranslation } from '@/hooks/useTranslation';
 
 interface Props {
   label?: string;
@@ -30,6 +32,8 @@ interface Props {
 
 export function AddressAutocomplete({ label, placeholder, value, onChangeText, onSelectPlace, style, autoFocus, onBlur, variant = 'boxed', textStyle, rightAccessory }: Props) {
   const theme = useTheme();
+  const t = useTranslation();
+  const [outsideFlorida, setOutsideFlorida] = useState(false);
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -51,6 +55,7 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
   useEffect(() => {
     if (!mountedRef.current) { mountedRef.current = true; return; }
     if (suppressRef.current) return;
+    setOutsideFlorida(false);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (value.length < 3) {
       setPredictions([]); setOpen(false);
@@ -74,7 +79,11 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
     onChangeText(prediction.mainText);
     if (onSelectPlace) {
       const detail = await getPlaceDetail(prediction.placeId, sessionTokenRef.current ?? undefined);
-      if (detail) onSelectPlace(detail);
+      // Predictions are already FL-tagged, but the coordinates are the real
+      // test (same outline as the server trigger) — never hand an
+      // out-of-state point to the form, or the publish fails later.
+      if (detail && !isInFlorida(detail.lat, detail.lng)) setOutsideFlorida(true);
+      else if (detail) onSelectPlace(detail);
     }
     sessionTokenRef.current = null; // session closed — next typing burst gets a fresh token
     // Reset after both value updates (onChangeText + onSelectPlace) have propagated
@@ -123,6 +132,11 @@ export function AddressAutocomplete({ label, placeholder, value, onChangeText, o
         {loading && <ActivityIndicator size="small" color={theme.primary} />}
         {rightAccessory}
       </View>
+      {outsideFlorida && (
+        <Text style={{ marginTop: 6, fontSize: 12, fontFamily: fonts.bodyMedium, color: theme.danger }}>
+          {t.post.addressOutsideFlorida}
+        </Text>
+      )}
       {open && predictions.length > 0 && (
         <View style={{
           position: 'absolute',
