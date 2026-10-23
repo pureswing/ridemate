@@ -15,10 +15,15 @@
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.botego.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "BoteGo usa tu ubicación para mostrarte viajes cerca de ti.",
-        "NSLocationAlwaysUsageDescription": "BoteGo usa tu ubicación para mostrarte viajes cerca de ti."
+        "CFBundleAllowMixedLocalizations": true
       }
+    },
+    "locales": {
+      "es": "./locales/es.json"
     },
     "android": {
       "adaptiveIcon": {
@@ -43,7 +48,22 @@
     },
     "plugins": [
       "expo-router",
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "BoteGo uses your location to show rides, deliveries and hauling jobs near you, and local weather.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "BoteGo needs access to your photos so you can add a profile picture, photos of your vehicle, or photos of the items in a hauling job.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-splash-screen",
         {

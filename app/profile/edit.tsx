@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { InfoSheet } from '@/components/ui/InfoSheet';
 import { KeyboardWrapper } from '@/components/auth/KeyboardWrapper';
 import { useAuthStore } from '@/store/authStore';
+import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { useSubscription } from '@/hooks/useSubscription';
@@ -75,7 +76,7 @@ function FieldHeader({ label, helper, required }: { label: string; helper?: stri
 
 export default function EditProfileScreen() {
   const { profile, session } = useAuthStore();
-  const { updateProfile, uploadAvatar, upsertLegalName, getLegalName, signIn, updatePassword } = useAuth();
+  const { updateProfile, uploadAvatar, upsertLegalName, getLegalName, signIn, updatePassword, signOut } = useAuth();
   const { getMyVehicles } = useVehicleProfile();
   const { isFree, isDonor } = useSubscription();
   const { getSavedAddresses, saveAddress, deleteAddress } = useSavedAddresses();
@@ -116,6 +117,22 @@ export default function EditProfileScreen() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleteText, setDeleteText] = useState('');
   const deleteArmed = deleteText.trim().toUpperCase() === 'DELETE';
+  const [deleting, setDeleting] = useState(false);
+
+  // Real deletion (App Store 5.1.1(v)) — supabase/functions/delete-account
+  // removes the caller's files and auth user (everything else cascades).
+  // Signing out afterwards lets the root layout's auth listener route back
+  // to the welcome screen, same as a normal sign-out.
+  async function deleteAccount() {
+    setDeleting(true);
+    const { data, error } = await supabase.functions.invoke('delete-account');
+    if (error || !data?.deleted) {
+      setDeleting(false);
+      setInfoSheet({ title: t.rideDetail.errorTitle, message: t.profile.deleteFailed });
+      return;
+    }
+    await signOut().catch(() => {});
+  }
 
   const displayAvatar = photoUri ?? profile?.avatar_url ?? undefined;
   const email = session?.user?.email ?? '';
@@ -505,6 +522,11 @@ export default function EditProfileScreen() {
               </Button>
             ) : (
               <View style={{ marginTop: 14, gap: 11 }}>
+                {isDonor && (
+                  <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.danger, lineHeight: 18 }}>
+                    {t.profile.deleteSubscriptionNote}
+                  </Text>
+                )}
                 <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary }}>
                   {t.profile.deleteConfirmPrompt}
                 </Text>
@@ -532,10 +554,10 @@ export default function EditProfileScreen() {
                     <Button
                       variant="danger"
                       fullWidth
-                      disabled={!deleteArmed}
-                      onPress={() => setInfoSheet({ title: t.profile.comingSoonTitle, message: t.profile.comingSoonMsg, tone: 'info' })}
+                      disabled={!deleteArmed || deleting}
+                      onPress={deleteAccount}
                     >
-                      {t.profile.deleteForeverButton}
+                      {deleting ? t.profile.deleting : t.profile.deleteForeverButton}
                     </Button>
                   </View>
                 </View>
