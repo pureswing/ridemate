@@ -39,6 +39,19 @@ const UI = {
     ],
     supportBody: 'Questions, problems, or data requests? Email us and we will get back to you.',
     deleteHow: 'To delete your account, open the app and go to Profile → Edit → Delete my account.',
+    deleteLink: 'How to delete your account',
+    del: {
+      title: 'Delete your BoteGo account',
+      intro: 'You can permanently delete your BoteGo account and its data at any time.',
+      inAppTitle: 'From the app (fastest)',
+      inApp: ['Open BoteGo and sign in.', 'Go to Profile → Edit.', 'Scroll to the bottom and tap “Delete my account”.', 'Type DELETE to confirm. Your account is deleted immediately.'],
+      emailTitle: 'Without the app',
+      email: 'Email support@botego.app from the email address of your BoteGo account, with the subject “Delete my account”. We delete it within 7 days and confirm by email.',
+      whatTitle: 'What is deleted',
+      what: 'Your profile, posts, messages, trip agreements, reviews and badges, saved addresses, vehicles and uploaded photos are permanently deleted. Only security audit logs may be kept, with no link to your identity.',
+      subTitle: 'Donor subscription',
+      sub: 'Your Donor subscription is billed by Google Play or the App Store. Deleting your account does not cancel it — cancel it in your store’s subscription settings.',
+    },
   },
   es: {
     tagline: 'El tablero comunitario de viajes de Florida',
@@ -54,6 +67,19 @@ const UI = {
     ],
     supportBody: '¿Preguntas, problemas o solicitudes sobre tus datos? Escríbenos y te responderemos.',
     deleteHow: 'Para eliminar tu cuenta, abre la app y ve a Perfil → Editar → Eliminar mi cuenta.',
+    deleteLink: 'Cómo eliminar tu cuenta',
+    del: {
+      title: 'Elimina tu cuenta de BoteGo',
+      intro: 'Puedes eliminar permanentemente tu cuenta de BoteGo y sus datos en cualquier momento.',
+      inAppTitle: 'Desde la app (lo más rápido)',
+      inApp: ['Abre BoteGo e inicia sesión.', 'Ve a Perfil → Editar.', 'Baja hasta el final y toca “Eliminar mi cuenta”.', 'Escribe DELETE para confirmar. Tu cuenta se elimina de inmediato.'],
+      emailTitle: 'Sin la app',
+      email: 'Escribe a support@botego.app desde el correo de tu cuenta de BoteGo, con el asunto “Eliminar mi cuenta”. La eliminamos en un plazo de 7 días y te lo confirmamos por correo.',
+      whatTitle: 'Qué se elimina',
+      what: 'Se eliminan permanentemente tu perfil, publicaciones, mensajes, acuerdos de viaje, reseñas e insignias, direcciones guardadas, vehículos y fotos subidas. Solo pueden conservarse registros de auditoría de seguridad, sin vínculo con tu identidad.',
+      subTitle: 'Suscripción Donante',
+      sub: 'Tu suscripción Donante la cobra Google Play o la App Store. Eliminar tu cuenta no la cancela: cancélala en los ajustes de suscripciones de tu tienda.',
+    },
   },
 } as const;
 
@@ -145,9 +171,24 @@ function supportPage(lang: Lang): string {
   const body = `<h1>${esc(u.support)}</h1><div class="card">
 <p>${esc(u.supportBody)}</p>
 <p><a href="mailto:support@botego.app">support@botego.app</a></p>
-<p>${esc(u.deleteHow)}</p>
+<p>${esc(u.deleteHow)} <a href="delete-account.html">${esc(u.deleteLink)}</a></p>
 </div>`;
   return page(lang, root, u.support, body, lang === 'en' ? 'es/support.html' : '../support.html');
+}
+
+// Google Play requires a web page (not only the in-app button) explaining
+// how to delete an account, usable by someone who no longer has the app.
+function deleteAccountPage(lang: Lang): string {
+  const d = UI[lang].del;
+  const root = lang === 'en' ? '' : '../';
+  const body = `<h1>${esc(d.title)}</h1><div class="card">
+<p>${esc(d.intro)}</p>
+<h2>${esc(d.inAppTitle)}</h2><ol class="steps">${d.inApp.map((x) => `<li>${esc(x)}</li>`).join('')}</ol>
+<h2>${esc(d.emailTitle)}</h2><p>${linkify(d.email)}</p>
+<h2>${esc(d.whatTitle)}</h2><p>${esc(d.what)}</p>
+<h2>${esc(d.subTitle)}</h2><p>${esc(d.sub)}</p>
+</div>`;
+  return page(lang, root, d.title, body, lang === 'en' ? 'es/delete-account.html' : '../delete-account.html');
 }
 
 function landingPage(lang: Lang): string {
@@ -218,6 +259,7 @@ for (const lang of ['en', 'es'] as Lang[]) {
   await Deno.mkdir(dir, { recursive: true });
   await Deno.writeTextFile(new URL('index.html', dir), landingPage(lang));
   await Deno.writeTextFile(new URL('support.html', dir), supportPage(lang));
+  await Deno.writeTextFile(new URL('delete-account.html', dir), deleteAccountPage(lang));
   await Deno.writeTextFile(new URL('privacy.html', dir), legalPage(lang, legal.privacy, legal.lastUpdated, 'privacy.html'));
   await Deno.writeTextFile(new URL('terms.html', dir), legalPage(lang, legal.terms, legal.lastUpdated, 'terms.html'));
 }

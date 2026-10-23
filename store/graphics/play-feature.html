@@ -1,0 +1,30 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&family=Plus+Jakarta+Sans:wght@500;700&display=block" rel="stylesheet">
+<style>
+  html, body { margin:0; width:1024px; height:500px; overflow:hidden; }
+  body { background:#FF6243; background-image:linear-gradient(135deg,#FF6243 0%,#FF9B57 55%,#FFC15E 100%); font-family:'Plus Jakarta Sans', sans-serif; color:#fff; position:relative; }
+  .content { position:absolute; left:72px; top:50%; transform:translateY(-50%); width:560px; }
+  .brand { display:flex; align-items:center; gap:22px; }
+  .logo { width:104px; height:104px; border-radius:30px; background:#fff; color:#FF6243; font-family:'Bricolage Grotesque', sans-serif; font-weight:800; font-size:62px; display:flex; align-items:center; justify-content:center; box-shadow:0 12px 30px rgba(120,40,10,.22); }
+  .name { font-family:'Bricolage Grotesque', sans-serif; font-weight:800; font-size:92px; letter-spacing:-2px; line-height:1; }
+  .line { font-weight:700; font-size:34px; line-height:1.25; margin-top:30px; }
+  .sub { font-weight:500; font-size:22px; margin-top:14px; color:#FFF8F0; opacity:.95; }
+  svg { position:absolute; right:40px; top:40px; width:360px; height:420px; }
+</style></head>
+<body>
+  <div class="content">
+    <div class="brand"><div class="logo">B</div><div class="name">BoteGo</div></div>
+    <div class="line">Rides, deliveries &amp; hauling across Florida</div>
+    <div class="sub">Peer to peer · No dispatch · No surge pricing</div>
+  </div>
+  <!-- Stylized route: dashed path between two pins -->
+  <svg viewBox="0 0 360 420" fill="none">
+    <path d="M70 360 C 40 250, 190 260, 170 170 S 260 80, 290 70" stroke="#FFF8F0" stroke-width="7" stroke-linecap="round" stroke-dasharray="2 18" opacity=".9"/>
+    <g transform="translate(70 360)"><circle r="30" fill="#fff"/><circle r="12" fill="#0A7E77"/></g>
+    <g transform="translate(290 40)">
+      <path d="M0 62 C -26 34, -34 22, -34 2 A 34 34 0 1 1 34 2 C 34 22, 26 34, 0 62 Z" fill="#fff"/>
+      <circle cy="0" r="13" fill="#FF6243"/>
+    </g>
+  </svg>
+</body></html>
