@@ -20,9 +20,10 @@ and never call prices fares (see the FL §627.748 / TNC boundary).
 | Secondary category | Lifestyle |
 | Bundle ID | com.botego.app |
 | SKU | botego-ios |
-| Privacy Policy URL | https://pureswing.github.io/ridemate/privacy.html |
-| Support URL | https://pureswing.github.io/ridemate/ |
-| Terms (EULA) | Apple standard EULA, plus https://pureswing.github.io/ridemate/terms.html in the description |
+| Privacy Policy URL | https://botego.app/privacy.html |
+| Support URL | https://botego.app/support.html |
+| Marketing URL | https://botego.app |
+| Terms (EULA) | Apple standard EULA, plus https://botego.app/terms.html in the description |
 | Copyright | © 2026 BoteGo |
 
 ## Promotional text (≤170)
@@ -46,8 +47,8 @@ Post what you need — a ride to the airport, a package that has to cross town, 
 
 Donor is an optional monthly subscription that unlocks extra features and supports the community board. It renews automatically until you cancel it in your App Store settings.
 
-Terms of Service: https://pureswing.github.io/ridemate/terms.html
-Privacy Policy: https://pureswing.github.io/ridemate/privacy.html
+Terms of Service: https://botego.app/terms.html
+Privacy Policy: https://botego.app/privacy.html
 
 ## Description — Spanish (Mexico / Spain localizations)
 
