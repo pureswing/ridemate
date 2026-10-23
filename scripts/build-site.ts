@@ -237,4 +237,6 @@ await Deno.writeFile(new URL('botego-download.png', qrDir), new Uint8Array(png))
 
 // Tell GitHub Pages to serve files as-is (no Jekyll processing).
 await Deno.writeTextFile(new URL('.nojekyll', OUT), '');
+// Custom domain for GitHub Pages (DNS: 4 A records on @ + CNAME www at Namecheap).
+await Deno.writeTextFile(new URL('CNAME', OUT), 'botego.app\n');
 console.log(`Built docs/: landing, download, support, privacy, terms (en + es) + QR -> ${DOWNLOAD_PAGE}`);
