@@ -1,7 +1,9 @@
 // Admin-only: seed a specific person with Donor access by email ahead of
 // real payment (see admin-set-subscription's header comment for why). Sends
-// the Android APK download link via Resend; the invites row created here is
-// what handle_new_user (supabase/migrations/063_admin_invites.sql) checks on
+// the app download link via Resend — APK_DOWNLOAD_URL now holds the smart
+// https://botego.app/download/ page (picks the right store/APK per device,
+// see scripts/build-site.ts), not the APK itself, despite the old name.
+// The invites row created here is what handle_new_user (supabase/migrations/063_admin_invites.sql) checks on
 // signup to grant Donor for donor_months instead of the default Free row.
 // Requires secrets before deploying:
 //   supabase secrets set RESEND_API_KEY=... APK_DOWNLOAD_URL=...

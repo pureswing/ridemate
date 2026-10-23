@@ -109,12 +109,12 @@ export function inviteHtml(rawEmail: string, downloadUrl: string, months: number
               </table>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-                ${step(1, 'Download the app', 'Tap the button below to get BoteGo for Android.')}
+                ${step(1, 'Download the app', 'Tap the button below — it opens the right download for your phone (Android now, iPhone coming soon).')}
                 ${step(2, 'Sign up with this email', `Use <strong style="color:${C.text};">${email}</strong> — that's how we recognize your invite.`)}
                 ${step(3, 'Donor unlocks automatically', 'No code needed. It activates the moment your account is created.')}
               </table>
 
-              ${button(url, 'DOWNLOAD FOR ANDROID')}
+              ${button(url, 'DOWNLOAD BOTEGO')}
               <div style="font-family:${FONT};font-size:12px;color:${C.muted};text-align:center;line-height:18px;margin:10px 0 24px 0;">
                 Button not working? Copy this link:<br>
                 <a href="${url}" style="color:${C.coral};word-break:break-all;">${url}</a>
