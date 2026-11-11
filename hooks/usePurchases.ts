@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { Linking, Platform } from 'react-native';
 import Purchases, { CustomerInfo, PurchasesOffering } from 'react-native-purchases';
 import { useAuthStore } from '@/store/authStore';
 import { DONOR_AMOUNTS, DONOR_PACKAGE_ID } from '@/constants/membershipPlans';
@@ -111,6 +111,32 @@ export function useRevenueCatSync(userId: string | undefined) {
       Purchases.removeCustomerInfoUpdateListener(listener);
     };
   }, [userId]);
+}
+
+// A Donor row RevenueCat wrote (id: 'revenuecat', see above) is billed by a
+// store; admin/invite-granted rows (real Supabase ids) cost the user nothing
+// and have nothing to cancel.
+export function isStoreBilled(subscription: { id?: string; status?: string } | null | undefined): boolean {
+  return subscription?.id === 'revenuecat' && subscription.status === 'active';
+}
+
+// Store subscriptions can only be cancelled in the store's own screen — no
+// API can do it. iOS gets Apple's native sheet; Android gets RevenueCat's
+// managementURL (points at this exact subscription), falling back to Play's
+// subscriptions page for this package.
+export async function openSubscriptionManagement() {
+  if (configured) {
+    try {
+      if (Platform.OS === 'ios') { await Purchases.showManageSubscriptions(); return; }
+      const { managementURL } = await Purchases.getCustomerInfo();
+      if (managementURL) { await Linking.openURL(managementURL); return; }
+    } catch (e) {
+      console.warn('[openSubscriptionManagement] falling back to store URL', e);
+    }
+  }
+  await Linking.openURL(Platform.OS === 'ios'
+    ? 'https://apps.apple.com/account/subscriptions'
+    : 'https://play.google.com/store/account/subscriptions?package=com.botego.app');
 }
 
 // Call from the Membership screen — fetches the current Offering (the 3

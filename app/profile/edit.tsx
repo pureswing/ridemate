@@ -19,6 +19,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { useSubscription } from '@/hooks/useSubscription';
+import { isStoreBilled, openSubscriptionManagement } from '@/hooks/usePurchases';
 import { useSavedAddresses } from '@/hooks/useSavedAddresses';
 import { AccessibilityNeed } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
@@ -78,7 +79,10 @@ export default function EditProfileScreen() {
   const { profile, session } = useAuthStore();
   const { updateProfile, uploadAvatar, upsertLegalName, getLegalName, signIn, updatePassword, signOut } = useAuth();
   const { getMyVehicles } = useVehicleProfile();
-  const { isFree, isDonor } = useSubscription();
+  const { isFree, isDonor, subscription } = useSubscription();
+  // Only a store-billed Donor (not an invite/admin grant) has something that
+  // keeps charging after the account is gone.
+  const storeBilled = isStoreBilled(subscription);
   const { getSavedAddresses, saveAddress, deleteAddress } = useSavedAddresses();
   const theme = useTheme();
   const t = useTranslation();
@@ -522,10 +526,15 @@ export default function EditProfileScreen() {
               </Button>
             ) : (
               <View style={{ marginTop: 14, gap: 11 }}>
-                {isDonor && (
-                  <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.danger, lineHeight: 18 }}>
-                    {t.profile.deleteSubscriptionNote}
-                  </Text>
+                {storeBilled && (
+                  <View style={{ gap: 8 }}>
+                    <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.danger, lineHeight: 18 }}>
+                      {t.profile.deleteSubscriptionNote}
+                    </Text>
+                    <Button variant="outline" fullWidth onPress={openSubscriptionManagement}>
+                      {t.profile.manageSubscription}
+                    </Button>
+                  </View>
                 )}
                 <Text style={{ fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary }}>
                   {t.profile.deleteConfirmPrompt}

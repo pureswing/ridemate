@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, ScrollView, Linking } from 'react-native';
+import { View, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -19,7 +19,7 @@ import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { MembershipCheckoutSheet } from '@/components/profile/MembershipCheckoutSheet';
 import { useAuthStore } from '@/store/authStore';
 import { useSubscription } from '@/hooks/useSubscription';
-import { usePurchases } from '@/hooks/usePurchases';
+import { usePurchases, openSubscriptionManagement } from '@/hooks/usePurchases';
 import { useTranslation } from '@/hooks/useTranslation';
 import { useTheme } from '@/hooks/useTheme';
 import { fonts, shadows } from '@/constants/themes';
@@ -90,12 +90,12 @@ export default function MembershipScreen() {
   }
 
   // RevenueCat/store subscriptions can't be cancelled via API call — only
-  // through the platform's own subscription-management screen. This just
-  // routes there; store/authStore.ts's `subscription` updates on its own
+  // through the platform's own subscription-management screen (Apple's
+  // native sheet on iOS, Play's page on Android). This just routes there; store/authStore.ts's `subscription` updates on its own
   // once the cancellation takes effect (useRevenueCatSync's listener).
   function handleCancelDowngrade() {
     setConfirmingCancel(false);
-    Linking.openURL('https://play.google.com/store/account/subscriptions');
+    openSubscriptionManagement();
   }
 
   // Only worth showing where free and paid actually diverge — rows where
