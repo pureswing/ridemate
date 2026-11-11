@@ -121,15 +121,17 @@ export function isStoreBilled(subscription: { id?: string; status?: string } | n
 }
 
 // Store subscriptions can only be cancelled in the store's own screen — no
-// API can do it. iOS gets Apple's native sheet; Android gets RevenueCat's
-// managementURL (points at this exact subscription), falling back to Play's
-// subscriptions page for this package.
+// API can do it. Donor status is cross-platform (keyed by our user id), but
+// billing stays with the store it was bought in: a Play purchase seen on an
+// iPhone must still be managed in Google Play. RevenueCat's managementURL
+// follows the purchase's store regardless of the current device, so it goes
+// first; Apple's native sheet and the platform URLs are only fallbacks.
 export async function openSubscriptionManagement() {
   if (configured) {
     try {
-      if (Platform.OS === 'ios') { await Purchases.showManageSubscriptions(); return; }
       const { managementURL } = await Purchases.getCustomerInfo();
       if (managementURL) { await Linking.openURL(managementURL); return; }
+      if (Platform.OS === 'ios') { await Purchases.showManageSubscriptions(); return; }
     } catch (e) {
       console.warn('[openSubscriptionManagement] falling back to store URL', e);
     }
