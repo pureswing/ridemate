@@ -20,6 +20,14 @@ function configureOnce() {
     console.warn(`[usePurchases] RevenueCat API key not configured for ${Platform.OS} — see .env`);
     return;
   }
+  // Since react-native-purchases 10, a Test Store key (test_…) in a release
+  // build makes the SDK throw on purpose — it crashed the whole app at launch
+  // (first Play internal-testing build). A misconfigured key must only ever
+  // disable purchases, never take the app down: skip configuring instead.
+  if (!__DEV__ && apiKey.startsWith('test_')) {
+    console.warn('[usePurchases] RevenueCat Test Store key in a release build — purchases disabled. Set the store key (goog_/appl_) for this environment in EAS.');
+    return;
+  }
   Purchases.configure({ apiKey });
   configured = true;
 }
@@ -192,6 +200,10 @@ export function usePurchases() {
   // installation yet. Returns whether an active donor entitlement was
   // found, so the caller can show "nothing to restore" vs. a real result.
   async function restore(): Promise<boolean> {
+    // SDK never configured (missing/Test Store key in release) — an empty
+    // message makes the caller fall back to its generic error copy instead
+    // of surfacing RevenueCat's internal "no singleton instance" text.
+    if (!configured) throw new Error();
     setRestoring(true);
     try {
       const customerInfo = await Purchases.restorePurchases();
