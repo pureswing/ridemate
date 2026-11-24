@@ -28,6 +28,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { RidePost, RidePostDetailsPackage, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { packageSizeLabel } from '@/constants/packageFormOptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSeenPostsStore } from '@/store/seenPostsStore';
 import { formatEta, formatDurationShort } from '@/utils/dateFormat';
@@ -304,7 +305,7 @@ export default function PackageDetailScreen() {
             )}
             {!!details.packageSize && (
               <View style={{ width: '47%' }}>
-                <StatTile theme={theme} icon="package" label="Size" value={details.packageSize} />
+                <StatTile theme={theme} icon="package" label={t.post.packageSize} value={packageSizeLabel(details.packageSize, t.locale)!} />
               </View>
             )}
             {!!details.declaredValue && (

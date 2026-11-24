@@ -88,6 +88,13 @@ export function translatePackageLabel(label: string, locale: string): string {
   return PACKAGE_LABELS_ES[label] ?? label;
 }
 
+// A post stores the PACKAGE_SIZES `value` ('small'), not its label — map it
+// back here for display (same as loadSizeLabel for hauling).
+export function packageSizeLabel(value: string | undefined, locale: string): string | undefined {
+  const size = PACKAGE_SIZES.find((s) => s.value === value);
+  return size ? translatePackageLabel(size.label, locale) : value;
+}
+
 export function translatePackageSub(sub: string | undefined, locale: string): string | undefined {
   if (sub == null || !locale.startsWith('es')) return sub;
   return PACKAGE_SUB_LABELS_ES[sub] ?? sub;
