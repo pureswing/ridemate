@@ -220,12 +220,14 @@ export default function ProfileScreen() {
           .select('id', { count: 'exact', head: true })
           .eq('user_id', userId)
           .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString())
           .gt('scheduled_at', new Date().toISOString()),
         supabase
           .from('ride_posts')
           .select('scheduled_at')
           .eq('user_id', userId)
           .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString())
           .gt('scheduled_at', new Date().toISOString())
           .order('scheduled_at', { ascending: true })
           .limit(1)
