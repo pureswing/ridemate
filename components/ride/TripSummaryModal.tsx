@@ -2,6 +2,7 @@ import { View, Modal, TouchableOpacity, Share, ScrollView } from 'react-native';
 import { ThemedText as Text } from '@/components/ui/ThemedText';
 import { BadgeGlyph } from '@/components/community/BadgeGlyph';
 import { useTranslation } from '@/hooks/useTranslation';
+import { loadSizeLabel } from '@/constants/haulingFormOptions';
 import { useTheme } from '@/hooks/useTheme';
 import { TripRecord } from '@/types';
 import { BADGE_ICONS } from '@/constants/badgeIcons';
@@ -32,7 +33,7 @@ export function TripSummaryModal({ visible, record, onClose }: Props) {
     : r.kind === 'hauling' ? t.tripSummary.load
     : t.tripSummary.passengers;
   const quantityValue = r.kind === 'package' ? (r.packageQty != null ? String(r.packageQty) : undefined)
-    : r.kind === 'hauling' ? r.loadSize
+    : r.kind === 'hauling' ? loadSizeLabel(r.loadSize, t.locale)
     : (r.passengerCount != null ? String(r.passengerCount) : undefined);
   const luggageValue = r.luggagePresent == null ? undefined
     : r.luggagePresent

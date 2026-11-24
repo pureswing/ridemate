@@ -81,6 +81,13 @@ export function translateHaulingLabel(label: string, locale: string): string {
   return HAULING_LABELS_ES[label] ?? label;
 }
 
+// A post stores the LOAD_SIZES `value` ('half'), not its label — every
+// display surface must map it back through here, or users see raw ids.
+export function loadSizeLabel(value: string | undefined, locale: string): string | undefined {
+  const size = LOAD_SIZES.find((s) => s.value === value);
+  return size ? translateHaulingLabel(size.label, locale) : value;
+}
+
 export function translateHaulingSub(sub: string | undefined, locale: string): string | undefined {
   if (sub == null || !locale.startsWith('es')) return sub;
   return HAULING_SUB_LABELS_ES[sub] ?? sub;

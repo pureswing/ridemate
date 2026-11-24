@@ -28,6 +28,7 @@ import { useSubscription } from '@/hooks/useSubscription';
 import { RidePost, RidePostDetailsHauling, RideAgreement } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { loadSizeLabel } from '@/constants/haulingFormOptions';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useSeenPostsStore } from '@/store/seenPostsStore';
 import { formatLeavesIn } from '@/utils/dateFormat';
@@ -277,8 +278,8 @@ export default function HaulingDetailScreen() {
         <View style={{ padding: 20, gap: 18 }}>
           {hasDropoff && (
             <View style={{ flexDirection: 'row', gap: 10 }}>
-              <SummaryChip theme={theme} label={t.rideDetail.leaves} value={details.flexibleDate ? 'Anytime this week' : formatLeavesIn(post.scheduled_at)} />
-              <SummaryChip theme={theme} label="Load size" value={details.loadSize ?? '—'} />
+              <SummaryChip theme={theme} label={t.rideDetail.leaves} value={details.flexibleDate ? t.post.anytimeThisWeek : formatLeavesIn(post.scheduled_at)} />
+              <SummaryChip theme={theme} label={t.post.loadSize} value={loadSizeLabel(details.loadSize, t.locale) ?? '—'} />
               <SummaryChip theme={theme} label={t.rideDetail.distance} value={post.distance_text ?? '—'} />
             </View>
           )}
@@ -321,7 +322,7 @@ export default function HaulingDetailScreen() {
             )}
             {!!details.loadSize && (
               <View style={{ width: '47%' }}>
-                <StatTile theme={theme} icon="truck" label="Load size" value={details.loadSize} />
+                <StatTile theme={theme} icon="truck" label={t.post.loadSize} value={loadSizeLabel(details.loadSize, t.locale)!} />
               </View>
             )}
             {details.helpNeeded && (

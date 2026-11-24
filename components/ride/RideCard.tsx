@@ -15,6 +15,7 @@ import { ExtrasSheet } from './ExtrasSheet';
 import { RidePost, RidePostDetailsPackage, RidePostDetailsHauling, RidePostDetailsRide } from '@/types';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { loadSizeLabel } from '@/constants/haulingFormOptions';
 import { useRides } from '@/hooks/useRides';
 import { usePriceAnalysisGate } from '@/hooks/usePriceAnalysisGate';
 import { useAuthStore } from '@/store/authStore';
@@ -121,7 +122,7 @@ export function RideCard({ post, style }: Props) {
       : post.kind === 'package'
         ? { icon: 'package' as IconName, text: `×${(post.details as RidePostDetailsPackage)?.qty ?? 1}` }
         : post.kind === 'hauling' && (post.details as RidePostDetailsHauling)?.loadSize
-          ? { icon: 'truck' as IconName, text: (post.details as RidePostDetailsHauling).loadSize! }
+          ? { icon: 'truck' as IconName, text: loadSizeLabel((post.details as RidePostDetailsHauling).loadSize, t.locale)! }
           : null;
 
   return (
