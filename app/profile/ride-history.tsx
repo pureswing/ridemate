@@ -206,6 +206,9 @@ export default function RideHistoryScreen() {
   }
 
   const typeOpts: { key: RideHistoryTypeFilter; label: string }[] = [
+    // 'all' is the default typeFilter, so it needs its own chip — the
+    // "All rides" label used to sit on 'driver', leaving nothing selected.
+    { key: 'all', label: t.rideHistoryScreen.filterAllRides },
     { key: 'driver', label: t.rideHistoryScreen.filterDriver },
     { key: 'rider', label: t.rideHistoryScreen.filterRider },
     { key: 'package', label: t.rideHistoryScreen.filterPackage },

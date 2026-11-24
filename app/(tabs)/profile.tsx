@@ -210,7 +210,11 @@ export default function ProfileScreen() {
         supabase
           .from('ride_posts')
           .select('id', { count: 'exact', head: true })
-          .eq('user_id', userId),
+          .eq('user_id', userId)
+          // Same "live" definition as the feed (useRides): cancelled,
+          // completed and expired posts don't count.
+          .eq('status', 'active')
+          .gt('expires_at', new Date().toISOString()),
         supabase
           .from('ride_posts')
           .select('id', { count: 'exact', head: true })
