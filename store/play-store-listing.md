@@ -27,7 +27,7 @@ repo is public: never put the review account's password here.
 |---|---|
 | App icon 512×512 (32-bit PNG) | store/graphics/play-icon-512.png |
 | Feature graphic 1024×500 | store/graphics/play-feature-1024x500.png (source: play-feature.html) |
-| Phone screenshots (2–8, 9:16) | Still needed — take on the Armor from the production build |
+| Phone screenshots (2–8) | store/screenshots/android/1-feed.png … 4-profile.png (1080×2160, from build 7) |
 
 ## Short description (≤80)
 
