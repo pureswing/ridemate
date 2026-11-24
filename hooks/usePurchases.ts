@@ -165,7 +165,12 @@ export function usePurchases() {
   async function purchase(amount: (typeof DONOR_AMOUNTS)[number]) {
     if (!offering) throw new Error('Offerings not loaded yet');
     const productId = DONOR_PACKAGE_ID[amount];
-    const pkg = offering.availablePackages.find((p) => p.product.identifier === productId);
+    // Google Play reports a subscription's StoreProduct.identifier as
+    // `productId:basePlanId` (e.g. donor_monthly_10:monthly); App Store and
+    // RevenueCat's Test Store report the bare productId — compare the part
+    // before the colon so both match. (EntitlementInfo.productIdentifier is
+    // the bare id on every store, so AMOUNT_BY_PRODUCT_ID needs no change.)
+    const pkg = offering.availablePackages.find((p) => p.product.identifier.split(':')[0] === productId);
     if (!pkg) throw new Error(`No RevenueCat package found for product "${productId}" in the current offering`);
     setPurchasing(true);
     try {
