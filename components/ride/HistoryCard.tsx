@@ -21,13 +21,19 @@ interface Props {
   selected: boolean;
   onLongPress: () => void;
   onToggleSelect: () => void;
+  // Optional extras for reuse outside Ride history (the Re-post screen): a
+  // highlighted line under the date (e.g. "Deleted in 2 days") and an action
+  // rendered beside the card (e.g. a delete button). Ride history passes
+  // neither, so it renders exactly as before.
+  note?: string;
+  rightAction?: React.ReactNode;
 }
 
 // Same card shell as thisweek.tsx/calendar.tsx's job rows (RouteLine, icon
 // box, curved left accent stripe) but stripped down per the ride-history
 // spec: no price, no other-party name, no kind badge pill — the icon alone
 // carries the kind, since every row here is already known-completed.
-export function HistoryCard({ agreement, myId, onPress, selectionMode, selected, onLongPress, onToggleSelect }: Props) {
+export function HistoryCard({ agreement, myId, onPress, selectionMode, selected, onLongPress, onToggleSelect, note, rightAction }: Props) {
   const theme = useTheme();
   const t = useTranslation();
   const post = agreement.post;
@@ -82,6 +88,11 @@ export function HistoryCard({ agreement, myId, onPress, selectionMode, selected,
                 {scheduledAt.toLocaleDateString(t.locale, { month: 'short', day: 'numeric' })} · {scheduledAt.toLocaleTimeString(t.locale, { hour: '2-digit', minute: '2-digit' })}
               </Text>
             )}
+            {!!note && (
+              <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 11, color: theme.primary, marginTop: 2 }}>
+                {note}
+              </Text>
+            )}
           </View>
           {!selectionMode && <Icon name="chevron_right" size={18} color={theme.textFaint} />}
         </TouchableOpacity>
@@ -98,6 +109,7 @@ export function HistoryCard({ agreement, myId, onPress, selectionMode, selected,
           borderTopLeftRadius: radii.md, borderBottomLeftRadius: radii.md, overflow: 'hidden',
         }} />
       </View>
+      {rightAction}
     </View>
   );
 }

@@ -110,6 +110,7 @@ export default function MembershipScreen() {
     postBrowse: t.membership.featurePostBrowse,
     messaging: t.membership.featureMessaging,
     savedAddresses: t.membership.featureSavedAddresses,
+    repostWindow: t.membership.featureRepostWindow,
     earlyAccess: t.membership.featureEarlyAccess,
     routeIntel: t.membership.featureRouteIntel,
     communityFeedback: t.membership.featureCommunityFeedback,
@@ -117,6 +118,7 @@ export default function MembershipScreen() {
   };
   const FEATURE_TEXT: Record<string, { free: string; paid: string }> = {
     savedAddresses: { free: t.membership.featureSavedAddressesFree, paid: t.membership.featureSavedAddressesPaid },
+    repostWindow: { free: t.membership.featureRepostWindowFree, paid: t.membership.featureRepostWindowPaid },
   };
 
   function FeatureCell({ value, text }: { value: boolean; text?: string }) {

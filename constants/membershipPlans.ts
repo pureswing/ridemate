@@ -31,7 +31,7 @@ export const DONOR_PACKAGE_ID: Record<(typeof DONOR_AMOUNTS)[number], string> = 
 // AI report rows were dropped (none of those are gated anywhere in the app).
 // `hasText` rows render their i18n free/paid strings instead of a check/x icon.
 export interface PlanFeatureRow {
-  key: 'postBrowse' | 'messaging' | 'savedAddresses' | 'earlyAccess' | 'routeIntel' | 'communityFeedback' | 'dashboardInsights';
+  key: 'postBrowse' | 'messaging' | 'savedAddresses' | 'repostWindow' | 'earlyAccess' | 'routeIntel' | 'communityFeedback' | 'dashboardInsights';
   free: boolean;
   paid: boolean;
   hasText?: boolean;
@@ -41,6 +41,9 @@ export const PLAN_FEATURES: PlanFeatureRow[] = [
   { key: 'postBrowse', free: true, paid: true },
   { key: 'messaging', free: true, paid: true },
   { key: 'savedAddresses', free: true, paid: true, hasText: true },
+  // How long an expired post stays re-postable — enforced server-side by
+  // expire-unconfirmed-posts (070_post_expiry_and_repost.sql).
+  { key: 'repostWindow', free: true, paid: true, hasText: true },
   { key: 'earlyAccess', free: false, paid: true },
   // RouteIntelligenceCard (ride/package/hauling detail screens) is gated
   // on isDonor — see supabase/migrations/042_route_intelligence.sql.

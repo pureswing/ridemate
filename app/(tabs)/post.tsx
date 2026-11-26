@@ -1,4 +1,5 @@
 import { View, ScrollView } from 'react-native';
+import { TouchableOpacity } from '@/components/ui/TouchableOpacity';
 import { LinearGradient } from 'expo-linear-gradient';
 import { StatusBar } from 'expo-status-bar';
 import { router } from 'expo-router';
@@ -112,6 +113,11 @@ export default function PostChooserScreen() {
             </View>
           </Card>
         ))}
+        <TouchableOpacity onPress={() => router.push('/post/repost')} style={{ alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 12 }}>
+          <Text style={{ fontFamily: fonts.bodySemibold, fontSize: 13, color: theme.primary, textDecorationLine: 'underline' }}>
+            {t.repost.chooserLink}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );

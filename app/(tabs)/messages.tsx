@@ -21,6 +21,7 @@ import { useRideAgreements } from '@/hooks/useRideAgreements';
 import { useDonorStatus } from '@/hooks/useDonorStatus';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { systemMessageText } from '@/utils/systemMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Conversation, Message, RideAgreement } from '@/types';
 import { fonts, radii, shadows } from '@/constants/themes';
@@ -130,7 +131,7 @@ function ConversationRow({ conversation, myId, agreement, insured, donor }: { co
           fontFamily: unread > 0 ? fonts.bodySemibold : fonts.bodyRegular, fontSize: 13,
           color: unread > 0 ? theme.text : theme.muted,
         }}>
-          {lastMessage?.body ? renderBodyWithBoldPrice(lastMessage.body) : t.messages.noMessagesYet}
+          {lastMessage?.body ? renderBodyWithBoldPrice(systemMessageText(lastMessage.body, t)) : t.messages.noMessagesYet}
         </Text>
       </View>
     </TouchableOpacity>

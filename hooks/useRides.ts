@@ -273,5 +273,25 @@ export function useRides() {
     return data as RidePost;
   }
 
-  return { fetchPosts, createPost, uploadRouteMap, uploadHaulingPhoto, getPostById, getPostsByUser, getRoutePriceStats, getPlatformPriceSampleSize, revealContact, incrementPostViews, cancelPost, updatePost };
+  // The caller's own expired posts, still inside their grace window (the
+  // cron hard-deletes them once it closes) — the Re-post screen's list.
+  async function getExpiredPosts(userId: string): Promise<RidePost[]> {
+    const { data, error } = await supabase
+      .from('ride_posts')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('status', 'expired')
+      .order('expired_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as RidePost[];
+  }
+
+  // Discard an expired post before its window closes. A real DELETE (unlike
+  // cancelPost) — the same thing the cron does at the deadline.
+  async function deleteExpiredPost(id: string) {
+    const { error } = await supabase.from('ride_posts').delete().eq('id', id).eq('status', 'expired');
+    if (error) throw error;
+  }
+
+  return { getExpiredPosts, deleteExpiredPost, fetchPosts, createPost, uploadRouteMap, uploadHaulingPhoto, getPostById, getPostsByUser, getRoutePriceStats, getPlatformPriceSampleSize, revealContact, incrementPostViews, cancelPost, updatePost };
 }

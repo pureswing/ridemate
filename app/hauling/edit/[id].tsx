@@ -45,7 +45,12 @@ function canEditPost(post: RidePost): boolean {
 }
 
 export default function EditHaulingScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, repost } = useLocalSearchParams<{ id: string; repost?: string }>();
+  // Opened from the Re-post screen (app/post/repost.tsx) for an expired post:
+  // skips the 2-hours-before lock (its date is in the past by definition),
+  // starts with an empty date/time so a new one must be picked, and saving
+  // flips it back to active (070_post_expiry_and_repost.sql resets it).
+  const isRepost = repost === '1';
   const theme = useTheme();
   const t = useTranslation();
   const insets = useSafeAreaInsets();
@@ -146,7 +151,7 @@ export default function EditHaulingScreen() {
         setInfoSheet({ title: t.post.errorTitle, message: t.common.postNotFound, fatal: true });
         return;
       }
-      if (!canEditPost(post)) {
+      if (!(isRepost && post.status === 'expired') && !canEditPost(post)) {
         setOriginal(post);
         setLocked(true);
         setPageLoading(false);
@@ -182,8 +187,8 @@ export default function EditHaulingScreen() {
     }
 
     const d = new Date(post.scheduled_at);
-    setDate(dateToDateString(d));
-    setTime(dateToTimeString(d));
+    setDate(isRepost ? '' : dateToDateString(d));
+    setTime(isRepost ? '' : dateToTimeString(d));
 
     setDonation(post.suggested_donation != null ? String(post.suggested_donation) : '');
     setPriceMode(post.price_mode ?? 'open');
@@ -302,6 +307,7 @@ export default function EditHaulingScreen() {
       await updatePost(
         original.id,
         {
+          ...(isRepost ? { status: 'active' as const } : {}),
           origin_city: originCity,
           origin_address: originAddress || undefined,
           origin_lat: originLat,
@@ -396,13 +402,13 @@ export default function EditHaulingScreen() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }}>
           <IconButton icon="close" variant="glass" label={t.post.close} onPress={() => setShowDiscardConfirm(true)} />
           <Text style={{ fontFamily: fonts.bodyBold, fontSize: 11, textTransform: 'uppercase', letterSpacing: letterSpacingFor(11, tracking.wide), color: theme.gold300 }}>
-            {t.post.editRideEyebrow}
+            {isRepost ? t.repost.eyebrow : t.post.editRideEyebrow}
           </Text>
           <View style={{ width: 44 }} />
         </View>
         <View style={{ paddingHorizontal: 20, paddingTop: 10, alignItems: 'center' }}>
           <Text style={{ fontFamily: fonts.displayBold, fontSize: 26, letterSpacing: letterSpacingFor(26, tracking.tight), color: theme.cream, textAlign: 'center' }}>
-            Edit your hauling post
+            {isRepost ? t.repost.editTitle : t.post.editHaulingTitle}
           </Text>
         </View>
       </LinearGradient>
@@ -665,7 +671,7 @@ export default function EditHaulingScreen() {
 
       <View style={{ borderTopWidth: 1, borderTopColor: theme.cardBorder, backgroundColor: theme.surface, padding: 16, paddingBottom: insets.bottom + 16 }}>
         <Button variant="primary" size="lg" fullWidth disabled={!ready || saving || uploadingPhoto} onPress={handleSave}>
-          {saving ? t.post.saving : t.post.saveChanges}
+          {saving ? t.post.saving : isRepost ? t.repost.publishAgain : t.post.saveChanges}
         </Button>
       </View>
 

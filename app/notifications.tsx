@@ -35,6 +35,11 @@ const TYPE_META: Record<NotificationType, { icon: IconName; color: string; bg: s
   agreement_completed: { icon: 'check_circle', color: '#0A7E77', bg: '#E6FAF8' },
   badge_received: { icon: 'sparkles', color: '#D9B871', bg: '#D9B8711F' },
   trip_update: { icon: 'warning', color: '#9E4A14', bg: 'rgba(224,123,57,0.14)' },
+  // 070_post_expiry_and_repost.sql / expire-unconfirmed-posts
+  post_expired: { icon: 'history', color: '#ED4A2B', bg: '#FFF1ED' },
+  post_expiring: { icon: 'warning', color: '#9E4A14', bg: 'rgba(224,123,57,0.14)' },
+  post_reposted: { icon: 'history', color: '#0A7E77', bg: '#E6FAF8' },
+  no_offers: { icon: 'sparkles', color: '#D9B871', bg: '#D9B8711F' },
 };
 
 const TRIP_UPDATE_DETAIL_PATH: Record<string, string> = {
@@ -103,7 +108,11 @@ export default function NotificationsScreen() {
       router.push('/(tabs)/messages');
     } else if (n.type === 'badge_received') {
       router.push('/(tabs)/profile');
-    } else if (n.type === 'trip_update' && n.data.post_id) {
+    } else if (n.type === 'post_expired' || n.type === 'post_expiring') {
+      router.push('/post/repost');
+    } else if (n.type === 'post_reposted' && n.data.conversation_id) {
+      router.push({ pathname: '/messages/[id]', params: { id: n.data.conversation_id as string } });
+    } else if ((n.type === 'trip_update' || n.type === 'no_offers') && n.data.post_id) {
       const pathname = TRIP_UPDATE_DETAIL_PATH[n.data.post_kind as string] ?? '/ride/[id]';
       router.push({ pathname: pathname as any, params: { id: n.data.post_id as string } });
     }

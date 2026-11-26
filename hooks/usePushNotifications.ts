@@ -68,8 +68,12 @@ export function usePushNotifications(userId: string | undefined) {
         post_id?: string;
         post_kind?: string;
         conversation_id?: string;
+        screen?: string;
       };
-      if (data?.conversation_id) {
+      // Expiry pushes (expire-unconfirmed-posts) open the Re-post screen.
+      if (data?.screen === 'repost') {
+        router.push('/post/repost');
+      } else if (data?.conversation_id) {
         router.push({ pathname: '/messages/[id]', params: { id: data.conversation_id } });
       } else if (data?.post_id) {
         const pathname = POST_KIND_DETAIL_PATH[data.post_kind as string] ?? '/ride/[id]';

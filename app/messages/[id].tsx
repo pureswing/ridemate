@@ -24,6 +24,7 @@ import { useVehicleProfile } from '@/hooks/useVehicleProfile';
 import { usePublicProfile } from '@/hooks/usePublicProfile';
 import { useTheme } from '@/hooks/useTheme';
 import { useTranslation } from '@/hooks/useTranslation';
+import { systemMessageText } from '@/utils/systemMessages';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Conversation, Message, RideAgreement, TripRecord, VehicleProfile } from '@/types';
 import { fonts, radii, shadows } from '@/constants/themes';
@@ -428,7 +429,10 @@ function staleReasonFor(conversation: Conversation | null, agreement: RideAgreem
   const postStatus = conversation?.post?.status;
   const amConfirmedParty = agreement?.status === 'active' || agreement?.status === 'completed';
   if (agreement?.status === 'cancelled' || agreement?.status === 'no_show') return 'jobCancelled';
-  if (postStatus === 'expired' || postStatus === 'cancelled') return 'gone';
+  // 'expired' is NOT stale anymore (070_post_expiry_and_repost.sql): the
+  // post sits in its owner's re-post window and the thread is kept, so it
+  // must not trigger the close-and-delete sheet. Only cancelled posts do.
+  if (postStatus === 'cancelled') return 'gone';
   if (postStatus === 'filled' && !amConfirmedParty) return 'taken';
   return null;
 }
@@ -681,6 +685,9 @@ export default function ConversationScreen() {
   const isOwner = conversation.post_owner_id === myId;
   const otherParty = isOwner ? conversation.requester : conversation.post_owner;
   const post = conversation.post;
+  // Expired but still re-postable — the chat stays open, offers can't be
+  // accepted until the owner re-posts it with a new date.
+  const postExpired = post?.status === 'expired';
   const status = !agreement
     ? { tone: 'accent' as const, label: t.agreement.statusActive }
     : agreement.status === 'completed'
@@ -721,6 +728,14 @@ export default function ConversationScreen() {
       </LinearGradient>
 
       <View style={{ flex: 1 }}>
+        {postExpired && (
+          <View style={{ marginHorizontal: 16, marginTop: 12, padding: 12, borderRadius: radii.md, backgroundColor: theme.primary + '14', borderWidth: 1, borderColor: theme.primary + '33', flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+            <Icon name="history" size={18} color={theme.primary} />
+            <Text style={{ flex: 1, fontFamily: fonts.bodyMedium, fontSize: 12.5, color: theme.textSecondary, lineHeight: 18 }}>
+              {isOwner ? t.repost.chatExpiredOwner : t.repost.chatExpiredOther}
+            </Text>
+          </View>
+        )}
         <FlatList
           ref={listRef}
           data={messages}
@@ -757,7 +772,7 @@ export default function ConversationScreen() {
                     backgroundColor: theme.driverSoft, borderWidth: 1, borderColor: theme.driverBorder,
                   }}>
                     <Text style={{ fontFamily: fonts.bodyBold, fontSize: 12.5, color: theme.driverText, textAlign: 'center' }}>
-                      {item.body}
+                      {systemMessageText(item.body, t)}
                     </Text>
                   </View>
                 </View>
@@ -803,7 +818,7 @@ export default function ConversationScreen() {
             gesture-nav gap the input row's own paddingBottom already reserves
             for when the keyboard is closed. */}
         <Animated.View style={kbSpacerStyle}>
-          {isOwner && !agreement && post?.type === 'offer' ? (
+          {isOwner && !agreement && !postExpired && post?.type === 'offer' ? (
             // Pooling 'offer' post — I'm the driver reviewing a rider's
             // request. They have no vehicle relevant to this trip, so no
             // vehicle card — just who they are + accept/decline.
@@ -825,8 +840,8 @@ export default function ConversationScreen() {
               partyAvatar={otherParty?.avatar_url}
               theme={theme}
               t={t}
-              onAccept={isOwner && !agreement ? () => setShowAcceptSheet(true) : undefined}
-              onDecline={isOwner && !agreement ? () => setShowDeclineSheet(true) : undefined}
+              onAccept={isOwner && !agreement && !postExpired ? () => setShowAcceptSheet(true) : undefined}
+              onDecline={isOwner && !agreement && !postExpired ? () => setShowDeclineSheet(true) : undefined}
               accepting={accepting}
               // Plate is PII — only the post creator sees it, and only here,
               // inside their own active chat thread with the driver (never

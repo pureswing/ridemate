@@ -224,6 +224,11 @@ export interface RidePost {
   original_suggested_donation?: number;
   info_updated?: boolean;
   edited_at?: string;
+  // Set by the expire-unconfirmed-posts cron when status flips to 'expired'
+  // (070_post_expiry_and_repost.sql); the Re-post screen counts the grace
+  // window from it.
+  expired_at?: string | null;
+  reposted_at?: string | null;
   profile?: Pick<Profile, 'full_name' | 'avatar_url' | 'default_role'> & {
     // Joined so RideCard can show Avatar's `verified` badge — self-certified
     // insurance only (VehicleProfile.insurance_self_certified), never a
@@ -453,7 +458,8 @@ export interface VehicleProfile {
 // badge received, trip update), never inserted directly by the client.
 // `data` carries whatever ids the notification deep-links to
 // (conversation_id, agreement_id, post_id...).
-export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received' | 'trip_update';
+export type NotificationType = 'message' | 'agreement_created' | 'agreement_completed' | 'badge_received' | 'trip_update'
+  | 'post_expired' | 'post_expiring' | 'post_reposted' | 'no_offers';
 
 export interface AppNotification {
   id: string;
